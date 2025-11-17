@@ -1,0 +1,41 @@
+<!DOCTYPE HTML PUBLIC "-//W3C//DTD HTML 4.01 Transitional//EN">
+<html><head>
+
+
+  <meta content="text/html; charset=ISO-8859-1" http-equiv="content-type">
+  <title>MATEDA</title>
+</head><body>
+<h2 style="text-align: center;"><font><font style="color: rgb(51, 102, 255); font-family: serif; font-weight: bold;" size="+1"><font><font style="color: rgb(51, 102, 255); font-family: serif; font-weight: bold;" size="+1">Matlab toolbox for&nbsp;</font></font>Estimation of
+Distribution Algorithms&nbsp; (MATEDA)</font></font></h2>
+<br>
+<br>
+MATEDA implements a number of EDAs commonly found in the literature.
+These programs are conceived to help in the initial validation of EDA
+approaches to different problems. Current implementation includes EDAs
+for discrete and continuous problems. EDAs based on Bayesian and
+undirected graphical models have been included. The software is not
+warranteed in any way. <br>
+<br>
+<ul>
+  <li><a href="http://www.sc.ehu.es/ccwbayes/members/rsantana/software/matlab/MATEDADescription.html">MATEDA description</a></li>
+  <li><a href="http://www.sc.ehu.es/ccwbayes/members/rsantana/software/matlab/HowToMATEDA.html">How to use the toolbox</a></li>
+  <li><a href="http://www.sc.ehu.es/ccwbayes/members/rsantana/software/matlab/Examples.html">Examples of MATEDA applications</a></li>
+  <li><a href="http://www.sc.ehu.es/ccwbayes/members/rsantana/software/matlab/IntEDA.tar.gz">Download</a></li>
+  <li><a href="http://www.sc.ehu.es/ccwbayes/members/rsantana/software/matlab/UsefulBibliography.html">Some useful bibliography&nbsp;</a>
+&nbsp; (<a href="http://www.citeulike.org/user/rsantana/tag/edas">More
+references in CiteULike</a>)</li>
+  <li><a href="http://www.sc.ehu.es/ccwbayes/EDA/EDAOverviewinaki.html">An
+overview of EDAs</a></li>
+  <li><a href="http://www.sc.ehu.es/ccwbayes/EDAlinks.htm">EDAs links </a>&nbsp;
+&nbsp; &nbsp; &nbsp; &nbsp;(<a href="http://del.icio.us/roberto_santana/EDAs-Researchers">More links
+in
+del.icio.us.com</a>)</li>
+  <li>Reporting bugs and comments<a href="mailto:rsantana@si.ehu.es"><img style="border: 0px solid ; width: 35px; height: 23px;" alt="email" src="MATEDA_files/email1.jpg"></a></li>
+</ul>
+<br>
+&nbsp;<br>
+<div style="text-align: center;">&nbsp; &nbsp; &nbsp; &nbsp; <a href="http://www.sc.ehu.es/ccwbayes/members/rsantana/index.htm">Back to main page <br>
+</a></div>
+<br>
+<br>
+</body></html>
