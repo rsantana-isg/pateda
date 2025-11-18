@@ -34,3 +34,6 @@ sphinx-rtd-theme>=1.0.0
 # Optional performance
 # numba>=0.55.0  # Uncomment for JIT compilation
 # pomegranate>=0.14.0  # Alternative probabilistic models library
+
+# Vine copulas (for continuous EDAs)
+pyvinecopulib>=0.6.0  # Required for vine copula-based EDAs
