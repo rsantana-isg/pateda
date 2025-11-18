@@ -35,14 +35,15 @@ function[MPEs] = Most_probable_explanations(bnets,func)
 % X=[1:maxgen];
 % plot(X,fo_mpes);
 %
-% Last version 5/11/08. Carlos Echegoyen and Roberto Santana(carlos.echegoyen@ehu.es) 
+% Version 5/11/08. Carlos Echegoyen and Roberto Santana
+% Last version 12/21/2020. Roberto Santana (roberto.santana@ehu.es)    
 
 k = size(bnets,2); % Number of net
 num_vars = size(bnets{1}.dnodes,2); % Number of variables
 
 for i=1:k
    [mpe_solution,prob_value] =  FindMPE(bnets{i});
-    MPEs{1,i} = cell2num(mpe_solution)-1;
+    MPEs{1,i} = cell2mat(mpe_solution)-1;
     MPEs{2,i} = prob_value;
     MPEs{3,i} = feval(func,MPEs{1,i});
 end

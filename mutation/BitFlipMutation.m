@@ -14,13 +14,14 @@ function [NewPop] = BitFlipMutation(NumbVar,Card,AuxPop,mutation_params)
 % OUTPUTS
 % NewPop: Population with mutated individuals
 %
-% Last version 11/7/2013. Roberto Santana (roberto.santana@ehu.es)  
+%
+% Last version 12/21/2020. Roberto Santana (roberto.santana@ehu.es)    
 
 
  N = size(AuxPop,1); % Number of individuals
  NewPop = AuxPop;
  
- mutProb = cell2num(mutation_params{1}(1));
+ mutProb = cell2mat(mutation_params{1}(1));
  
  MutMask = find(rand(N,NumbVar) < mutProb); % Determines which solutions will be mutated
  

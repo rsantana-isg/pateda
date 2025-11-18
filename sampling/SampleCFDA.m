@@ -12,9 +12,9 @@ function [NewPop] = SampleFDA(NumbVar,model,Card,AuxPop,AuxFunVal,sampling_param
 % OUTPUTS
 % NewPop: Sampled individuals
 %
-% Last version 8/26/2008. Roberto Santana (roberto.santana@ehu.es)    
+% Last version 12/21/2020. Roberto Santana (roberto.santana@ehu.es)    
 
-N = cell2num(sampling_params{1}(1)); 
+N = cell2mat(sampling_params{1}(1)); 
 
 Cliques = model{1};
 Tables = model{2};

@@ -13,10 +13,10 @@ function[NewPop] = SampleBN(NumbVar,bnet,Card,AuxPop,AuxFunVal,sampling_params)
 % OUTPUTS
 % NewPop: Sampled individuals
 %
-% Last version 8/26/2008. Roberto Santana (roberto.santana@ehu.es)       
+% Last version 12/21/2020. Roberto Santana (roberto.santana@ehu.es)       
 
-PopSize = cell2num(sampling_params{1}(1)); 
+PopSize = cell2mat(sampling_params{1}(1)); 
 for i=1:PopSize
- NewPop(i,:) = cell2num(sample_bnet(bnet))-1;
+ NewPop(i,:) = cell2mat(sample_bnet(bnet))-1;
 end
  

@@ -10,6 +10,6 @@ function [NewPop] = seed_thispop(NumbVar,PopSize,Card,sampling_params)
 % OUTPUTS
 % NewPop: Sampled individuals
 %
-% Last version 8/26/2008. Roberto Santana (roberto.santana@ehu.es)       
+% Last version 12/21/2020. Roberto Santana (roberto.santana@ehu.es)    
 
-NewPop = cell2num(sampling_params{1}(1));
+NewPop = cell2mat(sampling_params{1}(1));

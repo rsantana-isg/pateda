@@ -4,7 +4,7 @@
  HPInitConf =  [zeros(1,12),1,0,1,0,1,1,0,0,1,1,0,0,1,1,0,1,1,0,0,1,1,0,0,1,1,0,1,1,0,0,1,1,0,0,1,1,0,1,0,1,zeros(1,12)]; 
  % The number of variables is equal to the sequence length and each
  % variables takes values in {0,1,2}
- PopSize = 1000; NumbVar = size(HPInitConf,2); cache  = [1,1,1,1,1]; Card = 3*ones(1,NumbVar);   maxgen = 300;
+ PopSize = 1000; NumbVar = size(HPInitConf,2); cache  = [1,1,1,1,1]; Card = 3*ones(1,NumbVar);   maxgen = 50;
  F = 'EvaluateEnergy'; % HP protein evaluation function
 
  edaparams{1} = {'learning_method','LearnTreeModel',{}};

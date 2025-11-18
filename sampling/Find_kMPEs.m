@@ -18,7 +18,7 @@ function[k_solutions,k_probvalues] =  Find_kMPEs(bnet,k,Card)
 % k_solutions: List of k most probable configurations
 % k_probvalues: Probalities given to each configuration during the process
 %               (Not necessarily the exact probabilities given by the original JT)
-% Last version 8/26/2008. Roberto Santana (roberto.santana@ehu.es)       
+% Last version 12/21/2020. Roberto Santana (roberto.santana@ehu.es)       
 
 n = size(Card,2); % Number of variables
 [AccCard] = FindAccCard(n,Card);
@@ -55,7 +55,7 @@ JT = jtree_inf_engine(bnet, 'maximize', 1);  % The original JT is found from the
       end,
        
       best_conf = k_solutions(first,:);   %find_mpe(Best_JT,auxvar);
-        [valindex] = NumconvertCard(cell2num(k_solutions(first,:))-1,n,AccCard)+1;
+        [valindex] = NumconvertCard(cell2mat(k_solutions(first,:))-1,n,AccCard)+1;
     
        
       for i=Marca+1:n
@@ -67,9 +67,9 @@ JT = jtree_inf_engine(bnet, 'maximize', 1);  % The original JT is found from the
              % but also negative evidence (p(x_i)=0) 
              for j=1:i,
 		       if (j<i) 
-                 auxvar{j} = cell2num(best_conf(j));  
+                 auxvar{j} = cell2mat(best_conf(j));  
                else
-                 auxvar{j} = (3 - cell2num(best_conf(j)));
+                 auxvar{j} = (3 - cell2mat(best_conf(j)));
                end
              end
            
@@ -88,6 +88,6 @@ JT = jtree_inf_engine(bnet, 'maximize', 1);  % The original JT is found from the
     end
  end
  
- k_solutions = cell2num(k_solutions);
+ k_solutions = cell2mat(k_solutions);
   return
   

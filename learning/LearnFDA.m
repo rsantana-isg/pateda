@@ -17,10 +17,10 @@ function[model] = LearnFDA(k,NumbVar,Card,SelPop,AuxFunVal,learning_params)
 %        Cliques is the structure of the model in a list of cliques that defines the  
 %        Tables: Probability tables for each variable conditioned on its neighbors
 %
-% Last version 8/26/2008. Roberto Santana (roberto.santana@ehu.es)       
+% Last version 12/21/2020. Roberto Santana (roberto.santana@ehu.es)       
 
 
-Cliques =  cell2num(learning_params{1}(1)); 
+Cliques =  cell2mat(learning_params{1}(1)); 
 Tables = LearnFDAParameters(Cliques,SelPop,NumbVar,Card);
  
 model{1} = Cliques;

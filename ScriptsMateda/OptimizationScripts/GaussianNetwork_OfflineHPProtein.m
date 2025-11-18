@@ -5,14 +5,14 @@
  global HPInitConf;
  HPInitConf = CreateFibbInitConf(Fibbonacci_n); % HP Fibbonacci configuration 
  NumbVar = size(HPInitConf,2);
- PopSize = 200; 
+ PopSize = 20; 
  F = 'EvaluateOffHPProtein';
  cache = [1,1,1,1,1]; Card = [zeros(1,NumbVar);2*pi*ones(1,NumbVar)];
  BN_params(1:6) = {'k2',10,0.05,'pearson','bic','no'};
  edaparams{1} = {'learning_method','LearnGaussianNetwork',BN_params};
  edaparams{2} = {'sampling_method','SampleBN',{PopSize,1}};
  edaparams{3} = {'repairing_method','SetInBounds_repairing',{}};
- edaparams{4} = {'stop_cond_method','max_gen',{50}};
+ edaparams{4} = {'stop_cond_method','max_gen',{15}};
   [AllStat,Cache]=RunEDA(PopSize,NumbVar,F,Card,cache,edaparams); 
  % To draw the resulting solution use function OffPrintProtein(vector),
  % where vector is the best solution found.

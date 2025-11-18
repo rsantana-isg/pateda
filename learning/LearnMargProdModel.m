@@ -14,9 +14,9 @@ function [model] = LearnMargProdModel(k,NumbVar,Card,SelPop,AuxFunVal,learning_p
 % model: Markov network model containing the structure (model{1} = Cliques)
 %        and the parameters (model{2} = Tables)
 %
-% Last version 8/26/2008. Roberto Santana (roberto.santana@ehu.es)       
+% Last version 12/21/2020. Roberto Santana (roberto.santana@ehu.es)       
 
-        sizeconstraint =  cell2num(learning_params{1}(1)); 
+        sizeconstraint =  cell2mat(learning_params{1}(1)); 
 
         % Univariate and Bivariate probabilities are learned   
         [UnivProb,BivProb]= FindMargProb(SelPop,NumbVar,Card);

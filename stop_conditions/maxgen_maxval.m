@@ -12,10 +12,10 @@ function[continue_evolution]=maxgen_maxval(currentgen,currentPop,currentFunVal,s
 % OUTPUTS
 % continue_evolution= {1,0}  to determine whether to continue with the EDA or stop
 %
-% Last version 8/26/2008. Roberto Santana (roberto.santana@ehu.es)
+% Last version 12/21/2020. Roberto Santana (roberto.santana@ehu.es)    
 
-CantGen = cell2num(stop_cond_params{1}(1));
-MaxVal = cell2num(stop_cond_params{1}(2));
+CantGen = cell2mat(stop_cond_params{1}(1));
+MaxVal = cell2mat(stop_cond_params{1}(2));
 
 continue_evolution = (max(currentFunVal(:,1))<MaxVal) & (currentgen<CantGen);
  

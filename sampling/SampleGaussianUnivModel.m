@@ -14,10 +14,10 @@ function [NewPop] =  SampleGaussianUnivModel(NumbVar,model,RangeValues,AuxPop,Au
 % OUTPUTS
 % NewPop: Sampled individuals
 %
-% Last version 8/26/2008. Roberto Santana (roberto.santana@ehu.es)  
+% Last version 12/21/2020. Roberto Santana (roberto.santana@ehu.es)  
 
 
-PopSize = cell2num(sampling_params{1}(1)); 
+PopSize = cell2mat(sampling_params{1}(1)); 
 
 vars_means = model{1};
 vars_sigmas = model{2};

@@ -28,7 +28,7 @@ function [model] = LearnMOAModel(k,NumbVar,Card,SelPop,AuxFunVal,learning_params
 % model: Markov network model containing the structure (model{1} = Cliques)
 %        and the parameters (model{2} = Tables)
 %
-% Last version 8/26/2008. Roberto Santana (roberto.santana@ehu.es)       
+% Last version 12/21/2020. Roberto Santana (roberto.santana@ehu.es)       
  
 
 
@@ -36,13 +36,13 @@ auxcell = learning_params{1}(1);
 if isemptycell(auxcell)
   Cliques =  [];   
 else
-  Cliques = cell2num(learning_params{1}(1));
+  Cliques = cell2mat(learning_params{1}(1));
 end
 
-Nneighbors = cell2num(learning_params{1}(2)); 
-threshold = cell2num(learning_params{1}(3)); 
+Nneighbors = cell2mat(learning_params{1}(2)); 
+threshold = cell2mat(learning_params{1}(3)); 
 TypeAnnealing = char(cellstr(learning_params{1}(4))); 
-Temp = cell2num(learning_params{1}(5)); 
+Temp = cell2mat(learning_params{1}(5)); 
 
    if isempty(Cliques)      
       % Univariate and Bivariate probabilities are learned   

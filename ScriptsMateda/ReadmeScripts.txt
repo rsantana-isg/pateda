@@ -1,4 +1,4 @@
-% This directory contains examples of the application of MATEDA-2.0 to the optimization
+% This directory contains examples of the application of MATEDA-3 to the optimization
 % of different optimization problems with EDAs.
 % There are three types of scripts grouped in three main directories.
 
@@ -9,4 +9,4 @@
  
 
 %
-% Last version 11/19/2009. Roberto Santana (roberto.santana@upm.es)       
+% Last version 12/22/2020. Roberto Santana (roberto.santana@ehu.es)       

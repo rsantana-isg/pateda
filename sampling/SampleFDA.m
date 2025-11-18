@@ -14,7 +14,7 @@ function [NewPop] = SampleFDA(NumbVar,model,Card,AuxPop,AuxFunVal,sampling_param
 %
 % Last version 8/26/2008. Roberto Santana (roberto.santana@ehu.es)    
 
-N = cell2num(sampling_params{1}(1)); 
+N = cell2mat(sampling_params{1}(1)); 
 
 Cliques = model{1}; % Cliques contains the structural description of the model, the factors
 Tables = model{2};  % For each clique, model contains the marginal or conditional probabilistic tables

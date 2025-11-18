@@ -19,10 +19,10 @@ function [NewPop] =  SampleMixtureofFullGaussianModels(NumbVar,model,RangeValues
 % OUTPUTS
 % NewPop: Sampled individuals
 %
-% Last version 8/26/2008. Roberto Santana (roberto.santana@ehu.es)  
+% Last version 12/21/2020. Roberto Santana (roberto.santana@ehu.es)  
 
-PopSize = cell2num(sampling_params{1}(1)); 
-var_scaling = cell2num(sampling_params{1}(2)); 
+PopSize = cell2mat(sampling_params{1}(1)); 
+var_scaling = cell2mat(sampling_params{1}(2)); 
 
 nclusters = size(model,2);
 for j=1:nclusters

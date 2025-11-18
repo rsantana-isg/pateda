@@ -22,11 +22,13 @@ function [NewPop] = SampleSymmetricBlindBlockCrossover(NumbVar,model,Card,AuxPop
 % OUTPUTS
 % NewPop: Sampled individuals
 %
+%
+% Last version 12/21/2020. Roberto Santana (roberto.santana@ehu.es)    
 
 % Input parameters are recovered
-N = cell2num(sampling_params{1}(1));               % Number of solutions to sample 
-SymmetryIndex = cell2num(sampling_params{1}(2));   % Structure of the equivalence classes  
-mutProb = cell2num(sampling_params{1}(3));         % Mutation probability [Probability of applying bit-flip to a single variable i] 
+N = cell2mat(sampling_params{1}(1));               % Number of solutions to sample 
+SymmetryIndex = cell2mat(sampling_params{1}(2));   % Structure of the equivalence classes  
+mutProb = cell2mat(sampling_params{1}(3));         % Mutation probability [Probability of applying bit-flip to a single variable i] 
 
 NClasses = size(SymmetryIndex,1);  % Number of classes (each class is a symmetric component)
 SizClass = size(SymmetryIndex,2); % Number of elements in the symmetric component 

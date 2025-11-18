@@ -23,13 +23,14 @@ function [NewPop] = CXTransposition(NumbVar,model,Card,AuxPop,AuxFunVal,sampling
 % NewPop: Sampled individuals
 %
 % 
-% Last version 11/7/2013. Roberto Santana (roberto.santana@ehu.es) following 
+% Version 11/7/2013. Roberto Santana (roberto.santana@ehu.es) following 
 % Symmetry in evolutionary and estimation of distribution algorithms.
 % (Santana, McKay, Lozano: 2013)  2013 IEEE Congress on Evolutionary
 % Computation (CEC).  http://ieeexplore.ieee.org/xpls/abs_all.jsp?arnumber=6557811&tag=1
+% Last version 12/21/2020. Roberto Santana (roberto.santana@ehu.es)    
 
 % Input parameters are recovered
-N = cell2num(sampling_params{1}(1));               % Number of solutions to sample 
+N = cell2mat(sampling_params{1}(1));               % Number of solutions to sample 
 
 TrasnIndividuals = model{1};   % Indexes of individuals where transposition operator will be applied
 Len =  model{2};               % Length of each transposition

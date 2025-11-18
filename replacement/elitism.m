@@ -14,7 +14,8 @@ function [NewPop,NewFunVal] = elistism(Pop,SelPop,SampledPop,FunVal,SelFunVal,Sa
 % NewPop                        : New Population
 % NewFunVal                     : Evaluations of the new population
 %
-% Last version 8/26/2008. Roberto Santana (roberto.santana@ehu.es)       
+%
+% Last version 12/21/2020. Roberto Santana (roberto.santana@ehu.es)       
 
 
 PopSize = size(Pop,1);
@@ -22,7 +23,7 @@ SelPopSize = size(SelPop,1);
 SampledPopSize = size(SampledPop,1);
 
 
-k = cell2num(replacement_params{1}(1));
+k = cell2mat(replacement_params{1}(1));
 find_bestinds_method = char(cellstr(replacement_params{1}(2)));
 
 [Ind]  = eval([find_bestinds_method,'(Pop,FunVal)']);  %The k  best individuals are taken from Pop

@@ -28,14 +28,14 @@ function[] = simple_verbose(k,AllStat,verbose_params,auxedaparams)
 % OUTPUTS
 % AllStat: Array containing the statistics of the population
 %
-% Last version 8/26/2008. Roberto Santana (roberto.santana@ehu.es)       
+% Last version 12/21/2020. Roberto Santana (roberto.santana@ehu.es)       
 
 
  if(k==1)    
-    PopSize = cell2num(auxedaparams{1}(1));
-    n = cell2num(auxedaparams{1}(2));
+    PopSize = cell2mat(auxedaparams{1}(1));
+    n = cell2mat(auxedaparams{1}(2));
     F = char(cellstr(auxedaparams{1}(3)));
-    Card = cell2num(auxedaparams{1}(4));    
+    Card = cell2mat(auxedaparams{1}(4));    
     disp([sprintf('PopSize: %d',PopSize)]);
     disp([sprintf('Number of variables: %d',n)]);
     disp([sprintf('Function: %s',F)]);

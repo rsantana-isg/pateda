@@ -6,14 +6,16 @@ function[NewPop,NewFunVal,NumbEvals] =  Greedy_search_OffHP(k,Pop,FunVal,local_o
 % k: Current generation
 % Pop: Population
 % FunVal: Function values for each individual in the population
-% trials:  = cell2num(local_opt_params{1}(1)) number of local optimization
+% trials:  = cell2mat(local_opt_params{1}(1)) number of local optimization
 %         moves for each solution
 % OUTPUT:
 % NewPop: Population after local search
 % NewFunVal: Function values for the population optimized
 % NumbEvals: Number of evaluations made during the local optimization step
+%
+% Last version 12/21/2020. Roberto Santana (roberto.santana@ehu.es)    
 
-trials = cell2num(local_opt_params{1}(1));
+trials = cell2mat(local_opt_params{1}(1));
 
 N = size(Pop,1);
 NumbVar = size(Pop,2);

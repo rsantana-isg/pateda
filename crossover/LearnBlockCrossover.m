@@ -20,10 +20,12 @@ function [model] = LearnSymmetricBlindBlockCrossover(k,NumbVar,Card,SelPop,AuxFu
 %        structure  and (EnsembleOfModels{i}{2} = Tables)
 %        the tree parameters.
 %
+%
+% Last version 12/21/2020. Roberto Santana (roberto.santana@ehu.es)    
 
 % Input Parameters are recovered
-SymmetryIndex = cell2num(learning_params{1}(1));
-N = cell2num(learning_params{1}(2));  % We need to know how many new solutions will be  generated
+SymmetryIndex = cell2mat(learning_params{1}(1));
+N = cell2mat(learning_params{1}(2));  % We need to know how many new solutions will be  generated
 
 NClasses = size(SymmetryIndex,1);  % Number of classes (each class is a symmetric component)
 SizClass = size(SymmetryIndex,2);  % Number of elements in the symmetric component 

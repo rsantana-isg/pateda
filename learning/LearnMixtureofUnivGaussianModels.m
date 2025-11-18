@@ -24,13 +24,13 @@ function [model] = LearnMixtureofUnivGaussianModels(k,NumbVar,Card,AuxPop,AuxFun
 %        model{2,i} = stardard deviation of the variables for solutions in cluster i
 %        model{3,i} = size(ind,1)/PopSize;    % Coefficient of component i
 %
-% Last version 8/26/2008. Roberto Santana (roberto.santana@ehu.es)  
+% Last version 12/21/2020. Roberto Santana (roberto.santana@ehu.es)  
  
 what_to_cluster = char(cellstr(learning_params{1}(1)));
 how_to_cluster =  char(cellstr(learning_params{1}(2)));
-nclusters = cell2num(learning_params{1}(3));
+nclusters = cell2mat(learning_params{1}(3));
 distance = char(cellstr(learning_params{1}(4)));
-normalization = cell2num(learning_params{1}(5));
+normalization = cell2mat(learning_params{1}(5));
 
 PopSize = size(AuxPop,1);
 

@@ -18,12 +18,12 @@ function [NewPop] = SampleTwoPointCrossover(NumbVar,model,Card,AuxPop,AuxFunVal,
 % OUTPUTS
 % NewPop: Sampled individuals
 %
-% Last version 11/7/2013. Roberto Santana (roberto.santana@ehu.es)  
+% Last version 12/21/2020. Roberto Santana (roberto.santana@ehu.es)    
 
 
 [NewPop] = CXTwoPoint(NumbVar,model,Card,AuxPop,AuxFunVal,sampling_params);
 
-mutOperator = cell2num(sampling_params{1}(2));      % Type of mutation to be applied 
+mutOperator = cell2mat(sampling_params{1}(2));      % Type of mutation to be applied 
 
 for i=3:size(sampling_params{1},2),                  % We assume that all parameters from 2 to the end are mutation parameters and pass them to mutation
   mutation_params{1}(i-2) = sampling_params{1}(i);

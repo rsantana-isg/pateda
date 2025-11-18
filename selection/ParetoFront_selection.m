@@ -13,11 +13,11 @@ function[SelPop,SelFunVal]=truncation_selection(Pop,FunVal,selection_params)
 % SelPop: Selected population
 % SelFunVal:  A vector of function evaluations for each selected individual
 %
-% Last version 8/26/2008. Roberto Santana (roberto.santana@ehu.es)       
+% Last version 12/21/2020. Roberto Santana (roberto.santana@ehu.es)       
  
    PopSize = size(Pop,1);
    
-   T = cell2num(selection_params{1}(1));   % The parameter used by truncation selection is the truncation parameter
+   T = cell2mat(selection_params{1}(1));   % The parameter used by truncation selection is the truncation parameter
    number_objectives = size(FunVal,2);
    SelPopSize = floor(T*PopSize);
    

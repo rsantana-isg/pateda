@@ -198,8 +198,8 @@ continue_evolution = 1;
 k = 1;
 AllStat = {};
 number_objectives = size(F,1);
-NewPopSize = cell2num(sampling_params{1}(1));
-CantGen = cell2num(stop_cond_params{1}(1));
+NewPopSize = cell2mat(sampling_params{1}(1));
+CantGen = cell2mat(stop_cond_params{1}(1));
 
 previous_t = cputime;
 

@@ -17,9 +17,10 @@ function [NewPop] = CXTwoPoint(NumbVar,model,Card,AuxPop,AuxFunVal,sampling_para
 % OUTPUTS
 % NewPop: Sampled individuals
 %
+% Last version 12/21/2020. Roberto Santana (roberto.santana@ehu.es)    
 
 % Input parameters are recovered
-N = cell2num(sampling_params{1}(1));               % Number of solutions to sample 
+N = cell2mat(sampling_params{1}(1));               % Number of solutions to sample 
 
 
 MatingPool = model{1};  % First column, list of first parents, second column, list of second parents. They may coincide, but highly

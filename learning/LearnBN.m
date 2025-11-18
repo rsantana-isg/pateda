@@ -27,15 +27,15 @@ function[bnet] =  LearnBN(k,NumbVar,Card,AuxPop,AuxFunVal,learning_params)
 % OUTPUTS
 % bnet: Bayesian network learned from the selected population 
 %
-% Last version 8/26/2008. Roberto Santana (roberto.santana@ehu.es)       
+% Last version 12/21/2020. Roberto Santana (roberto.santana@ehu.es)       
 
 TypeLearning = char(cellstr(learning_params{1}(1)));
-MaxParent = cell2num(learning_params{1}(2));
-alpha = cell2num(learning_params{1}(3));
+MaxParent = cell2mat(learning_params{1}(2));
+alpha = cell2mat(learning_params{1}(3));
 type_indeptest = char(cellstr(learning_params{1}(4)));
 scoring_fn = char(cellstr(learning_params{1}(5)));
 verbose = char(cellstr(learning_params{1}(6)));
-%given_order = cell2num(learning_params{1}(7));
+%given_order = cell2mat(learning_params{1}(7));
  
 SelPop = AuxPop'+1;  % For the bnet learning procedure, variables are rows and observations columns
                      % Entries in the matrix should be non-zero

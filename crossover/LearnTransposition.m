@@ -28,9 +28,10 @@ function [model] = LearnTransposition(k,NumbVar,Card,SelPop,AuxFunVal,learning_p
 %            transposition. model{3} the initial location of each transposition.  
 %            model{4} the offSets of each transposition% Input Parameters are recovered
 %
-% Last version 11/7/2013. Roberto Santana (roberto.santana@ehu.es)  
+%
+% Last version 12/21/2020. Roberto Santana (roberto.santana@ehu.es)    
 
-N = cell2num(learning_params{1}(1));  % We need to know how many new solutions will be  generated
+N = cell2mat(learning_params{1}(1));  % We need to know how many new solutions will be  generated
 
 
 NSel = size(SelPop,1); % Number of selected individuals

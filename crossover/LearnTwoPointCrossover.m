@@ -16,9 +16,11 @@ function [model] = LearnTwoPointCrossover(k,NumbVar,Card,SelPop,AuxFunVal,learni
 %             model{2} contains,  for each pair of solutions, the point
 %             where crossover is applied to
 %
+%
+% Last version 12/21/2020. Roberto Santana (roberto.santana@ehu.es)    
 
 % Input Parameters are recovered
-N = cell2num(learning_params{1}(1));  % We need to know how many new solutions will be  generated
+N = cell2mat(learning_params{1}(1));  % We need to know how many new solutions will be  generated
 
 
 NSel = size(SelPop,1); % Number of selected individuals

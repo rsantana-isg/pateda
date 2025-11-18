@@ -19,10 +19,10 @@ function[bnet] =  LearnGaussianNetwork(k,NumbVar,Card,AuxPop,AuxFunVal,learning_
 % OUTPUTS
 % bnet: Gaussian network learned from the selected population 
 %
-% Last version 8/26/2008. Roberto Santana (roberto.santana@ehu.es)       
+% Last version 12/21/2020. Roberto Santana (roberto.santana@ehu.es)       
 
 TypeLearning = char(cellstr(learning_params{1}(1)));
-MaxParent = cell2num(learning_params{1}(2));
+MaxParent = cell2mat(learning_params{1}(2));
 %verbose = char(cellstr(learning_params{1}(3)));
 
 

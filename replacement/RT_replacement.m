@@ -16,10 +16,11 @@ function [NewPop,NewFunVal] = RT_replacement(Pop,SelPop,SampledPop,FunVal,SelFun
 % NewFunVal                     : Evaluations of the new population
 % window = replacement_params{1}(1): Subset of solutions considered in the comparison. 
 %
-% Last version 8/26/2008. Roberto Santana (roberto.santana@ehu.es)       
+%
+% Last version 12/21/2020. Roberto Santana (roberto.santana@ehu.es)         
 
 
-window = cell2num(replacement_params{1}(1)); 
+window = cell2mat(replacement_params{1}(1)); 
 PopSize = size(Pop,1);
 SelPopSize = size(SelPop,1);
 SampledPopSize = size(SampledPop,1);

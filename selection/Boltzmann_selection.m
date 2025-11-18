@@ -9,11 +9,11 @@ function[SelPop,SelFunVal]= Boltzmann_selection(Pop,FunVal,selection_params)
 % SelPop: Selected population
 % SelFunVal:  A vector of function evaluations for each selected individual
 %
-% Last version 8/26/2008. Roberto Santana (roberto.santana@ehu.es)       
+% Last version 12/21/2020. Roberto Santana (roberto.santana@ehu.es)       
  
 global BoltzMannProb
 
-   T = cell2num(selection_params{1}(1));
+   T = cell2mat(selection_params{1}(1));
    PopSize = size(Pop,1);
    
    SelPop = Pop;
