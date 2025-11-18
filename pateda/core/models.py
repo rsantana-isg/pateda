@@ -135,3 +135,22 @@ class MixtureModel(Model):
 
     structure: List[Any]  # One structure per component
     parameters: Dict[str, Any]  # 'components': list of params, 'weights': mixture weights
+
+
+@dataclass
+class NeuralNetworkModel(Model):
+    """
+    Neural Network model for regression-based EDAs
+
+    Used for Backdrive-EDA and other neural network-based approaches.
+    The network can learn a mapping from solutions to fitness (for backdrive)
+    or from latent representations to solutions (for VAE, etc.)
+
+    Attributes:
+        structure: Neural network architecture (layer sizes, activation functions)
+        parameters: Trained network weights and biases
+        metadata: Training information (epochs, loss, etc.)
+    """
+
+    structure: Dict[str, Any]  # Network architecture details
+    parameters: Any  # Trained network (PyTorch model, Keras model, or weights dict)

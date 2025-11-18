@@ -31,6 +31,12 @@ from pateda.sampling.vae import (
     sample_conditional_extended_vae,
 )
 
+# Backdrive sampling functions for continuous optimization
+from pateda.sampling.backdrive import (
+    sample_backdrive,
+    sample_backdrive_adaptive,
+)
+
 __all__ = [
     "SampleFDA",
     "SampleBayesianNetwork",
@@ -54,4 +60,6 @@ __all__ = [
     "sample_vae",
     "sample_extended_vae",
     "sample_conditional_extended_vae",
+    "sample_backdrive",
+    "sample_backdrive_adaptive",
 ]
