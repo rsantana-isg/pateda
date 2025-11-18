@@ -8,6 +8,10 @@ from pateda.learning.boa import LearnBOA
 from pateda.learning.markov import LearnMarkovChain
 from pateda.learning.mixture_trees import LearnMixtureTrees
 from pateda.learning.tree import LearnTreeModel
+from pateda.learning.affinity import (
+    LearnAffinityFactorization,
+    LearnAffinityFactorizationElim,
+)
 
 # Gaussian learning functions for continuous optimization
 from pateda.learning.gaussian import (
@@ -26,6 +30,8 @@ __all__ = [
     "LearnMarkovChain",
     "LearnMixtureTrees",
     "LearnTreeModel",
+    "LearnAffinityFactorization",
+    "LearnAffinityFactorizationElim",
     "learn_gaussian_univariate",
     "learn_gaussian_full",
     "learn_mixture_gaussian_univariate",
