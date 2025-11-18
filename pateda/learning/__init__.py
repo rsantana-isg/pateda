@@ -21,6 +21,10 @@ from pateda.learning.gaussian import (
     learn_mixture_gaussian_full,
 )
 
+# Permutation-based learning functions
+from pateda.learning.mallows import LearnMallowsKendall, learn_mallows_kendall
+from pateda.learning.histogram import LearnEHM, LearnNHM, learn_ehm, learn_nhm
+
 __all__ = [
     "LearnFDA",
     "LearnUMDA",
@@ -36,4 +40,10 @@ __all__ = [
     "learn_gaussian_full",
     "learn_mixture_gaussian_univariate",
     "learn_mixture_gaussian_full",
+    "LearnMallowsKendall",
+    "learn_mallows_kendall",
+    "LearnEHM",
+    "LearnNHM",
+    "learn_ehm",
+    "learn_nhm",
 ]
