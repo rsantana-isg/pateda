@@ -25,6 +25,23 @@ from pateda.functions.discrete.nk_landscape import (
     create_random_nk_tables,
     evaluate_nk_landscape
 )
+from pateda.functions.discrete.sat import (
+    SATInstance,
+    evaluate_sat,
+    load_random_3sat,
+    make_random_formulas,
+    make_var_dep_formulas,
+    load_sat_from_file
+)
+from pateda.functions.discrete.ubqp import (
+    UBQPInstance,
+    evaluate_ubqp,
+    load_ubqp_instance,
+    generate_random_ubqp,
+    save_ubqp_instance,
+    create_max_cut_ubqp,
+    create_set_packing_ubqp
+)
 
 __all__ = [
     "onemax",
@@ -44,4 +61,17 @@ __all__ = [
     "create_circular_nk_structure",
     "create_random_nk_tables",
     "evaluate_nk_landscape",
+    "SATInstance",
+    "evaluate_sat",
+    "load_random_3sat",
+    "make_random_formulas",
+    "make_var_dep_formulas",
+    "load_sat_from_file",
+    "UBQPInstance",
+    "evaluate_ubqp",
+    "load_ubqp_instance",
+    "generate_random_ubqp",
+    "save_ubqp_instance",
+    "create_max_cut_ubqp",
+    "create_set_packing_ubqp",
 ]
