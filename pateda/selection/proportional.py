@@ -45,7 +45,8 @@ class ProportionalSelection(SelectionMethod):
 
         Args:
             population: Population to select from (pop_size, n_vars)
-            fitness: Fitness values (pop_size,)
+            fitness: Fitness values (pop_size,) or (pop_size, n_objectives)
+                    For multi-objective, uses mean fitness across objectives
             n_select: Number to select (overrides instance n_select)
             **params: Additional parameters
                      - ratio: Override instance ratio
@@ -75,17 +76,25 @@ class ProportionalSelection(SelectionMethod):
         if not replacement:
             n_select = min(n_select, pop_size)
 
+        # Handle multi-objective fitness by taking mean
+        if fitness.ndim == 2 and fitness.shape[1] > 1:
+            fitness_for_selection = np.mean(fitness, axis=1)
+        elif fitness.ndim == 2:
+            fitness_for_selection = fitness[:, 0]
+        else:
+            fitness_for_selection = fitness
+
         # Handle negative or zero fitness values
         offset = params.get("offset", None)
         if offset is None:
-            min_fitness = np.min(fitness)
+            min_fitness = np.min(fitness_for_selection)
             if min_fitness <= 0:
                 offset = abs(min_fitness) + 1e-10
             else:
                 offset = 0
 
         # Calculate selection probabilities
-        adjusted_fitness = fitness + offset
+        adjusted_fitness = fitness_for_selection + offset
         total_fitness = np.sum(adjusted_fitness)
 
         if total_fitness == 0:

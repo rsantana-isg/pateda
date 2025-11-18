@@ -52,7 +52,8 @@ class TournamentSelection(SelectionMethod):
 
         Args:
             population: Population to select from (pop_size, n_vars)
-            fitness: Fitness values (pop_size,)
+            fitness: Fitness values (pop_size,) or (pop_size, n_objectives)
+                    For multi-objective, uses mean fitness across objectives
             n_select: Number to select (overrides instance n_select)
             **params: Additional parameters
                      - tournament_size: Override instance tournament_size
@@ -78,6 +79,14 @@ class TournamentSelection(SelectionMethod):
         # Ensure tournament size is valid
         tournament_size = min(tournament_size, pop_size)
 
+        # Handle multi-objective fitness by taking mean
+        if fitness.ndim == 2 and fitness.shape[1] > 1:
+            fitness_for_selection = np.mean(fitness, axis=1)
+        elif fitness.ndim == 2:
+            fitness_for_selection = fitness[:, 0]
+        else:
+            fitness_for_selection = fitness
+
         selected_indices = []
 
         if replacement:
@@ -89,7 +98,7 @@ class TournamentSelection(SelectionMethod):
                 )
 
                 # Get best individual from tournament
-                tournament_fitness = fitness[tournament_indices]
+                tournament_fitness = fitness_for_selection[tournament_indices]
                 winner_idx = tournament_indices[np.argmax(tournament_fitness)]
                 selected_indices.append(winner_idx)
         else:
@@ -106,7 +115,7 @@ class TournamentSelection(SelectionMethod):
                     )
 
                 # Get best individual from tournament
-                tournament_fitness = fitness[tournament_indices]
+                tournament_fitness = fitness_for_selection[tournament_indices]
                 winner_idx = tournament_indices[np.argmax(tournament_fitness)]
                 selected_indices.append(winner_idx)
                 available.remove(winner_idx)

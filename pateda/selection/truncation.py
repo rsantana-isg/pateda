@@ -41,7 +41,8 @@ class TruncationSelection(SelectionMethod):
 
         Args:
             population: Population to select from (pop_size, n_vars)
-            fitness: Fitness values (pop_size,)
+            fitness: Fitness values (pop_size,) or (pop_size, n_objectives)
+                    For multi-objective, uses mean fitness across objectives
             n_select: Number to select (overrides instance n_select)
             **params: Additional parameters
                      - ratio: Override instance ratio
@@ -62,8 +63,16 @@ class TruncationSelection(SelectionMethod):
         # Ensure we don't select more than available
         n_select = min(n_select, pop_size)
 
+        # Handle multi-objective fitness by taking mean
+        if fitness.ndim == 2 and fitness.shape[1] > 1:
+            fitness_for_selection = np.mean(fitness, axis=1)
+        elif fitness.ndim == 2:
+            fitness_for_selection = fitness[:, 0]
+        else:
+            fitness_for_selection = fitness
+
         # Get indices of top individuals (sorted by fitness, descending)
-        sorted_indices = np.argsort(fitness)[::-1]
+        sorted_indices = np.argsort(fitness_for_selection)[::-1]
         selected_indices = sorted_indices[:n_select]
 
         # Select individuals

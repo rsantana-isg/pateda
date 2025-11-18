@@ -22,15 +22,15 @@ from pateda.core.models import Model
 class Statistics:
     """Container for EDA execution statistics"""
 
-    # Per-generation statistics
-    best_fitness: List[float] = field(default_factory=list)
-    mean_fitness: List[float] = field(default_factory=list)
-    std_fitness: List[float] = field(default_factory=list)
-    worst_fitness: List[float] = field(default_factory=list)
+    # Per-generation statistics (for multi-objective: arrays per generation)
+    best_fitness: List[Union[float, np.ndarray]] = field(default_factory=list)
+    mean_fitness: List[Union[float, np.ndarray]] = field(default_factory=list)
+    std_fitness: List[Union[float, np.ndarray]] = field(default_factory=list)
+    worst_fitness: List[Union[float, np.ndarray]] = field(default_factory=list)
 
     # Best solution found
     best_individual: Optional[np.ndarray] = None
-    best_fitness_overall: Optional[float] = None
+    best_fitness_overall: Optional[Union[float, np.ndarray]] = None
     generation_found: Optional[int] = None
 
     # Custom statistics from StatisticsMethod
@@ -39,23 +39,61 @@ class Statistics:
     def update(
         self, generation: int, population: np.ndarray, fitness: np.ndarray
     ) -> None:
-        """Update statistics for current generation"""
-        self.best_fitness.append(float(np.max(fitness)))
-        self.mean_fitness.append(float(np.mean(fitness)))
-        self.std_fitness.append(float(np.std(fitness)))
-        self.worst_fitness.append(float(np.min(fitness)))
+        """
+        Update statistics for current generation
 
-        # Update overall best
-        gen_best_idx = np.argmax(fitness)
-        gen_best_fitness = fitness[gen_best_idx]
+        Args:
+            generation: Current generation number
+            population: Population array (pop_size, n_vars)
+            fitness: Fitness array (pop_size, n_objectives)
+        """
+        # Handle both single and multi-objective fitness
+        if fitness.ndim == 1 or fitness.shape[1] == 1:
+            # Single objective: keep backward compatibility
+            if fitness.ndim == 2:
+                fitness_1d = fitness[:, 0]
+            else:
+                fitness_1d = fitness
 
-        if (
-            self.best_fitness_overall is None
-            or gen_best_fitness > self.best_fitness_overall
-        ):
-            self.best_fitness_overall = float(gen_best_fitness)
-            self.best_individual = population[gen_best_idx].copy()
-            self.generation_found = generation
+            self.best_fitness.append(float(np.max(fitness_1d)))
+            self.mean_fitness.append(float(np.mean(fitness_1d)))
+            self.std_fitness.append(float(np.std(fitness_1d)))
+            self.worst_fitness.append(float(np.min(fitness_1d)))
+
+            # Update overall best
+            gen_best_idx = np.argmax(fitness_1d)
+            gen_best_fitness = fitness_1d[gen_best_idx]
+
+            if (
+                self.best_fitness_overall is None
+                or gen_best_fitness > self.best_fitness_overall
+            ):
+                self.best_fitness_overall = float(gen_best_fitness)
+                self.best_individual = population[gen_best_idx].copy()
+                self.generation_found = generation
+
+        else:
+            # Multi-objective: store per-objective statistics
+            self.best_fitness.append(np.max(fitness, axis=0))
+            self.mean_fitness.append(np.mean(fitness, axis=0))
+            self.std_fitness.append(np.std(fitness, axis=0))
+            self.worst_fitness.append(np.min(fitness, axis=0))
+
+            # For multi-objective, track best by mean fitness (simple aggregation)
+            mean_fit = np.mean(fitness, axis=1)
+            gen_best_idx = np.argmax(mean_fit)
+            gen_best_fitness = fitness[gen_best_idx]
+
+            if self.best_fitness_overall is None:
+                self.best_fitness_overall = gen_best_fitness.copy()
+                self.best_individual = population[gen_best_idx].copy()
+                self.generation_found = generation
+            else:
+                # Update if mean fitness is better
+                if np.mean(gen_best_fitness) > np.mean(self.best_fitness_overall):
+                    self.best_fitness_overall = gen_best_fitness.copy()
+                    self.best_individual = population[gen_best_idx].copy()
+                    self.generation_found = generation
 
 
 @dataclass
@@ -140,13 +178,32 @@ class EDA:
             population: Population to evaluate
 
         Returns:
-            Fitness values for each individual
+            Fitness values for each individual as a 2D array (n_individuals, n_objectives)
+            For single-objective problems, n_objectives = 1
         """
         n_individuals = population.shape[0]
-        fitness = np.zeros(n_individuals)
 
-        for i in range(n_individuals):
-            fitness[i] = self.fitness_func(population[i])
+        # Evaluate first individual to determine number of objectives
+        first_fitness = self.fitness_func(population[0])
+
+        # Handle both scalar and vector returns
+        if np.isscalar(first_fitness):
+            n_objectives = 1
+            fitness = np.zeros((n_individuals, 1))
+            fitness[0, 0] = first_fitness
+        else:
+            first_fitness = np.atleast_1d(first_fitness)
+            n_objectives = len(first_fitness)
+            fitness = np.zeros((n_individuals, n_objectives))
+            fitness[0, :] = first_fitness
+
+        # Evaluate remaining individuals
+        for i in range(1, n_individuals):
+            result = self.fitness_func(population[i])
+            if np.isscalar(result):
+                fitness[i, 0] = result
+            else:
+                fitness[i, :] = np.atleast_1d(result)
 
         return fitness
 
@@ -274,11 +331,18 @@ class EDA:
             statistics.update(self.generation, self.population, self.fitness)
 
             if verbose:
-                print(
-                    f"  Best: {statistics.best_fitness[-1]:.6f}, "
-                    f"Mean: {statistics.mean_fitness[-1]:.6f}, "
-                    f"Std: {statistics.std_fitness[-1]:.6f}"
-                )
+                # Handle both single and multi-objective output
+                if isinstance(statistics.best_fitness[-1], (int, float)):
+                    print(
+                        f"  Best: {statistics.best_fitness[-1]:.6f}, "
+                        f"Mean: {statistics.mean_fitness[-1]:.6f}, "
+                        f"Std: {statistics.std_fitness[-1]:.6f}"
+                    )
+                else:
+                    # Multi-objective: show per-objective stats
+                    best_str = ", ".join([f"{v:.4f}" for v in statistics.best_fitness[-1]])
+                    mean_str = ", ".join([f"{v:.4f}" for v in statistics.mean_fitness[-1]])
+                    print(f"  Best: [{best_str}], Mean: [{mean_str}]")
 
             # Custom statistics
             if self.components.statistics is not None:
@@ -338,7 +402,11 @@ class EDA:
 
         if verbose:
             print(f"\nEDA completed after {self.generation} generations")
-            print(f"Best fitness found: {statistics.best_fitness_overall:.6f}")
+            if isinstance(statistics.best_fitness_overall, (int, float)):
+                print(f"Best fitness found: {statistics.best_fitness_overall:.6f}")
+            else:
+                fitness_str = ", ".join([f"{v:.4f}" for v in statistics.best_fitness_overall])
+                print(f"Best fitness found: [{fitness_str}]")
             print(f"  at generation {statistics.generation_found}")
 
         return statistics, cache
