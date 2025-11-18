@@ -9,6 +9,14 @@ from pateda.learning.markov import LearnMarkovChain
 from pateda.learning.mixture_trees import LearnMixtureTrees
 from pateda.learning.tree import LearnTreeModel
 
+# Gaussian learning functions for continuous optimization
+from pateda.learning.gaussian import (
+    learn_gaussian_univariate,
+    learn_gaussian_full,
+    learn_mixture_gaussian_univariate,
+    learn_mixture_gaussian_full,
+)
+
 __all__ = [
     "LearnFDA",
     "LearnUMDA",
@@ -18,4 +26,8 @@ __all__ = [
     "LearnMarkovChain",
     "LearnMixtureTrees",
     "LearnTreeModel",
+    "learn_gaussian_univariate",
+    "learn_gaussian_full",
+    "learn_mixture_gaussian_univariate",
+    "learn_mixture_gaussian_full",
 ]
