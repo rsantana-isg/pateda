@@ -17,6 +17,13 @@ from pateda.sampling.gaussian import (
 from pateda.sampling.mallows import SampleMallowsKendall, sample_mallows_kendall
 from pateda.sampling.histogram import SampleEHM, SampleNHM, sample_ehm, sample_nhm
 
+# Vine copula sampling functions for continuous optimization
+from pateda.sampling.vine_copula import (
+    sample_vine_copula,
+    sample_vine_copula_biased,
+    sample_vine_copula_conditional,
+)
+
 __all__ = [
     "SampleFDA",
     "SampleBayesianNetwork",
@@ -34,4 +41,7 @@ __all__ = [
     "SampleNHM",
     "sample_ehm",
     "sample_nhm",
+    "sample_vine_copula",
+    "sample_vine_copula_biased",
+    "sample_vine_copula_conditional",
 ]

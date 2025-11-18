@@ -59,5 +59,12 @@ setup(
         "performance": [
             "numba>=0.55.0",
         ],
+        "copula": [
+            "pyvinecopulib>=0.6.0",
+        ],
+        "all": [
+            "numba>=0.55.0",
+            "pyvinecopulib>=0.6.0",
+        ],
     },
 )

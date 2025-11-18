@@ -25,6 +25,13 @@ from pateda.learning.gaussian import (
 from pateda.learning.mallows import LearnMallowsKendall, learn_mallows_kendall
 from pateda.learning.histogram import LearnEHM, LearnNHM, learn_ehm, learn_nhm
 
+# Vine copula learning functions for continuous optimization
+from pateda.learning.vine_copula import (
+    learn_vine_copula_cvine,
+    learn_vine_copula_dvine,
+    learn_vine_copula_auto,
+)
+
 __all__ = [
     "LearnFDA",
     "LearnUMDA",
@@ -46,4 +53,7 @@ __all__ = [
     "LearnNHM",
     "learn_ehm",
     "learn_nhm",
+    "learn_vine_copula_cvine",
+    "learn_vine_copula_dvine",
+    "learn_vine_copula_auto",
 ]
