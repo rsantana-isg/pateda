@@ -37,3 +37,6 @@ sphinx-rtd-theme>=1.0.0
 
 # Vine copulas (for continuous EDAs)
 pyvinecopulib>=0.6.0  # Required for vine copula-based EDAs
+
+# Deep learning frameworks (for VAE-based EDAs)
+torch>=2.0.0  # Required for VAE-based EDAs
