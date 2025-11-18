@@ -58,7 +58,8 @@ class BoltzmannSelection(SelectionMethod):
 
         Args:
             population: Population to select from (pop_size, n_vars)
-            fitness: Fitness values (pop_size,)
+            fitness: Fitness values (pop_size,) or (pop_size, n_objectives)
+                    For multi-objective, uses mean fitness across objectives
             n_select: Number to select (overrides instance n_select)
             **params: Additional parameters
                      - ratio: Override instance ratio
@@ -85,6 +86,14 @@ class BoltzmannSelection(SelectionMethod):
         if not replacement:
             n_select = min(n_select, pop_size)
 
+        # Handle multi-objective fitness by taking mean
+        if fitness.ndim == 2 and fitness.shape[1] > 1:
+            fitness_for_selection = np.mean(fitness, axis=1)
+        elif fitness.ndim == 2:
+            fitness_for_selection = fitness[:, 0]
+        else:
+            fitness_for_selection = fitness
+
         # Get temperature
         temperature = params.get("temperature", self.temperature)
 
@@ -98,7 +107,7 @@ class BoltzmannSelection(SelectionMethod):
 
         # Normalize fitness to avoid numerical issues
         # Subtract mean to center around zero
-        normalized_fitness = fitness - np.mean(fitness)
+        normalized_fitness = fitness_for_selection - np.mean(fitness_for_selection)
 
         # Calculate Boltzmann probabilities: P(i) ∝ exp(f(i) / T)
         try:
@@ -110,7 +119,7 @@ class BoltzmannSelection(SelectionMethod):
         except (OverflowError, RuntimeWarning):
             # If still numerical issues, fall back to truncation
             print("Warning: Numerical issues in Boltzmann selection, using truncation")
-            sorted_indices = np.argsort(fitness)[::-1]
+            sorted_indices = np.argsort(fitness_for_selection)[::-1]
             selected_indices = sorted_indices[:n_select]
             selected_pop = population[selected_indices]
             selected_fitness = fitness[selected_indices]
