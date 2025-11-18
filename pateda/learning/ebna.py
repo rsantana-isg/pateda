@@ -1,8 +1,66 @@
 """
 Estimation of Bayesian Networks Algorithm (EBNA) learning
 
+EBNA is an EDA that learns Bayesian networks to capture dependencies between
+variables. Unlike tree models which restrict each variable to have at most one
+parent, EBNA allows multiple parents but typically limits the number (local structure).
+
+EBNA was one of the first EDAs to use general Bayesian networks for optimization,
+introduced by Etxeberria and Larrañaga (1999). It uses greedy hill-climbing for
+structure learning with information-theoretic scoring metrics.
+
+Structure Learning:
+EBNA uses greedy search to find a good Bayesian network structure:
+1. For each variable:
+   a. Start with no parents
+   b. Greedily add parents that maximize the score
+   c. Ensure acyclicity: only add edge if it doesn't create a cycle
+   d. Stop when max_parents reached or no improvement
+2. The search is local and greedy (not guaranteed to find global optimum)
+
+Scoring Metrics:
+- BIC (Bayesian Information Criterion): Balances fit and complexity
+  BIC = log P(D | θ_ML, G) - (k/2) log(n)
+  where k is the number of parameters, n is the sample size
+- AIC (Akaike Information Criterion): Similar to BIC with different penalty
+  AIC = log P(D | θ_ML, G) - k
+- K2: Bayesian scoring metric (same as BOA)
+
+The BIC/AIC penalty terms prevent overfitting by penalizing complex structures.
+
+Key Features:
+- Local structure: Limited number of parents (typically 2-3)
+- Cycle detection: Ensures the learned graph is a DAG
+- Flexible scoring: Supports multiple metrics (BIC, AIC, K2)
+- Optional fixed structure: Can use predefined DAG if domain knowledge available
+
+Comparison with BOA:
+- EBNA: Greedy local search, any variable ordering
+- BOA: K2 algorithm requires variable ordering, often uses decision graphs
+- EBNA: Typically uses BIC/AIC scoring
+- BOA: Typically uses K2/BD (Bayesian) scoring
+- Both: Learn general Bayesian networks with multiple parents
+
+Computational Complexity:
+- Greedy search: O(n² * max_parents * m * k^p)
+  where n=variables, m=samples, k=cardinality, p=max parents
+- Cycle checking adds overhead compared to ordered approaches (K2)
+
+When to use:
+- Problems with multivariate dependencies
+- Don't have good variable ordering (unlike K2/BOA)
+- Want BIC/AIC model selection
+- Need balance between UMDA/Tree (too simple) and unrestricted BN (too complex)
+
 Equivalent to MATEDA's LearnEBNA.m
-EBNA learns a Bayesian network structure with local structures (limited parent sets).
+
+References:
+- Etxeberria, R., & Larrañaga, P. (1999). "Global optimization using Bayesian
+  networks." Second Symposium on Artificial Intelligence (CIMAF-99), pp. 332-339.
+- Larrañaga, P., Etxeberria, R., Lozano, J.A., & Peña, J.M. (2000). "Optimization
+  in continuous domains by learning and simulation of Gaussian networks."
+  Workshop on Optimization by Building and Using Probabilistic Models, GECCO-2000.
+- MATEDA-2.0 User Guide, Section 4.2: "Bayesian network based factorizations"
 """
 
 from typing import Any, Optional

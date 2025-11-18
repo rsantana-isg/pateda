@@ -1,8 +1,66 @@
 """
 Bayesian Optimization Algorithm (BOA) learning
 
+BOA is a sophisticated EDA that learns Bayesian networks to model the probability
+distribution of promising solutions. Unlike tree models, BOA allows each variable
+to have multiple parents, enabling it to capture complex multivariate dependencies.
+
+Bayesian Networks:
+A Bayesian network is a directed acyclic graph (DAG) where:
+- Nodes represent random variables
+- Directed edges represent probabilistic dependencies
+- Each variable Xᵢ has a conditional probability distribution P(Xᵢ | parents(Xᵢ))
+
+The joint probability factorizes as:
+    P(X) = ∏ᵢ₌₁ⁿ P(Xᵢ | parents(Xᵢ))
+
+BOA Structure Learning:
+BOA uses the K2 algorithm for greedy structure search:
+1. Start with a variable ordering (predefined or learned)
+2. For each variable in order:
+   a. Start with no parents
+   b. Greedily add parents that improve the score metric
+   c. Stop when score doesn't improve or max_parents reached
+3. The ordering constraint ensures the resulting graph is acyclic
+
+Scoring Metrics:
+- K2: Bayesian-Dirichlet metric with uniform prior
+  Score = log P(D | G) with Dirichlet prior
+- BD: Bayesian-Dirichlet with adjustable prior strength (alpha parameter)
+- BIC: Bayesian Information Criterion (penalizes complexity)
+
+Decision Trees/Graphs (Advanced):
+For efficiency, BOA can use decision trees or decision graphs to compactly
+represent conditional probability distributions, especially when:
+- Variables have high cardinality
+- Parent sets are large
+- CPDs have local structure (similar probabilities for many configurations)
+
+Advantages over simpler EDAs:
+- Can model complex multivariate dependencies (not just pairwise)
+- More expressive than tree models
+- Theoretical guarantees for convergence on certain problem classes
+
+Computational Complexity:
+- Structure learning: O(n² * m * k^p) where n=variables, m=samples, k=cardinality, p=max parents
+- More expensive than UMDA or tree models
+- Trade-off between model complexity and learning efficiency
+
+When to use:
+- Problems with strong multivariate dependencies
+- Building blocks are known to involve multiple variables
+- Can afford higher computational cost for better model quality
+
 Equivalent to MATEDA's LearnBOA.m
-BOA learns a Bayesian network using K2 or BD metrics with decision trees/graphs.
+
+References:
+- Pelikan, M., Goldberg, D.E., & Cantú-Paz, E. (1999). "BOA: The Bayesian
+  Optimization Algorithm." GECCO 1999, pp. 525-532.
+- Pelikan, M. (2005). "Hierarchical Bayesian Optimization Algorithm: Toward a
+  New Generation of Evolutionary Algorithms." Springer.
+- Cooper, G.F., & Herskovits, E. (1992). "A Bayesian method for the induction
+  of probabilistic networks from data." Machine Learning, 9(4):309-347.
+- MATEDA-2.0 User Guide, Section 4.2: "Bayesian network based factorizations"
 """
 
 from typing import Any, Optional

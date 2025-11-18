@@ -1,13 +1,72 @@
 """
 k-order Markov Chain EDA learning
 
-Implements k-order Markov model-based EDAs. The k-order Markov model factorizes as:
-p_MK(x) = p(x_1, ..., x_{k+1}) * ∏_{i=k+2}^n p(x_i | x_{i-1}, ..., x_{i-k})
+Implements k-order Markov chain models for EDAs. Markov chains are a special type
+of factorized distribution where variables have sequential dependencies following
+a predefined ordering.
 
-This means the first k+1 variables have a joint distribution, and each subsequent
-variable depends on the k previous variables.
+Markov Chain Factorization:
+The k-order Markov model factorizes as:
+    p_MK(x) = p(x₁, ..., x_{k+1}) * ∏ᵢ₌ₖ₊₂ⁿ p(xᵢ | xᵢ₋₁, ..., xᵢ₋ₖ)
+
+This means:
+- The first k+1 variables have a joint distribution (initial distribution)
+- Each subsequent variable depends on the k previous variables
+- The dependency structure forms a chain following the variable ordering
+
+Markov Property:
+A sequence has the Markov property if the conditional distribution of future
+states depends only on the present state and k previous states, not on the
+entire history. Formally:
+    p(xᵢ | x₁, ..., xᵢ₋₁) = p(xᵢ | xᵢ₋ₖ, ..., xᵢ₋₁)
+
+Special Cases:
+- k=1 (First-order Markov): Each variable depends on only the previous variable
+  p(x) = p(x₁) * ∏ᵢ₌₂ⁿ p(xᵢ | xᵢ₋₁)
+- k=0 (Zero-order): Reduces to UMDA (all variables independent)
+- k=n-1: Full joint distribution (no independence assumptions)
+
+Advantages:
+- More expressive than UMDA (can model sequential dependencies)
+- Less complex than full Bayesian networks
+- Natural for problems with inherent sequential structure
+- Parameter estimation is straightforward (frequency counting)
+- Linear number of cliques O(n) vs. potentially exponential for general BNs
+
+Limitations:
+- Assumes a specific variable ordering (ordering matters!)
+- Can only model chain-structured dependencies
+- Cannot represent arbitrary dependency patterns
+- May not fit problems without natural sequential structure
+
+Relationship to Markov Random Fields (MRFs):
+Markov chains are directed models (Bayesian networks with chain structure).
+Markov Random Fields are undirected graphical models where:
+- Nodes represent variables
+- Edges represent direct probabilistic dependencies
+- Factorization based on cliques (fully connected subsets)
+- Can represent more complex dependency patterns than chains
+
+When to use Markov Chains:
+- Problem has natural sequential ordering (e.g., scheduling, sequencing)
+- Variables exhibit temporal or spatial dependencies
+- Want middle ground between UMDA and full Bayesian networks
+- Need efficient learning and sampling
+
+Computational Complexity:
+- Learning: O(n * m * k^(k+1)) where n=variables, m=samples, k=chain order, k=max cardinality
+- More efficient than general Bayesian networks for long chains
+- Memory: O(n * k^(k+1)) for storing conditional probability tables
 
 Based on MATEDA-2.0 factorized distributions and Markov chain models.
+
+References:
+- Mühlenbein, H. (1997). "The equation for response to selection and its use for
+  prediction." Evolutionary Computation, 5(3):303-346.
+- Höns, R. (2005). "Estimation of Distribution Algorithms and Minimum Relative
+  Entropy." PhD Thesis, University of Bonn.
+- MATEDA-2.0 User Guide, Section 4.1: "Factorized distributions" and
+  Section 4.3: "Markov network based factorizations"
 """
 
 from typing import Any
