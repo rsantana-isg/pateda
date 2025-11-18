@@ -173,15 +173,59 @@ print(f"Objective values: {values}")
 | Binary highly coupled | EBNA, BOA | Hierarchical problems |
 | Multi-objective | Any + Pareto ranking | SAT, uBQP |
 
+## Affinity-Based Factorization
+
+### Affinity Propagation Clustering
+**Examples:** `affinity_eda_deceptive.py`, `affinity_elim_eda_ising.py`, `affinity_comparison_trap.py`
+
+Uses affinity propagation clustering to discover variable factorizations based on mutual information:
+- **Learning:** Clusters variables by mutual information similarity
+- **Structure:** Automatically determines number and size of factors
+- **Best for:** Problems with unknown variable interaction patterns
+- **Parameters:**
+  - `max_clique_size`: Maximum variables per factor (default: 5)
+  - `preference`: Controls number of clusters (None = median similarity)
+  - `damping`: Message-passing damping factor (0.5-1.0)
+  - `recursive`: Recursively factorize large clusters
+  - `alpha`: Laplace smoothing parameter
+
+### Two Variants
+
+1. **LearnAffinityFactorization**: Standard recursive approach
+   - Recursively processes each large cluster separately
+   - Good for hierarchical problem structures
+   - Lower damping (0.5) for faster convergence
+
+2. **LearnAffinityFactorizationElim**: Elimination strategy
+   - Collects and processes large clusters together
+   - Better for distributed problem structures
+   - Higher damping (0.9) for stability
+   - More aggressive clustering
+
+### When to Use Affinity Factorization
+
+- **Unknown structure**: When variable interactions are not known a priori
+- **Complex dependencies**: Problems with non-trivial variable relationships
+- **Adaptive modeling**: Structure adapts to problem characteristics
+- **Alternative to manual design**: Automatic structure discovery
+
+### Algorithm Comparison
+
+| Method | Structure | Best For | Example |
+|--------|-----------|----------|---------|
+| UMDA | Independent vars | Separable problems | OneMax |
+| BMDA/Tree | Pairwise deps | Moderate coupling | Deceptive |
+| Affinity | Adaptive clusters | Unknown structure | General |
+| EBNA/BOA | Bayesian network | Strong dependencies | Hierarchical |
+
 ## Advanced Features Not Yet Implemented
 
 The following features from MATEDA are planned but not yet implemented:
 
 1. **Gaussian Network EDAs**: Bayesian network structure learning for continuous variables
-2. **Affinity-based Factorization**: Using affinity propagation for structure learning
-3. **MPE Sampling**: Most probable explanation sampling from Bayesian networks
-4. **MOA (Mixture of Ancestors)**: Advanced probabilistic model
-5. **Hybrid algorithms**: Combining EDAs with local search
+2. **MPE Sampling**: Most probable explanation sampling from Bayesian networks
+3. **MOA (Mixture of Ancestors)**: Advanced probabilistic model
+4. **Hybrid algorithms**: Combining EDAs with local search
 
 These will be added in future updates.
 
