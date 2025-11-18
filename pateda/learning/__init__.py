@@ -32,6 +32,13 @@ from pateda.learning.vine_copula import (
     learn_vine_copula_auto,
 )
 
+# VAE learning functions for continuous optimization
+from pateda.learning.vae import (
+    learn_vae,
+    learn_extended_vae,
+    learn_conditional_extended_vae,
+)
+
 __all__ = [
     "LearnFDA",
     "LearnUMDA",
@@ -56,4 +63,7 @@ __all__ = [
     "learn_vine_copula_cvine",
     "learn_vine_copula_dvine",
     "learn_vine_copula_auto",
+    "learn_vae",
+    "learn_extended_vae",
+    "learn_conditional_extended_vae",
 ]

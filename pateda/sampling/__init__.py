@@ -24,6 +24,13 @@ from pateda.sampling.vine_copula import (
     sample_vine_copula_conditional,
 )
 
+# VAE sampling functions for continuous optimization
+from pateda.sampling.vae import (
+    sample_vae,
+    sample_extended_vae,
+    sample_conditional_extended_vae,
+)
+
 __all__ = [
     "SampleFDA",
     "SampleBayesianNetwork",
@@ -44,4 +51,7 @@ __all__ = [
     "sample_vine_copula",
     "sample_vine_copula_biased",
     "sample_vine_copula_conditional",
+    "sample_vae",
+    "sample_extended_vae",
+    "sample_conditional_extended_vae",
 ]
