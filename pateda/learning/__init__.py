@@ -5,6 +5,8 @@ from pateda.learning.umda import LearnUMDA
 from pateda.learning.bmda import LearnBMDA
 from pateda.learning.ebna import LearnEBNA
 from pateda.learning.boa import LearnBOA
+from pateda.learning.markov import LearnMarkovChain
+from pateda.learning.mixture_trees import LearnMixtureTrees
 
 __all__ = [
     "LearnFDA",
@@ -12,4 +14,6 @@ __all__ = [
     "LearnBMDA",
     "LearnEBNA",
     "LearnBOA",
+    "LearnMarkovChain",
+    "LearnMixtureTrees",
 ]
