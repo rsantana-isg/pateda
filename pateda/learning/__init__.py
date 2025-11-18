@@ -12,6 +12,9 @@ from pateda.learning.affinity import (
     LearnAffinityFactorization,
     LearnAffinityFactorizationElim,
 )
+from pateda.learning.pbil import LearnPBIL
+from pateda.learning.bsc import LearnBSC
+from pateda.learning.mimic import LearnMIMIC
 
 # Gaussian learning functions for continuous optimization
 from pateda.learning.gaussian import (
@@ -53,6 +56,9 @@ __all__ = [
     "LearnTreeModel",
     "LearnAffinityFactorization",
     "LearnAffinityFactorizationElim",
+    "LearnPBIL",
+    "LearnBSC",
+    "LearnMIMIC",
     "learn_gaussian_univariate",
     "learn_gaussian_full",
     "learn_mixture_gaussian_univariate",
