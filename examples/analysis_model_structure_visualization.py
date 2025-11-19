@@ -33,7 +33,7 @@ from pateda.selection import TruncationSelection
 from pateda.replacement import GenerationalReplacement
 from pateda.learning import LearnEBNA
 from pateda.sampling.bayesian_network import SampleBayesianNetwork
-from pateda.functions.discrete.trap import trap_k
+from pateda.functions.discrete.trap import trap_n
 
 
 # Try to import networkx for graph visualization
@@ -297,7 +297,7 @@ def run_analysis_example():
 
     # Create fitness function
     def fitness_func(x):
-        return trap_k(x, k=5)
+        return trap_n(x, n_trap=5)
 
     # Configure EDA with caching enabled
     components = EDAComponents(

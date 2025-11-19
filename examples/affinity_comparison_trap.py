@@ -19,7 +19,7 @@ from pateda.selection import TruncationSelection
 from pateda.replacement import GenerationalReplacement
 from pateda.seeding import RandomInit
 from pateda.stop_conditions import MaxGenerations
-from pateda.functions.discrete.trap import trap_function
+from pateda.functions.discrete.trap import trap_n
 
 
 def run_eda_variant(learning_method, method_name):
@@ -36,7 +36,7 @@ def run_eda_variant(learning_method, method_name):
     max_generations = 50
 
     def fitness_func(population):
-        return np.array([trap_function(ind, trap_size) for ind in population])
+        return np.array([trap_n(ind, n_trap=trap_size) for ind in population])
 
     # Initialize components
     components = EDAComponents(
