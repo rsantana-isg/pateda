@@ -5,6 +5,11 @@ from pateda.sampling.bayesian_network import SampleBayesianNetwork
 from pateda.sampling.markov import SampleMarkovChain, SampleMarkovChainForward
 from pateda.sampling.mixture_trees import SampleMixtureTrees, SampleMixtureTreesDirect
 from pateda.sampling.gibbs import SampleGibbs
+from pateda.sampling.map_sampling import (
+    SampleInsertMAP,
+    SampleTemplateMAP,
+    SampleHybridMAP,
+)
 
 # Gaussian sampling functions for continuous optimization
 from pateda.sampling.gaussian import (
@@ -12,6 +17,7 @@ from pateda.sampling.gaussian import (
     sample_gaussian_full,
     sample_mixture_gaussian_univariate,
     sample_mixture_gaussian_full,
+    sample_gmrf_eda,
 )
 
 # Permutation-based sampling functions
@@ -49,10 +55,14 @@ __all__ = [
     "SampleMixtureTrees",
     "SampleMixtureTreesDirect",
     "SampleGibbs",
+    "SampleInsertMAP",
+    "SampleTemplateMAP",
+    "SampleHybridMAP",
     "sample_gaussian_univariate",
     "sample_gaussian_full",
     "sample_mixture_gaussian_univariate",
     "sample_mixture_gaussian_full",
+    "sample_gmrf_eda",
     "SampleMallowsKendall",
     "sample_mallows_kendall",
     "SampleEHM",

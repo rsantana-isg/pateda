@@ -25,6 +25,10 @@ from pateda.learning.gaussian import (
     learn_gaussian_full,
     learn_mixture_gaussian_univariate,
     learn_mixture_gaussian_full,
+    learn_gmrf_eda,
+    learn_gmrf_eda_lasso,
+    learn_gmrf_eda_elasticnet,
+    learn_gmrf_eda_lars,
 )
 
 # Permutation-based learning functions
@@ -72,6 +76,10 @@ __all__ = [
     "learn_gaussian_full",
     "learn_mixture_gaussian_univariate",
     "learn_mixture_gaussian_full",
+    "learn_gmrf_eda",
+    "learn_gmrf_eda_lasso",
+    "learn_gmrf_eda_elasticnet",
+    "learn_gmrf_eda_lars",
     "LearnMallowsKendall",
     "learn_mallows_kendall",
     "LearnEHM",
