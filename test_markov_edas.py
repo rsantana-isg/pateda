@@ -34,7 +34,7 @@ def test_mnfda():
     try:
         components = EDAComponents(
             seeding=RandomInit(),
-            selection=TruncationSelection(proportion=0.5),
+            selection=TruncationSelection(ratio=0.5),
             learning=LearnMNFDA(
                 max_clique_size=3,
                 threshold=0.05,
@@ -77,7 +77,7 @@ def test_mnfdag():
     try:
         components = EDAComponents(
             seeding=RandomInit(),
-            selection=TruncationSelection(proportion=0.5),
+            selection=TruncationSelection(ratio=0.5),
             learning=LearnMNFDAG(
                 max_clique_size=3,
                 alpha=0.05,
@@ -120,7 +120,7 @@ def test_moa():
     try:
         components = EDAComponents(
             seeding=RandomInit(),
-            selection=TruncationSelection(proportion=0.5),
+            selection=TruncationSelection(ratio=0.5),
             learning=LearnMOA(
                 k_neighbors=5,
                 threshold_factor=1.5,
