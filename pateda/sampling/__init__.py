@@ -17,6 +17,7 @@ from pateda.sampling.gaussian import (
     sample_gaussian_full,
     sample_mixture_gaussian_univariate,
     sample_mixture_gaussian_full,
+    sample_gmrf_eda,
 )
 
 # Permutation-based sampling functions
@@ -61,6 +62,7 @@ __all__ = [
     "sample_gaussian_full",
     "sample_mixture_gaussian_univariate",
     "sample_mixture_gaussian_full",
+    "sample_gmrf_eda",
     "SampleMallowsKendall",
     "sample_mallows_kendall",
     "SampleEHM",
