@@ -43,8 +43,8 @@ def main():
 
     # Create EDA components
     learning = LearnTreeModel(alpha=0.0)
-    sampling = SampleFDA()
-    selection = TruncationSelection(truncation_rate=0.5)
+    sampling = SampleFDA(n_samples=pop_size)
+    selection = TruncationSelection(ratio=0.5)
     replacement = GenerationalReplacement()
     stop_condition = MaxGenerations(max_generations=50)
 
