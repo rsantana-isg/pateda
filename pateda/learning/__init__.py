@@ -45,6 +45,9 @@ from pateda.learning.vae import (
 # Backdrive learning functions for continuous optimization
 from pateda.learning.backdrive import learn_backdrive
 
+# GAN learning functions for continuous optimization
+from pateda.learning.gan import learn_gan
+
 __all__ = [
     "LearnFDA",
     "LearnUMDA",
@@ -76,4 +79,5 @@ __all__ = [
     "learn_extended_vae",
     "learn_conditional_extended_vae",
     "learn_backdrive",
+    "learn_gan",
 ]

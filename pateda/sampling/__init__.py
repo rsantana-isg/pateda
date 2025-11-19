@@ -37,6 +37,9 @@ from pateda.sampling.backdrive import (
     sample_backdrive_adaptive,
 )
 
+# GAN sampling functions for continuous optimization
+from pateda.sampling.gan import sample_gan
+
 __all__ = [
     "SampleFDA",
     "SampleBayesianNetwork",
@@ -62,4 +65,5 @@ __all__ = [
     "sample_conditional_extended_vae",
     "sample_backdrive",
     "sample_backdrive_adaptive",
+    "sample_gan",
 ]
