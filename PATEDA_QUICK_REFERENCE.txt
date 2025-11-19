@@ -1,0 +1,267 @@
+================================================================================
+                     PATEDA PACKAGE QUICK REFERENCE
+================================================================================
+
+DIRECTORY STRUCTURE:
+  pateda/
+  ├── core/                 # Main EDA framework
+  ├── learning/             # 27 learning methods
+  ├── sampling/             # 19 sampling methods
+  ├── selection/            # Selection algorithms
+  ├── seeding/              # Population initialization
+  ├── replacement/          # Replacement strategies
+  ├── local_optimization/   # Local search methods
+  ├── examples/             # 14+ working examples
+  └── functions/            # Benchmark functions
+
+================================================================================
+                              LEARNING METHODS
+================================================================================
+
+DISCRETE EDAS (13):
+  1. UMDA              - Univariate independence
+  2. PBIL              - Incremental learning
+  3. BMDA              - Bivariate dependencies
+  4. EBNA              - Bayesian networks
+  5. BOA               - Full Bayesian networks
+  6. MIMIC             - Chain-structured model
+  7. Affinity (2 variants)
+  8. BSC               - Balanced Spin Chain
+  9. Histogram (EHM, NHM)
+  10. Mallows-Kendall  - Permutations
+  11. Tree             - Single-parent trees
+  12. Markov Chain     - k-order Markov
+  13. Mixture Trees
+
+MARKOV NETWORKS (3):
+  14. MN-FDA           - Chi-square dependency test
+  15. MN-FDAG          - G-test variant
+  16. MOA              - Local Markov neighborhoods
+
+CONTINUOUS (2 base, 6 variants):
+  17. Gaussian         - 4 variants (univariate, full, mixtures)
+  18. Vine Copula      - 3 variants (C-vine, D-vine, auto)
+
+NEURAL NETWORK (4):
+  19. Backdrive-EDA    - MLP network inversion
+  20. VAE              - 3 variants (basic, extended, conditional)
+  21. GAN              - Generative adversarial networks
+  22. RBM              - Restricted Boltzmann Machine
+
+DIFFUSION (3):
+  23. DAE              - Denoising autoencoder
+  24. DbD              - Diffusion-by-deblending
+  25. DenDiff          - Denoising diffusion model
+
+TOTAL: 27 LEARNING METHODS
+
+================================================================================
+                              SAMPLING METHODS
+================================================================================
+
+STANDARD (4):
+  1. FDA               - Pseudo-local structure sampling
+  2. Bayesian Network  - pgmpy-based
+  3. Gibbs             - MCMC sampling
+  4. Markov Chain      - Forward sampling
+
+CONTINUOUS (6):
+  5. Gaussian (4 variants)
+  6. Vine Copula (3 variants)
+
+NEURAL NETWORK (4 methods, 11 variants):
+  7. Backdrive (2 variants)
+  8. VAE (3 variants)
+  9. GAN
+  10. RBM
+
+DIFFUSION (3):
+  11. DAE
+  12. DbD
+  13. DenDiff
+
+PERMUTATION (3):
+  14. Histogram
+  15. Mallows-Kendall
+  16. Mixture Trees
+
+TOTAL: 19 SAMPLING METHODS
+
+================================================================================
+                        CONTINUOUS OPTIMIZATION EDAS
+================================================================================
+
+READY-TO-USE EXAMPLES:
+
+1. Gaussian UMDA
+   File: examples/gaussian_eda_examples.py
+   Use: run_gaussian_umda(fitness_func, n_vars, bounds)
+
+2. Full Gaussian EDA
+   Use: run_gaussian_full_eda(fitness_func, n_vars, bounds)
+
+3. Mixture Gaussian EDA
+   Use: run_mixture_gaussian_eda(fitness_func, n_vars, bounds)
+
+4. VAE-EDA (3 variants)
+   File: examples/vae_eda_example.py
+   Use: run_vae_eda(fitness_func, n_vars, bounds, variant='vae')
+        run_vae_eda(fitness_func, n_vars, bounds, variant='extended_vae')
+        run_vae_eda(fitness_func, n_vars, bounds, variant='conditional_extended_vae')
+
+5. Backdrive-EDA (2 variants)
+   File: examples/backdrive_eda_examples.py
+   Use: run_backdrive_eda(fitness_func, n_vars, bounds, variant='standard')
+        run_backdrive_eda(fitness_func, n_vars, bounds, variant='adaptive')
+
+6. GAN-EDA
+   File: examples/gan_eda_example.py
+   Use: run_gan_eda(fitness_func, n_vars, bounds)
+
+7. DbD-EDA (Diffusion-by-Deblending)
+   File: examples/dbd_eda_example.py
+   Use: DbDEDA class with restart mechanism
+
+8. DenDiff-EDA (Denoising Diffusion)
+   File: examples/dendiff_eda_example.py
+
+================================================================================
+                          CODE STATISTICS
+================================================================================
+
+Learning modules:       27 files, ~7,885 lines (292 lines/file avg)
+Sampling modules:       19 files, ~3,807 lines (200 lines/file avg)
+Core framework:         3 files, ~930 lines (310 lines/file avg)
+Selection methods:      8 files, ~400 lines (50 lines/file avg)
+Examples:               14+ files, ~2,000+ lines (140 lines/file avg)
+
+TOTAL:                  71+ files, ~15,000+ lines of code
+
+================================================================================
+                         REUSABLE COMPONENTS
+================================================================================
+
+LEARNING UTILITIES (pateda/learning/utils/):
+  - mutual_information.py: MI matrix, chi-square test, G-test
+  - markov_network.py: Clique detection, graph operations
+  - probability_tables.py: CPD computation
+  - conversions.py: Format conversions
+  - marginal_prob.py: Marginal probabilities
+
+SELECTION METHODS (pateda/selection/):
+  - Truncation, Tournament, Proportional, Ranking
+  - Boltzmann, SUS, Non-dominated, Pareto front
+
+SEEDING METHODS (pateda/seeding/):
+  - Random initialization
+  - Bias-based initialization
+  - Unitation-based seeding
+
+REPLACEMENT STRATEGIES (pateda/replacement/):
+  - Generational, Elitist
+
+LOCAL OPTIMIZATION (pateda/local_optimization/):
+  - Greedy search, SciPy local search
+
+REPAIRING METHODS (pateda/repairing/):
+  - Bounds-based, Trigonometric, Unitation
+
+================================================================================
+                        BASIC USAGE EXAMPLE
+================================================================================
+
+from pateda.core.eda import EDA, EDAComponents
+from pateda.learning.gaussian import learn_gaussian_univariate
+from pateda.sampling.gaussian import sample_gaussian_univariate
+from pateda.selection import TruncationSelection
+from pateda.seeding import RandomInit
+from pateda.stop_conditions import MaxGenerations
+from pateda.replacement import GenerationalReplacement
+import numpy as np
+
+# Define fitness function
+def sphere(x):
+    return np.sum(x**2, axis=1)
+
+# Setup components
+components = EDAComponents(
+    seeding=RandomInit(),
+    learning=learn_gaussian_univariate,
+    sampling=sample_gaussian_univariate,
+    selection=TruncationSelection(ratio=0.3),
+    replacement=GenerationalReplacement(),
+    stop_condition=MaxGenerations(max_gen=50)
+)
+
+# Run EDA
+eda = EDA(
+    pop_size=100,
+    n_vars=30,
+    fitness_func=sphere,
+    cardinality=np.array([[-5]*30, [5]*30]),  # bounds
+    components=components
+)
+
+stats, cache = eda.run(verbose=True)
+print(f"Best fitness: {stats.best_fitness_overall}")
+
+================================================================================
+                          KEY FILES LOCATION
+================================================================================
+
+Gaussian methods:        /home/user/pateda/pateda/learning/gaussian.py
+Backdrive methods:       /home/user/pateda/pateda/learning/backdrive.py
+VAE methods:             /home/user/pateda/pateda/learning/vae.py
+Diffusion methods:       /home/user/pateda/pateda/learning/dbd.py, dendiff.py
+Markov networks:         /home/user/pateda/pateda/learning/mnfda.py, moa.py
+Core framework:          /home/user/pateda/pateda/core/eda.py
+Examples:                /home/user/pateda/pateda/examples/
+
+Full documentation:      /home/user/pateda/PATEDA_PACKAGE_ANALYSIS.md
+
+================================================================================
+                            DEPENDENCIES
+================================================================================
+
+Core:
+  - numpy: Numerical computing
+  - scipy: Scientific computing
+  - scikit-learn: Machine learning utilities
+
+Neural Network EDAs:
+  - torch: PyTorch for neural networks
+  - torchvision: (optional, for some advanced features)
+
+Optional:
+  - pyvinecopulib: For vine copula methods
+  - pgmpy: For Bayesian network sampling
+
+================================================================================
+                          NEXT STEPS
+================================================================================
+
+1. READ: PATEDA_PACKAGE_ANALYSIS.md (comprehensive 24KB report)
+
+2. FOR CONTINUOUS OPTIMIZATION:
+   - Start with: pateda/examples/gaussian_eda_examples.py
+   - Try: Gaussian UMDA, Full Gaussian, Mixture Gaussian
+   - Explore: VAE-EDA, Backdrive-EDA, Diffusion methods
+
+3. FOR DISCRETE OPTIMIZATION:
+   - Start with: pateda/examples/discrete_eda_examples.py
+   - Try: UMDA, BMDA, EBNA
+   - Explore: Markov network EDAs (MN-FDA, MOA)
+
+4. FOR NEW IMPLEMENTATIONS:
+   - Subclass LearningMethod and SamplingMethod
+   - Use existing utilities (MI, cliques, probability tables)
+   - Register in __init__.py
+   - Create example script
+   - Test on benchmarks
+
+5. BENCHMARKS:
+   - Continuous: Sphere, Rosenbrock, Rastrigin, Ackley
+   - Discrete: OneMax, Trap functions, NK landscapes
+   - See: pateda/functions/
+
+================================================================================
