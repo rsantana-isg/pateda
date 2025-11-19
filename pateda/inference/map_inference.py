@@ -243,9 +243,9 @@ class MAPInference:
                     # Max-marginalize over other variables
                     axes_to_max = [i for i in range(len(clique)) if i != var_idx]
                     if axes_to_max:
-                        max_vals = table
-                        for axis in sorted(axes_to_max, reverse=True):
-                            max_vals = np.max(max_vals, axis=axis)
+                        # Use tuple of axes to marginalize all at once
+                        # This is more robust than iterating
+                        max_vals = np.max(table, axis=tuple(axes_to_max))
                     else:
                         max_vals = table
 

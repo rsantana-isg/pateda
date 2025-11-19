@@ -27,6 +27,9 @@ from sklearn.cluster import KMeans
 from sklearn.preprocessing import StandardScaler
 from sklearn.mixture import GaussianMixture
 
+from pateda.core.components import LearningMethod
+from pateda.core.models import MixtureModel
+
 
 def learn_mixture_gaussian_univariate(
     population: np.ndarray,
@@ -254,3 +257,102 @@ def learn_mixture_gaussian_em(
         'n_components': n_components,
         'type': 'mixture_gaussian_em'
     }
+
+
+# ===================================================================
+# Class-based wrappers for component architecture
+# ===================================================================
+
+
+class LearnMixtureGaussian(LearningMethod):
+    """
+    Class-based wrapper for mixture of Gaussians learning.
+
+    Uses k-means clustering to partition the population and learns
+    a Gaussian model for each cluster.
+
+    Parameters
+    ----------
+    n_clusters : int
+        Number of mixture components (default: 3)
+    what_to_cluster : str
+        What to use for clustering: 'vars', 'objs', or 'vars_and_objs' (default: 'vars')
+    normalize : bool
+        Whether to normalize data before clustering (default: True)
+    covariance_type : str
+        'univariate' for independent variables or 'full' for multivariate (default: 'univariate')
+    """
+
+    def __init__(
+        self,
+        n_clusters: int = 3,
+        what_to_cluster: str = 'vars',
+        normalize: bool = True,
+        covariance_type: str = 'univariate'
+    ):
+        """
+        Initialize mixture Gaussian learning
+
+        Args:
+            n_clusters: Number of mixture components
+            what_to_cluster: Clustering target ('vars', 'objs', or 'vars_and_objs')
+            normalize: Whether to normalize before clustering
+            covariance_type: 'univariate' or 'full'
+        """
+        self.n_clusters = n_clusters
+        self.what_to_cluster = what_to_cluster
+        self.normalize = normalize
+        self.covariance_type = covariance_type
+
+    def learn(
+        self,
+        generation: int,
+        n_vars: int,
+        cardinality: np.ndarray,
+        population: np.ndarray,
+        fitness: np.ndarray,
+        **params: Any,
+    ) -> MixtureModel:
+        """
+        Learn mixture of Gaussians model from population
+
+        Args:
+            generation: Current generation number
+            n_vars: Number of variables
+            cardinality: Variable bounds (2, n_vars) array with [lower, upper] bounds
+            population: Selected population to learn from
+            fitness: Fitness values (used for clustering if what_to_cluster != 'vars')
+            **params: Additional parameters
+
+        Returns:
+            Learned MixtureModel with Gaussian components
+        """
+        learning_params = {
+            'n_clusters': self.n_clusters,
+            'what_to_cluster': self.what_to_cluster,
+            'normalize': self.normalize,
+        }
+
+        # Use the appropriate functional learning method
+        if self.covariance_type == 'univariate':
+            model_dict = learn_mixture_gaussian_univariate(population, fitness, learning_params)
+        else:
+            model_dict = learn_mixture_gaussian_full(population, fitness, learning_params)
+
+        # Convert to MixtureModel
+        components = model_dict['components']
+        component_structures = [None] * len(components)  # No structure for Gaussian components
+
+        return MixtureModel(
+            structure=component_structures,
+            parameters={
+                'components': components,
+                'n_clusters': model_dict['n_clusters'],
+                'type': model_dict['type']
+            },
+            metadata={
+                'generation': generation,
+                'model_type': f'Mixture Gaussian ({self.covariance_type})',
+                'n_clusters': self.n_clusters,
+            }
+        )

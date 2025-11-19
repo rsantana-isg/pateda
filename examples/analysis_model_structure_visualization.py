@@ -57,8 +57,8 @@ def extract_bn_structures(cache: Dict) -> List[np.ndarray]:
     """
     structures = []
 
-    if 'models' in cache:
-        for gen, model in enumerate(cache['models']):
+    if cache.models:
+        for gen, model in enumerate(cache.models):
             if hasattr(model, 'structure'):
                 # Convert to adjacency matrix
                 adj_matrix = model_to_adjacency_matrix(model)
