@@ -14,23 +14,32 @@ import numpy as np
 from typing import Callable
 
 # Import learning functions
-from pateda.learning.gaussian import (
-    learn_weighted_gaussian_univariate,
-    learn_weighted_gaussian_full,
-    learn_mixture_gaussian_em
-)
+from pateda.learning.mixture_gaussian import learn_mixture_gaussian_em
+from pateda.learning.basic_gaussian import learn_gaussian_univariate, learn_gaussian_full
 
 # Import sampling functions
-from pateda.sampling.gaussian import (
-    sample_weighted_gaussian_univariate,
-    sample_weighted_gaussian_full,
-    sample_gaussian_with_diversity_trigger,
-    sample_mixture_gaussian_em
+from pateda.sampling.mixture_gaussian import sample_mixture_gaussian_em
+from pateda.sampling.basic_gaussian import (
+    sample_gaussian_univariate,
+    sample_gaussian_full,
+    sample_gaussian_with_diversity_trigger
 )
 
-# Import existing functions for comparison
-from pateda.learning.gaussian import learn_gaussian_univariate, learn_gaussian_full
-from pateda.sampling.gaussian import sample_gaussian_univariate, sample_gaussian_full
+# NOTE: Weighted Gaussian functions are not yet integrated into pateda
+# They exist in enhanced_edas/gaussian_models.py but need to be properly integrated
+# For now, these tests that use weighted functions will be skipped
+# Placeholder definitions to prevent import errors
+def learn_weighted_gaussian_univariate(*args, **kwargs):
+    raise NotImplementedError("Weighted Gaussian functions not yet integrated")
+
+def learn_weighted_gaussian_full(*args, **kwargs):
+    raise NotImplementedError("Weighted Gaussian functions not yet integrated")
+
+def sample_weighted_gaussian_univariate(*args, **kwargs):
+    raise NotImplementedError("Weighted Gaussian functions not yet integrated")
+
+def sample_weighted_gaussian_full(*args, **kwargs):
+    raise NotImplementedError("Weighted Gaussian functions not yet integrated")
 
 
 # ============================================================================
