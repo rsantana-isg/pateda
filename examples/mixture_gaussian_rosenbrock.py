@@ -60,7 +60,7 @@ def main():
     eda = EDA(
         pop_size=pop_size,
         n_vars=n_vars,
-        objective_func=objective,
+        fitness_func=objective,
         learning_func=lambda pop, fit, params: learn_mixture_gaussian_univariate(
             pop, fit, learning_params
         ),
