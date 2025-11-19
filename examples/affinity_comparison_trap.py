@@ -35,8 +35,12 @@ def run_eda_variant(learning_method, method_name):
     selection_size = 250
     max_generations = 50
 
-    def fitness_func(population):
-        return np.array([trap_n(ind, n_trap=trap_size) for ind in population])
+    def fitness_func(x):
+        # Handle both single individual (1D) and population (2D)
+        if x.ndim == 1:
+            return trap_n(x, n_trap=trap_size)
+        else:
+            return np.array([trap_n(ind, n_trap=trap_size) for ind in x])
 
     # Initialize components
     components = EDAComponents(

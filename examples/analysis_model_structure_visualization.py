@@ -305,7 +305,7 @@ def run_analysis_example():
         selection=TruncationSelection(ratio=0.5),
         learning=LearnEBNA(
             max_parents=4,
-            scoring_metric='bic',
+            score_metric='bic',
         ),
         sampling=SampleBayesianNetwork(n_samples=pop_size),
         replacement=GenerationalReplacement(),

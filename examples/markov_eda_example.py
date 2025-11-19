@@ -145,7 +145,7 @@ def compare_markov_orders():
 
         print(f"Best fitness: {stats.best_fitness_overall} / {n_vars}")
         # Note: generations_to_optimum not available in stats object
-        print(f"Total generations: {stats.generation}")
+        print(f"Total generations: {len(stats.best_fitness)}")
 
 
 if __name__ == "__main__":
