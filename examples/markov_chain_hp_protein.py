@@ -40,10 +40,10 @@ def main():
     # Create EDA components
     # Markov chain with order 2 (each variable depends on 2 previous ones)
     learning = LearnMarkovChain(k=2, alpha=1.0)
-    sampling = SampleMarkovChain()
+    sampling = SampleMarkovChain(n_samples=pop_size)
     selection = TruncationSelection(ratio=0.5)
     replacement = GenerationalReplacement()
-    stop_condition = MaxGenerations(max_generations=50)
+    stop_condition = MaxGenerations(50)
 
     # Create and run EDA
     eda = EDA(

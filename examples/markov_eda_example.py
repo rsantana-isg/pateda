@@ -54,7 +54,7 @@ def markov_eda_onemax():
     # Run EDA
     stats, cache = eda.run(verbose=True)
 
-    print(f"\nBest solution found: {stats.best_individual_overall}")
+    print(f"\nBest solution found: {stats.best_individual}")
     print(f"Best fitness: {stats.best_fitness_overall}")
     print(f"Optimal fitness (all 1s): {n_vars}")
     print(f"Success: {'Yes' if stats.best_fitness_overall >= n_vars else 'No'}")
@@ -100,7 +100,7 @@ def markov_eda_deceptive():
     n_blocks = n_vars // 3
     optimal_fitness = n_blocks * 3  # 3 points per block
 
-    print(f"\nBest solution found: {stats.best_individual_overall}")
+    print(f"\nBest solution found: {stats.best_individual}")
     print(f"Best fitness: {stats.best_fitness_overall}")
     print(f"Optimal fitness: {optimal_fitness}")
     print(f"Success rate: {stats.best_fitness_overall / optimal_fitness * 100:.1f}%")
