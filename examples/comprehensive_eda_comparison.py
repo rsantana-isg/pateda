@@ -34,7 +34,7 @@ from pateda.core.eda import EDA, EDAComponents
 from pateda.stop_conditions import MaxGenerations
 from pateda.seeding import RandomInit
 from pateda.selection import TruncationSelection
-from pateda.replacement.elitist import ElitistReplacement, NoReplacement
+from pateda.replacement import ElitistReplacement, GenerationalReplacement
 
 # Import learning methods
 from pateda.learning.histogram import LearnHistogram
@@ -103,7 +103,7 @@ def get_algorithms(pop_size: int) -> List[AlgorithmConfig]:
             name="UMDA",
             learning=LearnHistogram(),
             sampling=SampleHistogram(pop_size),
-            replacement=NoReplacement(),
+            replacement=GenerationalReplacement(),
         ),
         AlgorithmConfig(
             name="EBNA",
@@ -113,7 +113,7 @@ def get_algorithms(pop_size: int) -> List[AlgorithmConfig]:
                 scoring_metric='bic'
             ),
             sampling=SampleBN(pop_size),
-            replacement=NoReplacement(),
+            replacement=GenerationalReplacement(),
         ),
         AlgorithmConfig(
             name="Tree EDA",
@@ -122,7 +122,7 @@ def get_algorithms(pop_size: int) -> List[AlgorithmConfig]:
                 scoring_method='MI'
             ),
             sampling=SampleFDA(pop_size),
-            replacement=NoReplacement(),
+            replacement=GenerationalReplacement(),
         ),
         AlgorithmConfig(
             name="Affinity EDA",
@@ -131,7 +131,7 @@ def get_algorithms(pop_size: int) -> List[AlgorithmConfig]:
                 max_iter=200
             ),
             sampling=SampleFDA(pop_size),
-            replacement=NoReplacement(),
+            replacement=GenerationalReplacement(),
         ),
         AlgorithmConfig(
             name="MOA",
@@ -144,7 +144,7 @@ def get_algorithms(pop_size: int) -> List[AlgorithmConfig]:
                 IT=4,
                 temperature=1.0
             ),
-            replacement=NoReplacement(),
+            replacement=GenerationalReplacement(),
         ),
     ]
 
@@ -183,7 +183,7 @@ def run_single_experiment(
             selection=TruncationSelection(proportion=0.5),
             learning=algorithm.learning,
             sampling=algorithm.sampling,
-            replacement=algorithm.replacement if algorithm.replacement else NoReplacement(),
+            replacement=algorithm.replacement if algorithm.replacement else GenerationalReplacement(),
             stop_condition=MaxGenerations(max_gen=max_generations),
         )
 
