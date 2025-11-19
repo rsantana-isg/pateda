@@ -302,14 +302,14 @@ def run_analysis_example():
     # Configure EDA with caching enabled
     components = EDAComponents(
         seeding=RandomInit(),
-        selection=TruncationSelection(proportion=0.5),
+        selection=TruncationSelection(ratio=0.5),
         learning=LearnEBNA(
             max_parents=4,
             scoring_metric='bic',
         ),
         sampling=SampleBayesianNetwork(n_samples=pop_size),
         replacement=GenerationalReplacement(),
-        stop_condition=MaxGenerations(max_gen=max_generations),
+        stop_condition=MaxGenerations(max_generations),
     )
 
     eda = EDA(
