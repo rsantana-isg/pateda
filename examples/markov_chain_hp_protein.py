@@ -39,9 +39,9 @@ def main():
 
     # Create EDA components
     # Markov chain with order 2 (each variable depends on 2 previous ones)
-    learning = LearnMarkovChain(order=2, alpha=1.0)
+    learning = LearnMarkovChain(k=2, alpha=1.0)
     sampling = SampleMarkovChain()
-    selection = TruncationSelection(truncation_rate=0.5)
+    selection = TruncationSelection(ratio=0.5)
     replacement = GenerationalReplacement()
     stop_condition = MaxGenerations(max_generations=50)
 
