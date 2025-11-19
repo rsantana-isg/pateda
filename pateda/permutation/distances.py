@@ -234,3 +234,75 @@ def hamming_distance(perm1: np.ndarray, perm2: np.ndarray) -> int:
         2
     """
     return int(np.sum(perm1 != perm2))
+
+
+def _x_vector_cycles(perm: np.ndarray) -> np.ndarray:
+    """
+    Calculate the cycle-based x-vector for a permutation (for Mallows model).
+
+    The x-vector decomposes the permutation into cycles. For each cycle,
+    the largest item gets x[i] = 0, all other items in the cycle get x[i] = 1.
+
+    This is used in the Mallows model with Cayley distance for learning and sampling.
+
+    Args:
+        perm: A permutation (0-indexed)
+
+    Returns:
+        The x-vector of the permutation (length n-1)
+
+    References:
+        [1] E. Irurozki, B. Calvo, J.A Lozano: Sampling and learning mallows
+            and generalized mallows models under the cayley distance. Tech. Rep., 2013
+    """
+    n = len(perm)
+    x = np.ones(n, dtype=int)
+    visited = np.zeros(n, dtype=bool)
+    num_visited = 0
+
+    while num_visited < n:
+        # Find next unvisited item
+        item = np.where(~visited)[0][0]
+
+        # Trace the cycle starting from this item
+        max_item_in_cycle = -1
+        while not visited[item]:
+            if item > max_item_in_cycle:
+                max_item_in_cycle = item
+            visited[item] = True
+            num_visited += 1
+            item = perm[item]
+
+        # Mark largest item in cycle with 0
+        x[max_item_in_cycle] = 0
+
+    # Return x-vector without last position (always 0)
+    return x[:-1]
+
+
+def _generate_perm_from_x(x: np.ndarray, n: int) -> np.ndarray:
+    """
+    Generate a random permutation from an x-vector (inverse of x_vector_cycles).
+
+    This is used for sampling in the Mallows model with Cayley distance.
+
+    Args:
+        x: The x-vector (length n-1)
+        n: Size of the permutation
+
+    Returns:
+        A permutation consistent with the x-vector
+
+    References:
+        [1] E. Irurozki, B. Calvo, J.A Lozano: Sampling and learning mallows
+            and generalized mallows models under the cayley distance. Tech. Rep., 2013
+    """
+    perm = np.arange(n, dtype=int)  # Start with identity permutation [0, 1, 2, ..., n-1]
+
+    for pos in range(n - 1):
+        if x[pos] == 1:
+            # Randomly swap position 'pos' with a position in range [pos+1, n-1]
+            random_pos = np.random.randint(pos + 1, n)
+            perm[pos], perm[random_pos] = perm[random_pos], perm[pos]
+
+    return perm

@@ -12,9 +12,14 @@ References:
 
 import numpy as np
 from typing import Dict, Any, Callable, Optional
-from scipy.optimize import fminbound
-from pateda.permutation.distances import kendall_distance, cayley_distance, ulam_distance
-from pateda.permutation.consensus import find_consensus_borda, compose_permutations
+from scipy.optimize import fminbound, newton
+from pateda.permutation.distances import (
+    kendall_distance,
+    cayley_distance,
+    ulam_distance,
+    _x_vector_cycles,
+)
+from pateda.permutation.consensus import find_consensus_borda, find_consensus_median, compose_permutations
 
 
 class LearnMallowsKendall:
@@ -176,6 +181,169 @@ def learn_mallows_kendall(
     See LearnMallowsKendall for parameter details.
     """
     learner = LearnMallowsKendall()
+    return learner(
+        generation, n_vars, cardinality, selected_pop, selected_fitness, **params
+    )
+
+
+class LearnMallowsCayley:
+    """Learn Mallows model with Cayley distance"""
+
+    def __call__(
+        self,
+        generation: int,
+        n_vars: int,
+        cardinality: np.ndarray,
+        selected_pop: np.ndarray,
+        selected_fitness: np.ndarray,
+        initial_theta: float = 0.1,
+        upper_theta: float = 10.0,
+        max_iter: int = 100,
+        consensus_method: str = "borda",
+    ) -> Dict[str, Any]:
+        """
+        Learn Mallows model with Cayley distance.
+
+        Args:
+            generation: Current generation number
+            n_vars: Number of variables (permutation length)
+            cardinality: Not used for permutations
+            selected_pop: Selected population of permutations
+            selected_fitness: Fitness values (not used in learning)
+            initial_theta: Initial theta parameter value
+            upper_theta: Upper bound for theta
+            max_iter: Maximum iterations for optimization
+            consensus_method: Method to find consensus ("borda" or "median")
+
+        Returns:
+            Model dictionary containing:
+                - x_probs: Probability vector for x-vector
+                - consensus: Consensus ranking
+                - theta: Learned theta parameter
+                - psis: Normalization constants
+        """
+        n_selected = selected_pop.shape[0]
+
+        # 1. Calculate consensus ranking
+        if consensus_method == "borda":
+            consensus = find_consensus_borda(selected_pop)
+        else:
+            consensus = find_consensus_median(cayley_distance, selected_pop)  # type: ignore
+
+        # 2. Calculate theta parameter
+        theta = self._calculate_theta(
+            consensus, selected_pop, initial_theta, upper_theta, max_iter, n_vars
+        )
+
+        # 3. Calculate psi normalization constants
+        psis = self._calculate_psi_constants(theta, n_vars)
+
+        # 4. Calculate x-vector probability vector
+        x_probs = self._calculate_x_prob_vector(psis)
+
+        return {
+            "x_probs": x_probs,
+            "consensus": consensus,
+            "theta": theta,
+            "psis": psis,
+            "model_type": "mallows_cayley",
+        }
+
+    def _calculate_theta(
+        self,
+        consensus: np.ndarray,
+        population: np.ndarray,
+        initial_theta: float,
+        upper_theta: float,
+        max_iter: int,
+        n_vars: int,
+    ) -> float:
+        """
+        Calculate theta parameter using Newton-Raphson method.
+
+        References:
+            [1] E. Irurozki, B. Calvo, J.A Lozano: Sampling and learning mallows
+                and generalized mallows models under the cayley distance. Tech. Rep., 2013
+        """
+        # Get inverse of consensus
+        inv_consensus = np.argsort(consensus)
+
+        # Compose each permutation with inverse of consensus and calculate x-vectors
+        n_pop, _ = population.shape
+        x_vectors = []
+
+        for i in range(n_pop):
+            composition = population[i][inv_consensus]
+            x_vec = _x_vector_cycles(composition)
+            x_vectors.append(x_vec)
+
+        x_vectors_array = np.array(x_vectors)
+        x_mean = np.mean(x_vectors_array, axis=0)
+
+        # Define the theta function and its derivative for Newton-Raphson
+        def theta_function(theta):
+            """Function to find root: f(theta) = 0"""
+            j = np.arange(1, n_vars)  # j from 1 to n-1
+            return np.sum(j / (j + np.exp(theta))) - np.sum(x_mean)
+
+        def theta_derivative(theta):
+            """Derivative of theta function"""
+            j = np.arange(1, n_vars)  # j from 1 to n-1
+            return np.sum((-j * np.exp(theta)) / ((np.exp(theta) + j) ** 2))
+
+        # Use Newton-Raphson to find theta
+        try:
+            theta_opt = newton(
+                theta_function,
+                initial_theta,
+                fprime=theta_derivative,
+                maxiter=max_iter,
+                tol=1e-6,
+            )
+            # Clip to valid range
+            theta_opt = np.clip(theta_opt, 0.001, upper_theta)
+        except:
+            # Fallback to simple search if Newton-Raphson fails
+            theta_opt = fminbound(
+                lambda t: abs(theta_function(t)), 0.001, upper_theta, xtol=1e-6
+            )
+
+        return float(theta_opt)
+
+    def _calculate_psi_constants(self, theta: float, n: int) -> np.ndarray:
+        """
+        Calculate psi normalization constants for Cayley distance.
+
+        Psi_j = (n-j) * exp(-theta) + 1
+        """
+        j = np.arange(1, n)  # j from 1 to n-1
+        psis = (n - j) * np.exp(-theta) + 1
+        return psis
+
+    def _calculate_x_prob_vector(self, psis: np.ndarray) -> np.ndarray:
+        """
+        Calculate probability vector for x-vector values.
+
+        For Cayley distance: P(x_j = 1) = 1 / Psi_j
+        """
+        x_probs = 1.0 / psis
+        return x_probs
+
+
+def learn_mallows_cayley(
+    generation: int,
+    n_vars: int,
+    cardinality: np.ndarray,
+    selected_pop: np.ndarray,
+    selected_fitness: np.ndarray,
+    **params,
+) -> Dict[str, Any]:
+    """
+    Convenience function to learn Mallows model with Cayley distance.
+
+    See LearnMallowsCayley for parameter details.
+    """
+    learner = LearnMallowsCayley()
     return learner(
         generation, n_vars, cardinality, selected_pop, selected_fitness, **params
     )
