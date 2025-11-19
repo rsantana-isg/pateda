@@ -289,6 +289,10 @@ class SampleGeneralizedMallowsKendall:
             # Find index where cumsum >= rand_val
             index = np.searchsorted(cumsum, rand_val)
 
+            # Clamp index to valid range [0, n_vars - j - 1]
+            # searchsorted can return len(cumsum) if rand_val >= cumsum[-1]
+            index = min(index, n_vars - j - 1)
+
             v_vec[j] = index
 
         v_vec[n_vars - 1] = 0  # Last position is always 0

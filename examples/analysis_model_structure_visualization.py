@@ -31,8 +31,8 @@ from pateda.stop_conditions import MaxGenerations
 from pateda.seeding import RandomInit
 from pateda.selection import TruncationSelection
 from pateda.replacement import GenerationalReplacement
-from pateda.learning.bayesian_network import LearnBayesianNetwork
-from pateda.sampling.bayesian_network import SampleBN
+from pateda.learning import LearnEBNA
+from pateda.sampling.bayesian_network import SampleBayesianNetwork
 from pateda.functions.discrete.trap import trap_k
 
 
@@ -303,12 +303,11 @@ def run_analysis_example():
     components = EDAComponents(
         seeding=RandomInit(),
         selection=TruncationSelection(proportion=0.5),
-        learning=LearnBayesianNetwork(
-            structure_algorithm='k2',
+        learning=LearnEBNA(
             max_parents=4,
             scoring_metric='bic',
         ),
-        sampling=SampleBN(n_samples=pop_size),
+        sampling=SampleBayesianNetwork(n_samples=pop_size),
         replacement=GenerationalReplacement(),
         stop_condition=MaxGenerations(max_gen=max_generations),
     )

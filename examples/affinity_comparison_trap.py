@@ -9,16 +9,16 @@ The trap function is used, which has multiple deceptive local optima.
 """
 
 import numpy as np
-from pateda.core.eda import EDA
+from pateda.core.eda import EDA, EDAComponents
 from pateda.learning.affinity import (
     LearnAffinityFactorization,
     LearnAffinityFactorizationElim,
 )
 from pateda.sampling.fda import SampleFDA
-from pateda.selection.truncation import SelectTruncation
-from pateda.replacement.generational import ReplaceGenerational
-from pateda.seeding.random_init import RandomInit
-from pateda.stop_conditions.max_generations import MaxGenerations
+from pateda.selection import TruncationSelection
+from pateda.replacement import GenerationalReplacement
+from pateda.seeding import RandomInit
+from pateda.stop_conditions import MaxGenerations
 from pateda.functions.discrete.trap import trap_function
 
 
@@ -39,38 +39,38 @@ def run_eda_variant(learning_method, method_name):
         return np.array([trap_function(ind, trap_size) for ind in population])
 
     # Initialize components
-    sampling = SampleFDA(n_samples=pop_size)
-    selection = SelectTruncation(n_selected=selection_size)
-    replacement = ReplaceGenerational()
-    seeding = RandomInit(pop_size=pop_size)
-    stop_condition = MaxGenerations(max_generations=max_generations)
+    components = EDAComponents(
+        seeding=RandomInit(),
+        selection=TruncationSelection(proportion=0.5),
+        learning=learning_method,
+        sampling=SampleFDA(n_samples=pop_size),
+        replacement=GenerationalReplacement(),
+        stop_condition=MaxGenerations(max_generations),
+    )
 
     # Create and run EDA
     eda = EDA(
-        fitness_function=fitness_func,
+        pop_size=pop_size,
         n_vars=n_vars,
+        fitness_func=fitness_func,
         cardinality=cardinality,
-        learning_method=learning_method,
-        sampling_method=sampling,
-        selection_method=selection,
-        replacement_method=replacement,
-        seeding_method=seeding,
-        stop_condition=stop_condition,
+        components=components,
     )
 
     print(f"\n{'=' * 60}")
     print(f"Running: {method_name}")
     print(f"{'=' * 60}")
 
-    result = eda.run()
+    stats, cache = eda.run(verbose=False)
 
     # Analyze results
     print(f"\nResults for {method_name}:")
-    print(f"  Best fitness: {result['best_fitness']:.4f}")
+    print(f"  Best fitness: {stats.best_fitness_overall:.4f}")
     print(f"  Target (global optimum): {n_vars}")
-    print(f"  Gap: {n_vars - result['best_fitness']:.4f}")
+    print(f"  Gap: {n_vars - stats.best_fitness_overall:.4f}")
 
-    model = result.get("model")
+    # Get the final model from cache
+    model = cache.get('models', [])[-1] if 'models' in cache and cache['models'] else None
     if model:
         metadata = model.metadata
         n_cliques = metadata.get("n_cliques", 0)
@@ -88,7 +88,7 @@ def run_eda_variant(learning_method, method_name):
         print(f"    Average clique size: {np.mean(clique_sizes):.2f}")
         print(f"    Cliques of size {trap_size}: {clique_sizes.count(trap_size)}")
 
-    return result
+    return {'best_fitness': stats.best_fitness_overall, 'model': model, 'stats': stats, 'cache': cache}
 
 
 def main():
