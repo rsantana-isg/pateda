@@ -1,15 +1,181 @@
 """
 VAE Model Learning for Continuous EDAs
 
+==============================================================================
+OVERVIEW
+==============================================================================
+
 This module provides learning algorithms for Variational Autoencoder (VAE) based
-probabilistic models used in continuous optimization. Implementation based on the paper:
-"Expanding variational autoencoders for learning and exploiting latent representations
-in search distributions" (Garciarena et al., GECCO 2018).
+probabilistic models used in continuous optimization EDAs. As discussed in Santana (2017),
+VAEs represent a promising neural model approach for EDAs, offering advantages over GANs
+in terms of efficiency and effectiveness.
 
 The module implements three variants:
-1. VAE: Basic variational autoencoder
-2. E-VAE: Extended VAE with fitness predictor
-3. CE-VAE: Conditioned Extended VAE with fitness-conditioned sampling
+1. **VAE**: Basic variational autoencoder
+2. **E-VAE**: Extended VAE with fitness predictor
+3. **CE-VAE**: Conditioned Extended VAE with fitness-conditioned sampling
+
+==============================================================================
+VAE ARCHITECTURE
+==============================================================================
+
+VAEs learn a probabilistic encoder-decoder model:
+
+1. **Encoder q(z|x)**: Maps input x to latent distribution parameters
+   - Input: Data sample x (dimension n_vars)
+   - Output: Mean μ(x) and log-variance log σ²(x) of latent distribution
+   - Probabilistic: Represents uncertainty in latent representation
+
+2. **Latent Space z**: Low-dimensional probabilistic representation
+   - Sampled from q(z|x) = N(μ(x), σ²(x))
+   - Dimension typically much smaller than input space
+   - Regularized to be close to standard normal N(0, I)
+
+3. **Decoder p(x|z)**: Maps latent variable z back to data space
+   - Input: Latent sample z
+   - Output: Reconstructed sample x̂
+   - Learns to generate samples from latent representation
+
+Training Objective (ELBO):
+Maximize Evidence Lower Bound = Reconstruction Loss + KL Divergence
+- Reconstruction: Encourages accurate reconstruction of inputs
+- KL Divergence: Regularizes latent space to be close to N(0, I)
+
+==============================================================================
+RELATIONSHIP TO NEURAL MODELS IN EDAs (Santana, 2017)
+==============================================================================
+
+According to Section 6.2.1 of Santana (2017), VAEs have shown more promise in EDAs
+compared to GANs:
+
+**VAE Advantages Over GANs**:
+1. **Generative model**: VAEs are true generative models (not just adversarial)
+2. **Efficient sampling**: Direct sampling from latent space (no iterative process)
+3. **Better EDA performance**: Autoencoders in Churchill et al. (2016) were "extremely fast"
+   compared to Bayesian network learning, though less efficient in function evaluations
+
+**VAE Variants for EDAs**:
+
+1. **GA-dA** (Churchill et al., 2016): Denoising autoencoder as mutation distribution
+   - Outperforms BOA on knapsack problem
+   - Outperformed by BOA on hierarchical HIFF function
+   - Conclusion: "Performance depends on how the neural model is used"
+
+2. **Deep-Opt-GA** (Baluja, 2017): Deep neural networks (5-10 layers)
+   - Acknowledges learning can be time-consuming
+   - Evaluated on diverse problems but not compared directly to EDAs
+
+**Key Insight** (from Santana, 2017):
+"For the performance of the EDA, the class of model used might be as relevant as the
+particular way it is used."
+
+**Latent Representations in Optimization**:
+A fundamental question (Santana, 2017, Section 6.2.1): "To what extent can a latent
+representation of the optimization problem be efficiently exploited?"
+
+In classification, latent features are crucial. In optimization, the role is less clear.
+VAEs provide explicit latent representations that can potentially:
+- Capture problem structure in compressed form
+- Enable transfer learning across problem instances
+- Support fitness prediction and guided sampling
+
+==============================================================================
+EXTENDED VAE VARIANTS
+==============================================================================
+
+1. **E-VAE** (Extended VAE):
+   - Adds fitness predictor network f(z) that predicts fitness from latent code
+   - Training optimizes both reconstruction and fitness prediction
+   - Enables fitness-aware latent representations
+   - Can guide sampling toward high-fitness regions
+
+2. **CE-VAE** (Conditional Extended VAE):
+   - Decoder conditioned on both z and desired fitness
+   - Allows explicit fitness-conditioned generation: p(x|z, f)
+   - Training learns to generate samples with specified fitness levels
+   - Most sophisticated variant for optimization
+
+==============================================================================
+IMPLEMENTATION DETAILS
+==============================================================================
+
+Architecture:
+- Encoder: n_vars → hidden[0] → hidden[1] → (μ, log σ²)
+- Decoder: latent_dim → reversed_hidden → n_vars
+- Fitness Predictor: latent_dim → hidden → n_objectives
+- Conditional Decoder: (latent_dim + n_objectives) → hidden → n_vars
+
+Default Configuration:
+- Hidden dimensions: [32, 16] for encoder, [16, 32] for decoder
+- Latent dimension: 5 (configurable)
+- Activation functions: Tanh (encoder), ReLU (decoder), Sigmoid (output)
+
+Training:
+- Loss: Reconstruction (MSE) + KL Divergence + Fitness Prediction (for E-VAE/CE-VAE)
+- Optimizer: Adam
+- Data normalization: [0, 1] using min-max scaling
+
+==============================================================================
+USAGE CONSIDERATIONS
+==============================================================================
+
+When to use VAEs:
+- Continuous optimization problems
+- When structure learning from data is needed
+- Medium to large population sizes (>50 samples)
+- Problems where latent structure might exist
+
+Variant Selection:
+- **VAE**: Baseline, no fitness information
+- **E-VAE**: When fitness prediction can guide search
+- **CE-VAE**: When explicit fitness-conditioned generation is desired
+
+Advantages vs. Traditional EDAs:
+- Faster learning than Bayesian networks
+- GPU parallelization possible
+- Latent space can reveal problem structure
+- Natural for transfer learning
+
+Disadvantages vs. Traditional EDAs:
+- Requires hyperparameter tuning
+- Latent representations less interpretable than PGMs
+- May not capture problem structure as explicitly as graphical models
+- Computational overhead for neural network training
+
+==============================================================================
+REFERENCES
+==============================================================================
+
+- Garciarena, U., Santana, R., & Mendiburu, A. (2018). "Expanding variational
+  autoencoders for learning and exploiting latent representations in search
+  distributions." GECCO 2018.
+  [Extended VAE variants for EDAs]
+
+- Churchill, A.W., Sigtia, S., & Fernando, C. (2016). "Learning to generate genotypes
+  with neural networks." arXiv:1604.04153.
+  [GA-dA: Denoising autoencoders in EDAs]
+
+- Santana, R. (2017). "Gray-box optimization and factorized distribution algorithms:
+  where two worlds collide." arXiv:1707.03093, Section 6.2.1.
+  [Comprehensive analysis of neural models in EDAs]
+
+- Kingma, D.P., & Welling, M. (2013). "Auto-encoding variational bayes." ICLR 2014.
+  [Original VAE paper]
+
+==============================================================================
+SEE ALSO
+==============================================================================
+
+Related neural model implementations in pateda:
+- pateda.learning.dae: Denoising Autoencoders (simpler, efficient)
+- pateda.learning.gan: Generative Adversarial Networks (less effective for EDAs)
+- pateda.learning.rbm: Restricted Boltzmann Machines (discrete variables)
+- pateda.sampling.vae: Sampling from trained VAE models
+
+Traditional alternatives:
+- pateda.learning.gaussian: Gaussian-based EDAs (explicit structure)
+- pateda.learning.boa: Bayesian Optimization Algorithm (interpretable)
+- pateda.learning.gaussian.learn_gmrf_eda: GMRF-EDA (structured Gaussian)
 """
 
 import numpy as np
