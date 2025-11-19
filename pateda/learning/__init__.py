@@ -20,11 +20,16 @@ from pateda.learning.bsc import LearnBSC
 from pateda.learning.mimic import LearnMIMIC
 
 # Gaussian learning functions for continuous optimization
-from pateda.learning.gaussian import (
+from pateda.learning.basic_gaussian import (
     learn_gaussian_univariate,
     learn_gaussian_full,
+)
+from pateda.learning.mixture_gaussian import (
     learn_mixture_gaussian_univariate,
     learn_mixture_gaussian_full,
+    learn_mixture_gaussian_em,
+)
+from pateda.learning.gmrf_eda import (
     learn_gmrf_eda,
     learn_gmrf_eda_lasso,
     learn_gmrf_eda_elasticnet,
@@ -76,6 +81,7 @@ __all__ = [
     "learn_gaussian_full",
     "learn_mixture_gaussian_univariate",
     "learn_mixture_gaussian_full",
+    "learn_mixture_gaussian_em",
     "learn_gmrf_eda",
     "learn_gmrf_eda_lasso",
     "learn_gmrf_eda_elasticnet",
