@@ -250,7 +250,11 @@ class MAPInference:
                         max_vals = table
 
                     # Accumulate (multiply in log space)
-                    if len(marginal) == len(max_vals):
+                    # Handle both scalar and array max_vals
+                    if np.isscalar(max_vals) or max_vals.ndim == 0:
+                        # Scalar case - broadcast to marginal
+                        marginal += np.log(np.maximum(max_vals, 1e-300))
+                    elif len(marginal) == len(max_vals):
                         marginal += np.log(np.maximum(max_vals, 1e-300))
 
             max_marginals[var, :self.cardinalities[var]] = marginal
