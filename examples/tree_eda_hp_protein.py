@@ -9,11 +9,12 @@ Based on MATEDA-2.0 LearnTree_HPProtein.m and TreeFDA_HPProtein.m
 """
 
 import numpy as np
-from pateda.core.eda import EDA
+from pateda.core.eda import EDA, EDAComponents
 from pateda.learning import LearnTreeModel
 from pateda.sampling import SampleFDA
 from pateda.selection import TruncationSelection
 from pateda.replacement import GenerationalReplacement
+from pateda.seeding import RandomInit
 from pateda.stop_conditions import MaxGenerations
 from pateda.functions.discrete import (
     create_fibonacci_hp_sequence,
@@ -39,27 +40,25 @@ def main():
     cardinality = 3 * np.ones(n_vars, dtype=int)
 
     # Create objective function
-    objective = create_hp_objective_function(hp_sequence)
+    fitness_func = create_hp_objective_function(hp_sequence)
 
     # Create EDA components
-    learning = LearnTreeModel(alpha=0.0)
-    sampling = SampleFDA(n_samples=pop_size)
-    selection = TruncationSelection(ratio=0.5)
-    replacement = GenerationalReplacement()
-    stop_condition = MaxGenerations(max_generations=50)
+    components = EDAComponents(
+        seeding=RandomInit(),
+        selection=TruncationSelection(ratio=0.5),
+        learning=LearnTreeModel(alpha=0.0),
+        sampling=SampleFDA(n_samples=pop_size),
+        replacement=GenerationalReplacement(),
+        stop_condition=MaxGenerations(50),
+    )
 
     # Create and run EDA
     eda = EDA(
         pop_size=pop_size,
         n_vars=n_vars,
         cardinality=cardinality,
-        objective_function=objective,
-        learning_method=learning,
-        sampling_method=sampling,
-        selection_method=selection,
-        replacement_method=replacement,
-        stop_condition=stop_condition,
-        maximize=True,  # Maximizing energy (minimizing negative energy)
+        fitness_func=fitness_func,
+        components=components,
     )
 
     # Run optimization
@@ -70,23 +69,20 @@ def main():
     print(f"Maximum generations: 50")
     print()
 
-    statistics = eda.run()
+    stats, cache = eda.run(verbose=True)
 
     # Print results
     print("\n" + "=" * 60)
     print("RESULTS")
     print("=" * 60)
-    print(f"Generations run: {len(statistics['best_fitness'])}")
-    print(f"Best energy: {statistics['best_fitness'][-1]:.4f}")
-    print(f"Mean energy (final): {statistics['mean_fitness'][-1]:.4f}")
+    print(f"Generations run: {stats.generation + 1}")
+    print(f"Best energy: {stats.best_fitness_overall:.4f}")
+    print(f"Mean energy (final): {stats.mean_fitness:.4f}")
     print()
-    print("Best energy per generation:")
-    for gen, fitness in enumerate(statistics['best_fitness'][:10]):
-        print(f"  Generation {gen}: {fitness:.4f}")
-    if len(statistics['best_fitness']) > 10:
-        print("  ...")
-        for gen in range(len(statistics['best_fitness']) - 3, len(statistics['best_fitness'])):
-            print(f"  Generation {gen}: {statistics['best_fitness'][gen]:.4f}")
+    print("Best energy convergence:")
+    print(f"  Initial: {stats.fitness_history[0]['best']:.4f}")
+    print(f"  Final: {stats.best_fitness_overall:.4f}")
+    print(f"  Improvement: {stats.best_fitness_overall - stats.fitness_history[0]['best']:.4f}")
 
     print("\nNote: To visualize the protein structure, you can use the best solution")
     print("      with a custom visualization function.")

@@ -16,6 +16,20 @@ from pateda.stop_conditions import MaxGenerations
 from pateda.seeding import RandomInit
 
 
+def truncation_selection(pop, fit, n_select):
+    """Select top n_select individuals based on fitness"""
+    indices = np.argsort(fit)[::-1][:n_select]
+    return pop[indices], fit[indices]
+
+
+def elitist_replacement(old_pop, new_pop, old_fit, new_fit):
+    """Combine old and new populations, keep the best individuals"""
+    combined_pop = np.vstack([old_pop, new_pop])
+    combined_fit = np.concatenate([old_fit, new_fit])
+    indices = np.argsort(combined_fit)[::-1][:len(old_pop)]
+    return combined_pop[indices], combined_fit[indices]
+
+
 def main():
     # Problem setup
     n_vars = 30

@@ -154,7 +154,8 @@ def main():
         if gen % 10 == 0:
             print(f"Generation {gen}: Pareto front size = {len(pareto_solutions)}")
             print(f"  Best objectives: {np.max(pareto_objectives, axis=0)}")
-            print(f"  Mean objectives: {np.mean(objectives, axis=0):.2f}")
+            mean_objs = np.mean(objectives, axis=0)
+            print(f"  Mean objectives: [{mean_objs[0]:.2f}, {mean_objs[1]:.2f}]")
 
     # Final evaluation
     final_objectives = objective(population)
