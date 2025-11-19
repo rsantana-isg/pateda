@@ -8,6 +8,9 @@ from pateda.learning.boa import LearnBOA
 from pateda.learning.markov import LearnMarkovChain
 from pateda.learning.mixture_trees import LearnMixtureTrees
 from pateda.learning.tree import LearnTreeModel
+from pateda.learning.mnfda import LearnMNFDA
+from pateda.learning.mnfdag import LearnMNFDAG
+from pateda.learning.moa import LearnMOA
 from pateda.learning.affinity import (
     LearnAffinityFactorization,
     LearnAffinityFactorizationElim,
@@ -57,6 +60,9 @@ __all__ = [
     "LearnMarkovChain",
     "LearnMixtureTrees",
     "LearnTreeModel",
+    "LearnMNFDA",
+    "LearnMNFDAG",
+    "LearnMOA",
     "LearnAffinityFactorization",
     "LearnAffinityFactorizationElim",
     "LearnPBIL",
