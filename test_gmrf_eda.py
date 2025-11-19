@@ -22,21 +22,37 @@ import sys
 import os
 import importlib.util
 
-# Load gaussian learning module directly
-spec_learning = importlib.util.spec_from_file_location(
-    "gaussian_learning",
-    os.path.join(os.path.dirname(__file__), "pateda/learning/gaussian.py")
+# Load GMRF-EDA learning module directly
+spec_gmrf_learning = importlib.util.spec_from_file_location(
+    "gmrf_learning",
+    os.path.join(os.path.dirname(__file__), "pateda/learning/gmrf_eda.py")
 )
-gaussian_learning = importlib.util.module_from_spec(spec_learning)
-spec_learning.loader.exec_module(gaussian_learning)
+gmrf_learning = importlib.util.module_from_spec(spec_gmrf_learning)
+spec_gmrf_learning.loader.exec_module(gmrf_learning)
 
-# Load gaussian sampling module directly
-spec_sampling = importlib.util.spec_from_file_location(
-    "gaussian_sampling",
-    os.path.join(os.path.dirname(__file__), "pateda/sampling/gaussian.py")
+# Load basic gaussian learning module directly
+spec_basic_learning = importlib.util.spec_from_file_location(
+    "basic_gaussian_learning",
+    os.path.join(os.path.dirname(__file__), "pateda/learning/basic_gaussian.py")
 )
-gaussian_sampling = importlib.util.module_from_spec(spec_sampling)
-spec_sampling.loader.exec_module(gaussian_sampling)
+basic_gaussian_learning = importlib.util.module_from_spec(spec_basic_learning)
+spec_basic_learning.loader.exec_module(basic_gaussian_learning)
+
+# Load GMRF sampling module directly
+spec_gmrf_sampling = importlib.util.spec_from_file_location(
+    "gmrf_sampling",
+    os.path.join(os.path.dirname(__file__), "pateda/sampling/gmrf_eda.py")
+)
+gmrf_sampling = importlib.util.module_from_spec(spec_gmrf_sampling)
+spec_gmrf_sampling.loader.exec_module(gmrf_sampling)
+
+# Load basic gaussian sampling module directly
+spec_basic_sampling = importlib.util.spec_from_file_location(
+    "basic_gaussian_sampling",
+    os.path.join(os.path.dirname(__file__), "pateda/sampling/basic_gaussian.py")
+)
+basic_gaussian_sampling = importlib.util.module_from_spec(spec_basic_sampling)
+spec_basic_sampling.loader.exec_module(basic_gaussian_sampling)
 
 # Load benchmarks module directly
 spec_benchmarks = importlib.util.spec_from_file_location(
@@ -47,16 +63,16 @@ benchmarks = importlib.util.module_from_spec(spec_benchmarks)
 spec_benchmarks.loader.exec_module(benchmarks)
 
 # Extract functions
-learn_gmrf_eda = gaussian_learning.learn_gmrf_eda
-learn_gmrf_eda_lasso = gaussian_learning.learn_gmrf_eda_lasso
-learn_gmrf_eda_elasticnet = gaussian_learning.learn_gmrf_eda_elasticnet
-learn_gmrf_eda_lars = gaussian_learning.learn_gmrf_eda_lars
-learn_gaussian_univariate = gaussian_learning.learn_gaussian_univariate
-learn_gaussian_full = gaussian_learning.learn_gaussian_full
+learn_gmrf_eda = gmrf_learning.learn_gmrf_eda
+learn_gmrf_eda_lasso = gmrf_learning.learn_gmrf_eda_lasso
+learn_gmrf_eda_elasticnet = gmrf_learning.learn_gmrf_eda_elasticnet
+learn_gmrf_eda_lars = gmrf_learning.learn_gmrf_eda_lars
+learn_gaussian_univariate = basic_gaussian_learning.learn_gaussian_univariate
+learn_gaussian_full = basic_gaussian_learning.learn_gaussian_full
 
-sample_gmrf_eda = gaussian_sampling.sample_gmrf_eda
-sample_gaussian_univariate = gaussian_sampling.sample_gaussian_univariate
-sample_gaussian_full = gaussian_sampling.sample_gaussian_full
+sample_gmrf_eda = gmrf_sampling.sample_gmrf_eda
+sample_gaussian_univariate = basic_gaussian_sampling.sample_gaussian_univariate
+sample_gaussian_full = basic_gaussian_sampling.sample_gaussian_full
 
 sphere = benchmarks.sphere
 rastrigin = benchmarks.rastrigin

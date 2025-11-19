@@ -6,13 +6,14 @@ to optimize the sphere function, a simple continuous optimization benchmark.
 """
 
 import numpy as np
-from pateda.core.eda import EDA
+from pateda.core.eda import EDA, EDAComponents
 from pateda.functions.continuous import sphere
-from pateda.learning.gaussian import learn_gaussian_univariate
-from pateda.sampling.gaussian import sample_gaussian_univariate
-from pateda.selection.truncation import truncation_selection
-from pateda.replacement.elitist import elitist_replacement
-from pateda.stop_conditions.max_generations import MaxGenerations
+from pateda.learning.basic_gaussian import learn_gaussian_univariate
+from pateda.sampling.basic_gaussian import sample_gaussian_univariate
+from pateda.selection import TruncationSelection
+from pateda.replacement import ElitistReplacement
+from pateda.stop_conditions import MaxGenerations
+from pateda.seeding import RandomInit
 
 
 def main():
