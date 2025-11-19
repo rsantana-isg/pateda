@@ -4,6 +4,7 @@ from pateda.sampling.fda import SampleFDA
 from pateda.sampling.bayesian_network import SampleBayesianNetwork
 from pateda.sampling.markov import SampleMarkovChain, SampleMarkovChainForward
 from pateda.sampling.mixture_trees import SampleMixtureTrees, SampleMixtureTreesDirect
+from pateda.sampling.gibbs import SampleGibbs
 
 # Gaussian sampling functions for continuous optimization
 from pateda.sampling.gaussian import (
@@ -47,6 +48,7 @@ __all__ = [
     "SampleMarkovChainForward",
     "SampleMixtureTrees",
     "SampleMixtureTreesDirect",
+    "SampleGibbs",
     "sample_gaussian_univariate",
     "sample_gaussian_full",
     "sample_mixture_gaussian_univariate",
