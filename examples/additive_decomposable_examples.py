@@ -75,7 +75,7 @@ def run_eda_on_function(objective, n_vars, cardinality, pop_size=1000,
     print("=" * 60)
     print(f"Results for {function_name}")
     print("=" * 60)
-    print(f"Generations run: {stats.generation + 1}")
+    print(f"Generations run: {len(stats.best_fitness)}")
     print(f"Best fitness: {stats.best_fitness_overall:.4f}")
     print(f"Mean fitness (final): {stats.mean_fitness[-1]:.4f}")
     print(f"Best solution: {stats.best_individual}")

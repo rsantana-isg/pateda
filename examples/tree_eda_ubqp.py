@@ -66,6 +66,44 @@ def multi_objective_selection(population, objectives, n_select):
     return selected_pop, selected_fit
 
 
+def learn_tree(population, fitness, params=None):
+    """Helper function to learn tree model"""
+    learner = LearnTreeModel()
+    n_vars = population.shape[1]
+    cardinality = np.full(n_vars, 2)  # Binary variables
+    model = learner.learn(
+        generation=0,
+        n_vars=n_vars,
+        cardinality=cardinality,
+        population=population,
+        fitness=fitness
+    )
+    return model
+
+
+def sample_tree_structure(model, n_samples):
+    """Helper function to sample from tree model"""
+    sampler = SampleFDA()
+    n_vars = model.structure.shape[0]  # Number of cliques
+    cardinality = np.full(n_vars, 2)  # Binary variables
+    population = sampler.sample(
+        n_vars=n_vars,
+        model=model,
+        cardinality=cardinality
+    )
+    # SampleFDA samples based on internal n_samples, but we need specific number
+    # Resample if needed
+    if len(population) != n_samples:
+        # Create new sampler with correct size
+        sampler = SampleFDA(n_samples=n_samples)
+        population = sampler.sample(
+            n_vars=n_vars,
+            model=model,
+            cardinality=cardinality
+        )
+    return population
+
+
 def main():
     # Problem setup
     n_vars = 100

@@ -74,7 +74,7 @@ def run_eda_variant(learning_method, method_name):
     print(f"  Gap: {n_vars - stats.best_fitness_overall:.4f}")
 
     # Get the final model from cache
-    model = cache.get('models', [])[-1] if 'models' in cache and cache['models'] else None
+    model = cache.models[-1] if cache.models else None
     if model:
         metadata = model.metadata
         n_cliques = metadata.get("n_cliques", 0)
