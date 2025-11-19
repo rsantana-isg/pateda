@@ -81,6 +81,7 @@ import numpy as np
 from typing import Dict, Any, List, Tuple, Optional
 from sklearn.cluster import KMeans, AffinityPropagation
 from sklearn.preprocessing import StandardScaler
+from sklearn.mixture import GaussianMixture
 from sklearn.linear_model import Lasso, ElasticNet, Lars, LassoLars
 from scipy import linalg
 
@@ -342,6 +343,7 @@ def learn_mixture_gaussian_full(
     }
 
 
+def learn_weighted_gaussian_univariate(
 def _compute_regularized_weights(
     population: np.ndarray,
     regularization: str = 'lasso',
@@ -486,6 +488,10 @@ def learn_gmrf_eda(
     params: Optional[Dict[str, Any]] = None
 ) -> Dict[str, Any]:
     """
+    Learn a weighted univariate Gaussian model with proportional selection.
+
+    Uses fitness-based exponential weighting instead of truncation selection.
+    Solutions with better fitness contribute more to the learned model.
     Learn a Gaussian Markov Random Field (GMRF) using regularized estimation.
 
     Implements the hybrid GMRF-EDA algorithm from Karshenas et al. (2012):
@@ -501,6 +507,11 @@ def learn_gmrf_eda(
     population : np.ndarray
         Population of shape (pop_size, n_vars) from which to learn
     fitness : np.ndarray
+        Fitness values used for weighting (minimization assumed)
+    params : dict, optional
+        Additional parameters:
+        - 'alpha': regularization for weight computation (default: 1e-10)
+        - 'beta': scaling factor for exponential weights (default: 0.1)
         Fitness values (not used in this learning method)
     params : dict, optional
         Additional parameters:
@@ -517,6 +528,9 @@ def learn_gmrf_eda(
     -------
     model : dict
         Dictionary containing:
+        - 'means': weighted mean for each variable
+        - 'stds': weighted standard deviation for each variable
+        - 'type': 'weighted_gaussian_univariate'
         - 'cliques': List of variable index lists for each clique
         - 'clique_models': List of dicts with 'mean' and 'cov' for each clique
         - 'weights': Dependency weight matrix (for analysis)
@@ -532,6 +546,35 @@ def learn_gmrf_eda(
     if params is None:
         params = {}
 
+    alpha = params.get('alpha', 1e-10)
+    beta = params.get('beta', 0.1)
+
+    # Compute exponentially scaled fitness weights
+    # Normalize fitness to [0, 1] range
+    weights = (fitness - np.min(fitness) + alpha) / (np.max(fitness) - np.min(fitness) + alpha)
+    # Apply exponential scaling
+    weights = np.exp(beta * weights)
+    # Normalize weights to sum to 1
+    weights = weights / np.sum(weights)
+
+    # Compute weighted mean
+    weighted_means = np.sum(weights.reshape(-1, 1) * population, axis=0)
+
+    # Compute weighted variance
+    weighted_vars = np.sum(weights.reshape(-1, 1) * (population - weighted_means)**2, axis=0)
+    weighted_stds = np.sqrt(weighted_vars)
+
+    # Prevent zero standard deviation
+    weighted_stds = np.maximum(weighted_stds, 1e-10)
+
+    return {
+        'means': weighted_means,
+        'stds': weighted_stds,
+        'type': 'weighted_gaussian_univariate'
+    }
+
+
+def learn_weighted_gaussian_full(
     n_samples, n_vars = population.shape
 
     # Extract parameters
@@ -603,6 +646,10 @@ def learn_gmrf_eda_lasso(
     params: Optional[Dict[str, Any]] = None
 ) -> Dict[str, Any]:
     """
+    Learn a weighted full multivariate Gaussian model with proportional selection.
+
+    Uses fitness-based exponential weighting instead of truncation selection.
+    Solutions with better fitness contribute more to the learned model.
     Learn GMRF-EDA using LASSO (L1) regularization.
 
     Convenience wrapper for learn_gmrf_eda with regularization='lasso'.
@@ -610,6 +657,13 @@ def learn_gmrf_eda_lasso(
     Parameters
     ----------
     population : np.ndarray
+        Population of shape (pop_size, n_vars) from which to learn
+    fitness : np.ndarray
+        Fitness values used for weighting (minimization assumed)
+    params : dict, optional
+        Additional parameters:
+        - 'alpha': regularization for weight computation (default: 1e-10)
+        - 'beta': scaling factor for exponential weights (default: 0.1)
         Population of shape (pop_size, n_vars)
     fitness : np.ndarray
         Fitness values
@@ -619,6 +673,50 @@ def learn_gmrf_eda_lasso(
     Returns
     -------
     model : dict
+        Dictionary containing:
+        - 'mean': weighted mean vector
+        - 'cov': weighted covariance matrix
+        - 'type': 'weighted_gaussian_full'
+    """
+    if params is None:
+        params = {}
+
+    alpha = params.get('alpha', 1e-10)
+    beta = params.get('beta', 0.1)
+
+    # Compute exponentially scaled fitness weights
+    weights = (fitness - np.min(fitness) + alpha) / (np.max(fitness) - np.min(fitness) + alpha)
+    weights = np.exp(beta * weights)
+    weights = weights / np.sum(weights)
+
+    # Compute weighted mean
+    weighted_mean = np.sum(weights.reshape(-1, 1) * population, axis=0)
+
+    # Compute weighted covariance
+    centered_pop = population - weighted_mean
+    weighted_cov = np.dot((weights.reshape(-1, 1) * centered_pop).T, centered_pop)
+
+    # Ensure positive definiteness
+    n_vars = population.shape[1]
+    weighted_cov += np.eye(n_vars) * 1e-6
+
+    return {
+        'mean': weighted_mean,
+        'cov': weighted_cov,
+        'type': 'weighted_gaussian_full'
+    }
+
+
+def learn_mixture_gaussian_em(
+    population: np.ndarray,
+    fitness: np.ndarray,
+    params: Dict[str, Any]
+) -> Dict[str, Any]:
+    """
+    Learn a Gaussian mixture model using Expectation-Maximization algorithm.
+
+    Uses sklearn's GaussianMixture which implements EM algorithm for
+    more principled mixture learning compared to k-means clustering.
         GMRF-EDA model
     """
     if params is None:
@@ -670,6 +768,15 @@ def learn_gmrf_eda_lars(
     Parameters
     ----------
     population : np.ndarray
+        Population of shape (pop_size, n_vars) from which to learn
+    fitness : np.ndarray
+        Fitness values (not used but kept for API consistency)
+    params : dict
+        Parameters containing:
+        - 'n_components': number of mixture components
+        - 'covariance_type': 'full', 'tied', 'diag', or 'spherical' (default: 'full')
+        - 'max_iter': maximum EM iterations (default: 100)
+        - 'random_state': random seed (default: 42)
         Population of shape (pop_size, n_vars)
     fitness : np.ndarray
         Fitness values
@@ -679,6 +786,30 @@ def learn_gmrf_eda_lars(
     Returns
     -------
     model : dict
+        Dictionary containing:
+        - 'gm_model': trained sklearn GaussianMixture object
+        - 'n_components': number of components
+        - 'type': 'mixture_gaussian_em'
+    """
+    n_components = params.get('n_components', 3)
+    covariance_type = params.get('covariance_type', 'full')
+    max_iter = params.get('max_iter', 100)
+    random_state = params.get('random_state', 42)
+
+    # Fit Gaussian Mixture using EM
+    gm = GaussianMixture(
+        n_components=n_components,
+        covariance_type=covariance_type,
+        max_iter=max_iter,
+        random_state=random_state
+    )
+    gm.fit(population)
+
+    return {
+        'gm_model': gm,
+        'n_components': n_components,
+        'type': 'mixture_gaussian_em'
+    }
         GMRF-EDA model
     """
     if params is None:
