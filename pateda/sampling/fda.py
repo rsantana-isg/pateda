@@ -1,7 +1,96 @@
 """
 Sampling from Factorized Distribution Algorithm (FDA) models
 
+Implements probabilistic simulation (sampling) from factorized distribution models.
+Sampling is a critical component of EDAs, used to generate new candidate solutions
+from the learned probability distribution.
+
+Probabilistic Simulation in EDAs:
+After learning a probabilistic model from selected individuals, EDAs generate new
+offspring by sampling from this model. This replaces traditional recombination and
+mutation operators in evolutionary algorithms.
+
+For a factorized distribution:
+    p(x) = ∏ᵢ pᵢ(xsᵢ)
+
+where xsᵢ are the variables in factor i, sampling proceeds by iterating through
+the factors (cliques) in a specific order that respects dependencies.
+
+Sampling Algorithm:
+The general sampling procedure for factorized models:
+
+1. Order cliques such that overlapping variables are sampled before new variables
+2. For each clique i in order:
+   a. If clique has no overlap (root nodes):
+      - Sample new variables directly from marginal distribution pᵢ(xsᵢ)
+   b. If clique has overlap variables:
+      - For each configuration of overlap variables:
+        * Sample new variables from conditional distribution p(new | overlap)
+        * Assign values to individuals matching that overlap configuration
+
+3. Return sampled population
+
+Clique Ordering Requirements:
+- Cliques must be ordered such that overlap variables have already been sampled
+- For tree models: Sample root first, then children (topological order)
+- For general factorizations: Ensure sampling order respects dependencies
+- Invalid ordering leads to undefined conditional distributions
+
+Sampling Techniques:
+- Inverse Transform Sampling: Use cumulative probabilities and uniform random numbers
+- Stochastic Universal Sampling (SUS): Reduces variance compared to simple random sampling
+- For each factor, generate samples proportional to probability table entries
+
+Conditional Sampling:
+When a clique has overlapping variables (dependencies), the sampling is conditional:
+    p(xᵢ | x_overlap) from the probability table table[overlap_config, new_config]
+
+This ensures dependencies are preserved in the sampled population.
+
+Efficiency Considerations:
+- Factorized sampling is O(n * m * k^c) where:
+  * n = number of variables
+  * m = sample size
+  * k = average cardinality
+  * c = average clique size
+- Much more efficient than sampling from full joint distribution
+- Tree models: O(n * m) linear complexity
+- General factorizations: Depends on clique sizes
+
+Comparison with Traditional Operators:
+Traditional GA:
+- Recombination: Combines two parent solutions
+- Mutation: Makes random changes
+- Directly manipulates solution encodings
+
+EDA Sampling:
+- No explicit parents (uses population statistics)
+- Generates solutions from probability distribution
+- Respects learned dependencies
+- Can create solutions not in parent population
+
+Applications in EDA Framework:
+Sampling is used at each generation to:
+1. Generate offspring population from learned model
+2. Optionally: Replace entire population or use (μ + λ) selection
+3. Quality of model affects quality of samples
+4. Poor model → poor samples → slow convergence
+
+Stochastic Universal Sampling (SUS):
+A variance-reduction technique used here:
+- Single random spin of roulette wheel
+- Equally spaced pointers select multiple samples
+- Ensures samples match expected frequencies more closely
+- Reduces sampling variance compared to independent sampling
+
 Equivalent to MATEDA's SampleFDA.m
+
+References:
+- Mühlenbein, H., & Paass, G. (1996). "From recombination of genes to the
+  estimation of distributions I. Binary parameters." PPSN IV, pp. 178-187.
+- Larrañaga, P., & Lozano, J.A. (Eds.). (2002). "Estimation of Distribution
+  Algorithms: A New Tool for Evolutionary Computation." Kluwer Academic.
+- MATEDA-2.0 User Guide, Section 5.2: "Probabilistic simulation of new solutions"
 """
 
 from typing import Any, Optional

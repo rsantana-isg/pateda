@@ -1,7 +1,114 @@
 """
 Tournament selection
 
+Tournament selection is a popular stochastic selection method that provides
+adjustable selection pressure through the tournament size parameter. It's widely
+used in both traditional genetic algorithms and EDAs.
+
+Tournament Selection Algorithm:
+1. Repeat n_select times:
+   a. Randomly select k individuals from population (tournament)
+   b. Choose the individual with best fitness from the tournament
+   c. Add winner to selected set
+2. Return selected individuals
+
+Tournament Size and Selection Pressure:
+The tournament size k controls selection pressure:
+- k = 2: Moderate selection pressure (most common)
+- k = 1: Random selection (no pressure)
+- k = pop_size: Equivalent to selecting best individual repeatedly
+- Larger k → Stronger selection pressure
+- Typical range: k ∈ {2, 3, 4, 5, 7}
+
+Selection Pressure Analysis:
+For a population sorted by fitness (1 = best, N = worst), the probability that
+individual i wins a tournament of size k is approximately:
+    P(i wins) ∝ (N - i + 1)^k - (N - i)^k
+
+This shows that larger k exponentially increases advantage of better individuals.
+
+Advantages:
+- Simple to implement and understand
+- Adjustable selection pressure via tournament size
+- Works well without requiring fitness scaling
+- Maintains diversity better than truncation
+- No issues with negative fitness values
+- Parallelizable (tournaments are independent)
+
+Disadvantages:
+- Stochastic (less reproducible than truncation)
+- May select same individual multiple times (with replacement)
+- Weaker individuals have non-zero selection probability
+- Requires more random number generation than truncation
+
+Replacement vs. Non-replacement:
+With replacement (default):
+- Same individual can be selected multiple times
+- Consistent selection pressure across all tournaments
+- Can select more individuals than population size
+
+Without replacement:
+- Each individual selected at most once
+- Ensures diversity in selected set
+- Cannot select more than population size individuals
+- Selection pressure decreases as available pool shrinks
+
+Comparison with Truncation Selection:
+Tournament:
+- Stochastic: different runs give different selections
+- Gradual selection pressure (not sharp cutoff)
+- Lower-ranked individuals have small but non-zero probability
+- Better diversity preservation
+
+Truncation:
+- Deterministic: always selects same individuals
+- Sharp cutoff between selected and non-selected
+- Zero probability for individuals below threshold
+- Stronger selection pressure
+
+When to Use Tournament vs. Truncation:
+Use Tournament when:
+- Want to maintain more population diversity
+- Need adjustable selection pressure (tuning k)
+- Fitness landscape is deceptive or has local optima
+- Running many independent trials (stochastic nature helps)
+
+Use Truncation when:
+- Want reproducible, deterministic selection
+- Prefer simplicity and computational efficiency
+- Population is large enough that diversity isn't a concern
+- Strong selection pressure is beneficial
+
+Use in EDAs:
+While truncation is most common in EDAs, tournament selection offers advantages:
+- Better diversity in selected individuals → more robust model learning
+- Stochastic nature can help escape local optima
+- Adjustable pressure allows adaptive selection strategies
+- Can be combined with elitism for best of both worlds
+
+Multi-objective Optimization:
+For multi-objective problems, tournament selection can use:
+- Scalar fitness (e.g., mean across objectives)
+- Pareto dominance: tournament winner is non-dominated individual
+- Random objective: select random objective for each tournament
+- Crowding distance: prefer individuals in less crowded regions
+
+Adaptive Tournament Size:
+Some EDAs use adaptive tournament size:
+- Start with small k (weak pressure) for exploration
+- Increase k over time (stronger pressure) for exploitation
+- Can base k on population diversity or convergence metrics
+
 Equivalent to MATEDA's tournament selection methods
+
+References:
+- Goldberg, D.E., & Deb, K. (1991). "A comparative analysis of selection schemes
+  used in genetic algorithms." Foundations of Genetic Algorithms, pp. 69-93.
+- Miller, B.L., & Goldberg, D.E. (1995). "Genetic algorithms, tournament selection,
+  and the effects of noise." Complex Systems, 9(3):193-212.
+- Larrañaga, P., & Lozano, J.A. (Eds.). (2002). "Estimation of Distribution
+  Algorithms: A New Tool for Evolutionary Computation." Kluwer Academic.
+- MATEDA-2.0 User Guide, Section 5.6: "Selection of promising solutions"
 """
 
 from typing import Any, Optional, Tuple

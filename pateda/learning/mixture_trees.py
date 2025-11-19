@@ -1,18 +1,99 @@
 """
 Mixture of Trees EDA (MT-EDA) learning
 
-Implements mixture of tree-structured models for EDAs. A mixture model combines
-multiple component distributions with mixture coefficients:
+Implements mixture of tree-structured models for EDAs. Mixture models are a powerful
+extension of single-component EDAs that can represent multimodal distributions by
+combining multiple simpler component distributions.
 
-Q(x) = Σ_j λ_j · f_j(x)
+Mixture Model Formulation:
+A mixture model combines multiple component distributions with mixture weights:
+    Q(x) = Σⱼ₌₁ᵏ λⱼ · fⱼ(x)
 
-where λ_j are mixture weights and f_j(x) are tree-structured component distributions.
+where:
+- λⱼ are mixture weights (λⱼ ≥ 0, Σⱼ λⱼ = 1)
+- fⱼ(x) are component distributions (e.g., tree models)
+- k is the number of mixture components
 
-Based on MATEDA-2.0 mixture of distributions (section 4.4) and tree models.
+Each component fⱼ can be any factorized distribution. In MT-EDA, each component
+is a tree-structured Bayesian network, combining the benefits of:
+- Tree models: Efficient learning and sampling, captures pairwise dependencies
+- Mixtures: Can model multimodal and complex distributions
+
+Why Mixture Models?
+Single-component models (UMDA, tree, BOA) assume a unimodal distribution, which
+may not fit the true distribution of promising solutions when:
+- Multiple distinct "building blocks" or solution patterns exist
+- Search space has multiple peaks or clusters
+- Problem exhibits different dependency structures in different regions
+
+Mixture models address this by allowing multiple modes, each captured by a
+different component with its own structure and parameters.
+
+Learning Mixture Models:
+1. Component Learning:
+   - Learn k different tree structures (or use same structure with different parameters)
+   - Can use different subsets/perturbations of data for diversity
+   - Each component captures a different mode or cluster
+
+2. Weight Learning:
+   Methods for determining mixture weights λⱼ:
+   - Uniform: λⱼ = 1/k (equal weight to all components)
+   - EM (Expectation-Maximization): Iteratively estimate component responsibilities
+   - Fitness-proportional: Weight by quality of solutions in each component
+   - Clustering-based: Use k-means or hierarchical clustering
+
+EM Algorithm for Mixtures:
+E-step: Calculate responsibilities (posterior probability of component membership)
+    γⱼᵢ = (λⱼ · fⱼ(xᵢ)) / Σₗ (λₗ · fₗ(xᵢ))
+
+M-step: Update weights based on responsibilities
+    λⱼ = (1/N) Σᵢ γⱼᵢ
+
+Advantages:
+- Can model multimodal distributions
+- More expressive than single trees
+- Each component remains simple and interpretable
+- Can capture different dependency structures in different modes
+
+Challenges:
+- More parameters to learn (k trees + k-1 weights)
+- Need more samples to estimate reliably
+- Risk of overfitting with too many components
+- Component identifiability issues
+
+Model Selection:
+Choosing k (number of components):
+- Too few: Cannot capture multimodality
+- Too many: Overfitting, computational cost
+- Use validation set or information criteria (BIC, AIC)
+- Typical range: k = 2-10 for most problems
+
+Sampling from Mixture Models:
+1. Sample component j with probability λⱼ
+2. Sample x from component distribution fⱼ(x)
+3. Return sampled x
+
+Applications:
+- Problems with multiple distinct solution patterns
+- Highly multimodal optimization landscapes
+- NK-landscapes with multiple optima
+- Combinatorial problems with building blocks
+
+Related Mixture EDAs:
+- Mixture of Gaussians (continuous domains)
+- Mixture of Bayesian networks (general dependencies)
+- Hierarchical BOA (implicit mixture through local structures)
+
+Based on MATEDA-2.0 mixture of distributions (Section 4.4) and tree models.
 
 References:
-    - R. Santana, A. Ochoa, M.R. Soto: The Mixture of Trees Factorized Distribution Algorithm.
-      GECCO 2001.
+- Santana, R., Ochoa, A., & Soto, M.R. (2001). "The Mixture of Trees Factorized
+  Distribution Algorithm." GECCO 2001, pp. 543-550.
+- Pelikan, M., & Goldberg, D.E. (2000). "Research on the Bayesian Optimization
+  Algorithm." Optimization by Building and Using Probabilistic Models, pp. 216-219.
+- Bosman, P.A.N., & Thierens, D. (2000). "Expanding from discrete to continuous
+  estimation of distribution algorithms: The IDEA." PPSN VI, pp. 767-776.
+- MATEDA-2.0 User Guide, Section 4.4: "Mixture of distributions"
 """
 
 from typing import Any, List, Optional

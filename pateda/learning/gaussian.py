@@ -1,8 +1,80 @@
 """
 Gaussian Model Learning for Continuous EDAs
 
-This module provides learning algorithms for various Gaussian-based
-probabilistic models used in continuous optimization.
+This module provides learning algorithms for various Gaussian-based probabilistic
+models used in continuous optimization. Gaussian networks extend the concepts of
+discrete EDAs (like Bayesian networks) to continuous domains by using Gaussian
+distributions instead of discrete probability tables.
+
+Gaussian Networks:
+A Gaussian network is a Bayesian network where all variables are continuous and
+the conditional distributions are Gaussian (normal). The joint distribution of
+a Gaussian network is a multivariate Gaussian (or Gaussian distribution).
+
+Types of Gaussian Models:
+1. Univariate Gaussian (Gaussian UMDA):
+   - Each variable is independent with its own mean and variance
+   - Joint distribution: p(x) = ∏ᵢ N(xᵢ | μᵢ, σᵢ²)
+   - Simplest model, assumes no variable dependencies
+   - Equivalent to continuous UMDA
+
+2. Full Multivariate Gaussian:
+   - Models all pairwise correlations via full covariance matrix
+   - Joint distribution: p(x) = N(x | μ, Σ)
+   - Can capture all linear dependencies
+   - Requires O(n²) parameters for n variables
+
+3. Structured Gaussian Networks:
+   - Use Bayesian network structure to specify conditional independencies
+   - More parameter-efficient than full covariance
+   - Each variable has Gaussian conditional distribution given parents
+   - Can model sparse dependency structures
+
+4. Mixture of Gaussians:
+   - Weighted sum of multiple Gaussian components
+   - Can model multimodal distributions
+   - Each component can be univariate or multivariate
+   - Useful for problems with multiple optima or clusters
+
+Mathematical Foundations:
+- Univariate: X ~ N(μ, σ²) with density f(x) = (1/√(2πσ²)) exp(-(x-μ)²/(2σ²))
+- Multivariate: X ~ N(μ, Σ) with density f(x) = (1/√((2π)ⁿ|Σ|)) exp(-½(x-μ)ᵀΣ⁻¹(x-μ))
+- Conditional: If X|Y ~ N(μ + Σ_XY Σ_YY⁻¹(y-μ_Y), Σ_XX - Σ_XY Σ_YY⁻¹ Σ_YX)
+
+Parameter Estimation:
+- Maximum Likelihood Estimation (MLE):
+  * Mean: μ̂ = (1/N) ∑ᵢ xᵢ
+  * Covariance: Σ̂ = (1/N) ∑ᵢ (xᵢ - μ̂)(xᵢ - μ̂)ᵀ
+- Regularization often needed to prevent singular covariance matrices
+- Can add small diagonal term (ridge regularization) for numerical stability
+
+Advantages for Continuous Optimization:
+- Natural representation for continuous variables
+- Efficient parameter estimation (closed-form MLE)
+- Sampling is straightforward (multivariate normal sampling)
+- Can capture correlations and rotations in search space
+- Well-studied theoretical properties
+
+Challenges:
+- Limited to modeling linear dependencies (correlations)
+- Full covariance requires many samples to estimate reliably (O(n²) parameters)
+- May struggle with highly non-linear or non-convex landscapes
+- Gaussian assumption may not fit actual distribution of good solutions
+
+Related Algorithms:
+- EMNA (Estimation of Multivariate Normal Algorithm): Uses full Gaussian
+- IDEA (Iterated Density-Estimation Evolutionary Algorithm): Gaussian mixtures
+- CMA-ES: Covariance Matrix Adaptation Evolution Strategy (related approach)
+
+Equivalent to MATEDA's Gaussian learning functions (Section 4.2.3)
+
+References:
+- Larrañaga, P., & Lozano, J.A. (Eds.). (2002). "Estimation of Distribution
+  Algorithms: A New Tool for Evolutionary Computation." Kluwer Academic Publishers.
+- Bosman, P.A.N., & Thierens, D. (2000). "Expanding from discrete to continuous
+  estimation of distribution algorithms: The IDEA." Parallel Problem Solving from
+  Nature PPSN VI, pp. 767-776.
+- MATEDA-2.0 User Guide, Section 4.2.3: "Gaussian network based factorizations"
 """
 
 import numpy as np

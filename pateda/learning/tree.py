@@ -2,16 +2,56 @@
 Tree Model (Tree EDA) learning
 
 Implements learning of tree-structured probabilistic models using maximum
-spanning tree based on mutual information.
+spanning tree based on mutual information. Tree models are a type of Bayesian
+network where the dependency graph is constrained to be a tree structure.
+
+Tree-structured Bayesian Networks:
+A tree is a special case of a Bayesian network where:
+- The graph is acyclic and connected
+- Each node has at most one parent (except the root which has no parent)
+- The structure can be learned efficiently in O(n²) time using maximum spanning tree
+
+The probability distribution factorizes as:
+    P(X) = P(X_root) * ∏ᵢ P(Xᵢ | parent(Xᵢ))
+
+where the root variable has no parent and all other variables have exactly one parent.
+
+Learning Algorithm (based on Chow-Liu):
+1. Compute pairwise mutual information I(Xᵢ, Xⱼ) for all variable pairs
+2. Find maximum weighted spanning tree using MI as edge weights
+3. Choose a root variable (typically the one involved in the highest MI edge)
+4. Orient edges away from root to create directed tree
+5. Learn conditional probability tables P(Xᵢ | parent(Xᵢ)) from data
+
+Advantages over UMDA:
+- Can model pairwise dependencies between variables
+- Still efficient to learn and sample from (polynomial time)
+- Often performs better on problems with moderate variable interactions
+
+Relationship to other EDAs:
+- COMIT: Uses tree models with incremental learning
+- BMDA: Bivariate extension that models pairwise dependencies
+- BOA: More general Bayesian network that can have multiple parents
+
+When to use:
+- Problems with pairwise but not higher-order variable interactions
+- Need balance between model complexity and learning efficiency
+- When UMDA is too simple but full Bayesian networks are too complex
 
 Based on MATEDA-2.0 LearnTreeModel.m
 
 References:
-    - M. Pelikan, D.E. Goldberg, and F.G. Lobo: A survey of optimization by
-      building and using probabilistic models. Computational Optimization and
-      Applications, 21(1):5–20, 2002.
-    - R. Santana: A Markov network based factorized distribution algorithm for
-      optimization. ECML 2003.
+- Chow, C., & Liu, C. (1968). "Approximating discrete probability distributions
+  with dependence trees." IEEE Transactions on Information Theory, 14(3):462-467.
+- Baluja, S., & Davies, S. (1997). "Using optimal dependency-trees for
+  combinatorial optimization: Learning the structure of the search space."
+  ICML 1997.
+- Pelikan, M., Goldberg, D.E., & Lobo, F.G. (2002). "A survey of optimization
+  by building and using probabilistic models." Computational Optimization and
+  Applications, 21(1):5–20.
+- Santana, R. (2003). "A Markov network based factorized distribution algorithm
+  for optimization." ECML 2003.
+- MATEDA-2.0 User Guide, Section 4.2: "Bayesian network based factorizations"
 """
 
 from typing import Any, Optional, List, Tuple
@@ -31,7 +71,30 @@ class LearnTreeModel(LearningMethod):
     the maximum weighted spanning tree on the mutual information matrix.
 
     The probability distribution factorizes as:
-    P(X) = P(X_root) * ∏_i P(X_i | parent(X_i))
+        P(X) = P(X_root) * ∏ᵢ P(Xᵢ | parent(Xᵢ))
+
+    Mutual Information:
+    The edge weights for the maximum spanning tree are computed using mutual
+    information, which measures the statistical dependence between two variables:
+
+        I(Xᵢ, Xⱼ) = ∑ₓᵢ,ₓⱼ P(Xᵢ=xᵢ, Xⱼ=xⱼ) log(P(Xᵢ=xᵢ, Xⱼ=xⱼ) / (P(Xᵢ=xᵢ)P(Xⱼ=xⱼ)))
+
+    Normalized MI is computed by dividing by the product of cardinalities to make
+    values comparable across variable pairs with different cardinalities.
+
+    Clique Representation:
+    In MATEDA's factorization framework, tree edges are represented as cliques:
+    - Root nodes: [0, 1, child_idx, 0]
+      → 0 parents, 1 new variable, variable index, unused
+    - Non-root nodes: [1, 1, parent_idx, child_idx]
+      → 1 parent, 1 new variable, parent index, child index
+
+    Implementation details:
+    - Uses Prim's algorithm variant for maximum spanning tree
+    - Handles ties in MI values through random shuffling
+    - Optional mi_threshold to create disconnected components (forest) when
+      MI values are below threshold
+    - Supports Laplace smoothing to avoid zero probabilities
     """
 
     def __init__(
