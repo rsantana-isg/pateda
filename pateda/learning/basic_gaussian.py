@@ -26,6 +26,9 @@ References:
 import numpy as np
 from typing import Dict, Any, Optional
 
+from pateda.core.components import LearningMethod
+from pateda.core.models import GaussianModel
+
 
 def learn_gaussian_univariate(
     population: np.ndarray,
@@ -107,3 +110,139 @@ def learn_gaussian_full(
         'cov': cov,
         'type': 'gaussian_full'
     }
+
+
+# ===================================================================
+# Class-based wrappers for component architecture
+# ===================================================================
+
+
+class LearnGaussianUnivariate(LearningMethod):
+    """
+    Class-based wrapper for univariate Gaussian learning.
+
+    This corresponds to Gaussian UMDA for continuous optimization,
+    where each variable is modeled independently with its own mean
+    and standard deviation.
+
+    Parameters
+    ----------
+    alpha : float
+        Minimum standard deviation to prevent collapse (default: 1e-10)
+    """
+
+    def __init__(self, alpha: float = 1e-10):
+        """
+        Initialize Gaussian UMDA learning
+
+        Args:
+            alpha: Minimum standard deviation to prevent collapse
+        """
+        self.alpha = alpha
+
+    def learn(
+        self,
+        generation: int,
+        n_vars: int,
+        cardinality: np.ndarray,
+        population: np.ndarray,
+        fitness: np.ndarray,
+        **params: Any,
+    ) -> GaussianModel:
+        """
+        Learn univariate Gaussian model from population
+
+        Args:
+            generation: Current generation number
+            n_vars: Number of variables
+            cardinality: Variable bounds (2, n_vars) array with [lower, upper] bounds
+            population: Selected population to learn from
+            fitness: Fitness values (not used for this learning method)
+            **params: Additional parameters
+
+        Returns:
+            Learned GaussianModel with univariate structure
+        """
+        means = np.mean(population, axis=0)
+        stds = np.std(population, axis=0)
+
+        # Prevent zero standard deviation
+        stds = np.maximum(stds, self.alpha)
+
+        return GaussianModel(
+            structure=None,  # No dependencies for univariate model
+            parameters={
+                'means': means,
+                'stds': stds,
+                'type': 'gaussian_univariate'
+            },
+            metadata={
+                'generation': generation,
+                'model_type': 'Gaussian UMDA',
+            }
+        )
+
+
+class LearnGaussianFull(LearningMethod):
+    """
+    Class-based wrapper for full multivariate Gaussian learning.
+
+    Models dependencies between all variables using a full covariance matrix.
+
+    Parameters
+    ----------
+    regularization : float
+        Regularization term added to diagonal for positive definiteness
+        (default: 1e-6)
+    """
+
+    def __init__(self, regularization: float = 1e-6):
+        """
+        Initialize full Gaussian learning
+
+        Args:
+            regularization: Diagonal regularization for covariance matrix
+        """
+        self.regularization = regularization
+
+    def learn(
+        self,
+        generation: int,
+        n_vars: int,
+        cardinality: np.ndarray,
+        population: np.ndarray,
+        fitness: np.ndarray,
+        **params: Any,
+    ) -> GaussianModel:
+        """
+        Learn full multivariate Gaussian model from population
+
+        Args:
+            generation: Current generation number
+            n_vars: Number of variables
+            cardinality: Variable bounds (2, n_vars) array with [lower, upper] bounds
+            population: Selected population to learn from
+            fitness: Fitness values (not used for this learning method)
+            **params: Additional parameters
+
+        Returns:
+            Learned GaussianModel with full covariance structure
+        """
+        mean = np.mean(population, axis=0)
+        cov = np.cov(population, rowvar=False)
+
+        # Ensure positive definiteness by adding small regularization
+        cov += np.eye(n_vars) * self.regularization
+
+        return GaussianModel(
+            structure=None,  # Full covariance has implicit all-to-all structure
+            parameters={
+                'mean': mean,
+                'cov': cov,
+                'type': 'gaussian_full'
+            },
+            metadata={
+                'generation': generation,
+                'model_type': 'Full Gaussian',
+            }
+        )
