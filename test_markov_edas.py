@@ -11,7 +11,7 @@ try:
     from pateda.stop_conditions import MaxGenerations
     from pateda.seeding import RandomInit
     from pateda.selection import TruncationSelection
-    from pateda.replacement import NoReplacement
+    from pateda.replacement import GenerationalReplacement
     from pateda.learning import LearnMNFDA, LearnMNFDAG, LearnMOA
     from pateda.sampling import SampleFDA, SampleGibbs
     print("✓ All imports successful!")
@@ -41,7 +41,7 @@ def test_mnfda():
                 return_factorized=True
             ),
             sampling=SampleFDA(n_samples=50),
-            replacement=NoReplacement(),
+            replacement=GenerationalReplacement(),
             stop_condition=MaxGenerations(10),
         )
 
@@ -84,7 +84,7 @@ def test_mnfdag():
                 return_factorized=True
             ),
             sampling=SampleFDA(n_samples=50),
-            replacement=NoReplacement(),
+            replacement=GenerationalReplacement(),
             stop_condition=MaxGenerations(10),
         )
 
@@ -131,7 +131,7 @@ def test_moa():
                 temperature=1.0,
                 random_order=True
             ),
-            replacement=NoReplacement(),
+            replacement=GenerationalReplacement(),
             stop_condition=MaxGenerations(10),
         )
 
