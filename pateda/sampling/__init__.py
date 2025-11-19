@@ -12,11 +12,17 @@ from pateda.sampling.map_sampling import (
 )
 
 # Gaussian sampling functions for continuous optimization
-from pateda.sampling.gaussian import (
+from pateda.sampling.basic_gaussian import (
     sample_gaussian_univariate,
     sample_gaussian_full,
+    sample_gaussian_with_diversity_trigger,
+)
+from pateda.sampling.mixture_gaussian import (
     sample_mixture_gaussian_univariate,
     sample_mixture_gaussian_full,
+    sample_mixture_gaussian_em,
+)
+from pateda.sampling.gmrf_eda import (
     sample_gmrf_eda,
 )
 
@@ -60,8 +66,10 @@ __all__ = [
     "SampleHybridMAP",
     "sample_gaussian_univariate",
     "sample_gaussian_full",
+    "sample_gaussian_with_diversity_trigger",
     "sample_mixture_gaussian_univariate",
     "sample_mixture_gaussian_full",
+    "sample_mixture_gaussian_em",
     "sample_gmrf_eda",
     "SampleMallowsKendall",
     "sample_mallows_kendall",
