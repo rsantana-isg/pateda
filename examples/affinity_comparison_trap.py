@@ -41,7 +41,7 @@ def run_eda_variant(learning_method, method_name):
     # Initialize components
     components = EDAComponents(
         seeding=RandomInit(),
-        selection=TruncationSelection(proportion=0.5),
+        selection=TruncationSelection(ratio=0.5),
         learning=learning_method,
         sampling=SampleFDA(n_samples=pop_size),
         replacement=GenerationalReplacement(),

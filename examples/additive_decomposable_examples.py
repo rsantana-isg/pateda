@@ -13,11 +13,12 @@ Functions tested:
 """
 
 import numpy as np
-from pateda.core.eda import EDA
+from pateda.core.eda import EDA, EDAComponents
 from pateda.learning import LearnUMDA
 from pateda.sampling import SampleFDA
 from pateda.selection import TruncationSelection
 from pateda.replacement import GenerationalReplacement
+from pateda.seeding import RandomInit
 from pateda.stop_conditions import MaxGenerations
 from pateda.functions.discrete.additive_decomposable import (
     create_k_deceptive_function,
@@ -44,24 +45,22 @@ def run_eda_on_function(objective, n_vars, cardinality, pop_size=1000,
         statistics: Dictionary with optimization statistics
     """
     # Create EDA components
-    learning = LearnUMDA(alpha=1.0)  # Laplace smoothing
-    sampling = SampleFDA(n_samples=pop_size)
-    selection = TruncationSelection(ratio=0.5)
-    replacement = GenerationalReplacement()
-    stop_condition = MaxGenerations(max_gen=max_gen)
+    components = EDAComponents(
+        seeding=RandomInit(),
+        selection=TruncationSelection(ratio=0.5),
+        learning=LearnUMDA(alpha=1.0),  # Laplace smoothing
+        sampling=SampleFDA(n_samples=pop_size),
+        replacement=GenerationalReplacement(),
+        stop_condition=MaxGenerations(max_gen),
+    )
 
     # Create EDA
     eda = EDA(
         pop_size=pop_size,
         n_vars=n_vars,
         cardinality=cardinality,
-        objective_function=objective,
-        learning_method=learning,
-        sampling_method=sampling,
-        selection_method=selection,
-        replacement_method=replacement,
-        stop_condition=stop_condition,
-        maximize=True,
+        fitness_func=objective,
+        components=components,
     )
 
     # Run optimization
@@ -70,19 +69,19 @@ def run_eda_on_function(objective, n_vars, cardinality, pop_size=1000,
     print(f"Number of variables: {n_vars}")
     print(f"Maximum generations: {max_gen}")
 
-    statistics = eda.run()
+    stats, cache = eda.run(verbose=True)
 
     # Print results
     print("=" * 60)
     print(f"Results for {function_name}")
     print("=" * 60)
-    print(f"Generations run: {len(statistics['best_fitness'])}")
-    print(f"Best fitness: {statistics['best_fitness'][-1]:.4f}")
-    print(f"Mean fitness (final): {statistics['mean_fitness'][-1]:.4f}")
-    print(f"Best solution: {statistics['best_solution']}")
+    print(f"Generations run: {stats.generation + 1}")
+    print(f"Best fitness: {stats.best_fitness_overall:.4f}")
+    print(f"Mean fitness (final): {stats.mean_fitness[-1]:.4f}")
+    print(f"Best solution: {stats.best_individual}")
     print()
 
-    return statistics
+    return stats
 
 
 def example_k_deceptive():

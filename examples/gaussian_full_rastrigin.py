@@ -52,7 +52,7 @@ def main():
     eda = EDA(
         pop_size=pop_size,
         n_vars=n_vars,
-        objective_func=objective,
+        fitness_func=objective,
         learning_func=learn_gaussian_full,
         sampling_func=lambda model, n: sample_gaussian_full(
             model, n, bounds=bounds, params={'var_scaling': var_scaling}

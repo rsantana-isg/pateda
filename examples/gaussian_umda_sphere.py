@@ -51,7 +51,7 @@ def main():
     eda = EDA(
         pop_size=pop_size,
         n_vars=n_vars,
-        objective_func=objective,
+        fitness_func=objective,
         learning_func=learn_gaussian_univariate,
         sampling_func=lambda model, n: sample_gaussian_univariate(
             model, n, bounds=bounds
