@@ -210,3 +210,191 @@ def sample_mallows_cayley(
     """
     sampler = SampleMallowsCayley()
     return sampler(n_vars, model, cardinality, population, fitness, sample_size)
+
+
+class SampleGeneralizedMallowsKendall:
+    """Sample from Generalized Mallows model with Kendall distance
+
+    The Generalized Mallows model uses position-dependent spread parameters,
+    allowing different levels of uncertainty at different positions.
+
+    References:
+        [1] M.A. Fligner, J.S. Verducci: Distance based ranking models. JRSS, 1986
+        [2] J. Ceberio, E. Irurozki, A. Mendiburu, J.A Lozano: A Distance-based
+            Ranking Model Estimation of Distribution Algorithm for the Flowshop
+            Scheduling Problem. IEEE TEVC, 2014
+    """
+
+    def __call__(
+        self,
+        n_vars: int,
+        model: Dict[str, Any],
+        cardinality: np.ndarray,
+        population: np.ndarray,
+        fitness: np.ndarray,
+        sample_size: int,
+    ) -> np.ndarray:
+        """
+        Sample permutations from Generalized Mallows model with Kendall distance.
+
+        Args:
+            n_vars: Number of variables (permutation length)
+            model: Model dictionary from learning phase containing:
+                   - v_probs: Probability matrix for v-vector (n-1 x n)
+                   - consensus: Consensus ranking
+                   - theta: Theta parameter vector (length n-1)
+                   - psis: Normalization constants (length n-1)
+            cardinality: Not used for permutations
+            population: Current population (not used)
+            fitness: Fitness values (not used)
+            sample_size: Number of permutations to sample
+
+        Returns:
+            Array of sampled permutations, shape (sample_size, n_vars)
+        """
+        v_probs = model["v_probs"]
+        consensus = model["consensus"]
+
+        new_pop = np.zeros((sample_size, n_vars), dtype=int)
+
+        # Generate random values for all samples at once
+        rand_values = np.random.rand(sample_size, n_vars - 1)
+
+        for i in range(sample_size):
+            # Sample v-vector
+            v_vector = self._sample_v_vector(v_probs, rand_values[i], n_vars)
+
+            # Generate permutation from v-vector
+            perm = self._generate_perm_from_v(v_vector, n_vars)
+
+            # Compose with consensus
+            new_perm = compose_permutations(perm, consensus)
+
+            new_pop[i] = new_perm
+
+        return new_pop
+
+    def _sample_v_vector(
+        self, v_probs: np.ndarray, rand_values: np.ndarray, n_vars: int
+    ) -> np.ndarray:
+        """Sample a v-vector from the probability matrix."""
+        v_vec = np.zeros(n_vars, dtype=int)
+
+        for j in range(n_vars - 1):
+            # Sample v[j] from categorical distribution
+            # Each position j has its own probability distribution (from theta_j)
+            cumsum = np.cumsum(v_probs[j, : n_vars - j])
+            rand_val = rand_values[j]
+
+            # Find index where cumsum >= rand_val
+            index = np.searchsorted(cumsum, rand_val)
+
+            v_vec[j] = index
+
+        v_vec[n_vars - 1] = 0  # Last position is always 0
+
+        return v_vec
+
+    def _generate_perm_from_v(self, v: np.ndarray, n_vars: int) -> np.ndarray:
+        """
+        Generate permutation from v-vector (Lehmer code).
+
+        The v-vector represents the permutation in a canonical way.
+        v[i] indicates how many available positions to skip.
+        """
+        available = list(range(n_vars))
+        perm = np.zeros(n_vars, dtype=int)
+
+        for i in range(n_vars - 1):
+            # Find the v[i]-th available position
+            val = int(v[i])
+
+            # Count non-removed positions
+            index = 0
+            count = 0
+
+            while count <= val:
+                if available[index] != -1:
+                    if count == val:
+                        break
+                    count += 1
+                index += 1
+
+            perm[i] = available[index]
+            available[index] = -1  # Mark as used
+
+        # Last position gets the remaining element
+        for idx, val in enumerate(available):
+            if val != -1:
+                perm[n_vars - 1] = val
+                break
+
+        return perm
+
+
+class SampleGeneralizedMallowsCayley:
+    """Sample from Generalized Mallows model with Cayley distance
+
+    The Generalized Mallows model uses position-dependent spread parameters,
+    allowing different levels of uncertainty at different positions.
+
+    References:
+        [1] M.A. Fligner, J.S. Verducci: Distance based ranking models. JRSS, 1986
+        [2] J. Ceberio, E. Irurozki, A. Mendiburu, J.A Lozano: Extending Distance-based
+            Ranking Models in EDAs. CEC 2014
+    """
+
+    def __call__(
+        self,
+        n_vars: int,
+        model: Dict[str, Any],
+        cardinality: np.ndarray,
+        population: np.ndarray,
+        fitness: np.ndarray,
+        sample_size: int,
+    ) -> np.ndarray:
+        """
+        Sample permutations from Generalized Mallows model with Cayley distance.
+
+        Args:
+            n_vars: Number of variables (permutation length)
+            model: Model dictionary from learning phase containing:
+                   - x_probs: Probability matrix for x-vector (n-1 x 2)
+                   - consensus: Consensus ranking
+                   - theta: Theta parameter vector (length n-1)
+                   - psis: Normalization constants (length n-1)
+            cardinality: Not used for permutations
+            population: Current population (not used)
+            fitness: Fitness values (not used)
+            sample_size: Number of permutations to sample
+
+        Returns:
+            Array of sampled permutations, shape (sample_size, n_vars)
+        """
+        x_probs = model["x_probs"]
+        consensus = model["consensus"]
+
+        new_pop = np.zeros((sample_size, n_vars), dtype=int)
+
+        # Generate random values for all samples at once
+        rand_values = np.random.rand(sample_size, n_vars - 1)
+
+        for i in range(sample_size):
+            # Sample x-vector: for each position j, x[j] = 1 with probability x_probs[j, 1]
+            x_vector = np.zeros(n_vars - 1, dtype=int)
+            for j in range(n_vars - 1):
+                # Sample from Bernoulli distribution with parameter x_probs[j, 1]
+                if rand_values[i, j] < x_probs[j, 1]:
+                    x_vector[j] = 1
+                else:
+                    x_vector[j] = 0
+
+            # Generate permutation from x-vector
+            perm = _generate_perm_from_x(x_vector, n_vars)
+
+            # Compose with consensus
+            new_perm = compose_permutations(perm, consensus)
+
+            new_pop[i] = new_perm
+
+        return new_pop
