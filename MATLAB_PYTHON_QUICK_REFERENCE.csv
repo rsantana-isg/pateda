@@ -1,0 +1,32 @@
+Category,Script Name,EDA Algorithm,Optimization Problem,Python Equivalent,Coverage Status,Notes
+OPTIMIZATION,DefaultEDA_OneMax.m,Default UMDA,OneMax,None,MISSING,No direct match - could use umda_onemax.py
+OPTIMIZATION,UMDA_OneMax.m,UMDA (LearnFDA),OneMax,umda_onemax.py,COVERED,Uses Markov model with independent variables
+OPTIMIZATION,DefaultEDA_TrapFunction.m,Default UMDA,Trap (k=5),default_eda_trap.py,COVERED,45 variables
+OPTIMIZATION,DefaultEDA_NKRandom.m,Default UMDA,NK Random (k=4),default_eda_nk_landscape.py,COVERED,Circular NK landscape
+OPTIMIZATION,EBNA_Deceptive3.m,EBNA (BN K2),Deceptive-3,ebna_deceptive.py,COVERED,BN learning with BIC metric
+OPTIMIZATION,EBNA_MultiObj_SAT.m,EBNA,Multi-objective 3-SAT,umda_sat.py,PARTIAL,Python uses UMDA not EBNA variant
+OPTIMIZATION,EBNA_PLS_MPC_NKRandom.m,EBNA + PLS/MPC,NK Random (k=4),None,MISSING,Complex comparison of sampling methods
+OPTIMIZATION,MOA_Deceptive3.m,MOA,Deceptive-3,None,MISSING,Mixture of additively-interacting variables
+OPTIMIZATION,AffEDA_Deceptive3.m,Affinity EDA,Deceptive-3,affinity_eda_deceptive.py,COVERED,Affinity propagation clustering
+OPTIMIZATION,TreeFDA_Deceptive3.m,Tree EDA,Deceptive-3,tree_eda_deceptive.py,COVERED,Tree structure learning
+OPTIMIZATION,TreeFDA_HPProtein.m,Tree EDA,HP Protein (discrete),tree_eda_hp_protein.py,COVERED,Forest structure from MI
+OPTIMIZATION,LearnTree_HPProtein.m,Tree EDA + Markov Chain FDA,HP Protein (discrete),markov_chain_hp_protein.py,COVERED,Markov chain model variant
+OPTIMIZATION,MkFDA_HPProtein.m,Markov Chain FDA,HP Protein (discrete),markov_chain_hp_protein.py,COVERED,Order 2 Markov model
+OPTIMIZATION,TreeEDA_MultiObj_uBQP.m,Tree EDA,Multi-objective uBQP,tree_eda_ubqp.py,COVERED,100 variables with Pareto ranking
+OPTIMIZATION,BayesianTree_IsingModel.m,Bayesian Tree (MPE),Ising Model,None,MISSING,MPE sampling variant - separate from FDA
+OPTIMIZATION,LearnTree_IsingModel.m,Tree EDA,Ising Model,tree_eda_ising.py,COVERED,FDA sampling variant
+OPTIMIZATION,GaussianUMDA_ContSumFunction.m,Gaussian UMDA,Sum Function (continuous),gaussian_umda_sphere.py,PARTIAL,Different function but same EDA
+OPTIMIZATION,GaussianUMDA_OfflineHPProtein.m,Gaussian UMDA,Offline HP (continuous),None,MISSING,Continuous angle variables
+OPTIMIZATION,GaussianNetwork_OfflineHPProtein.m,Gaussian Network BN,Offline HP (continuous),None,MISSING,Continuous angle variables
+OPTIMIZATION,GaussianMultivariate_OfflineHPProtein.m,Gaussian Full Covariance,Offline HP (continuous),None,MISSING,Continuous angle variables
+OPTIMIZATION,MixtureGaussianEDAs_OfflineHP.m,Mixture of Gaussians,Offline HP (continuous),None,MISSING,Mixture models for multimodal
+OPTIMIZATION,VariantsGaussianEDAs_trajectory.m,Gaussian variants (UMDA/Full/Network),Spacecraft Trajectory,None,MISSING,ESA trajectory optimization
+OPTIMIZATION,MixtureGaussianEDAs_trajectory.m,Mixture of Gaussians,Spacecraft Trajectory,None,MISSING,12 variables with complex bounds
+ANALYSIS,BN_StructureVisualization.m,N/A,Visualization,None,MISSING,BN structure graph visualization
+ANALYSIS,BN_StructureFiltering.m,N/A,Filtering,None,MISSING,Filter structures by substructure patterns
+ANALYSIS,BN_ParallelCoords.m,N/A,Visualization,None,MISSING,Parallel coordinates of edges
+ANALYSIS,BN_StructureHierClustering.m,N/A,Clustering,None,MISSING,Dendrogram and hierarchical clustering
+ANALYSIS,FitnessMeasuresComp.m,N/A,Fitness Analysis,None,MISSING,Shannon entropy and heritability computations
+FITNESS_MOD,BN_MPCsFitness.m,EBNA,Trap Function,None,MISSING,MPE/MPC fitness tracking
+FITNESS_MOD,BN_Prediction.m,EBNA,Multi-objective NK,None,MISSING,BN prediction capability analysis
+FITNESS_MOD,BN_kMPCs.m,EBNA,Random Data,None,MISSING,k Most Probable Configurations finding
