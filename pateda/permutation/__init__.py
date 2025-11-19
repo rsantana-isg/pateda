@@ -4,7 +4,8 @@ This module implements permutation-based probability distributions for
 Estimation of Distribution Algorithms (EDAs), including:
 
 - Distance metrics (Kendall, Cayley, Ulam)
-- Mallows models with different distance metrics
+- Mallows models with different distance metrics (Kendall, Cayley)
+- Generalized Mallows models (in development)
 - Histogram models (Edge Histogram Model, Node Histogram Model)
 """
 

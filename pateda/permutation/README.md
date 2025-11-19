@@ -34,6 +34,27 @@ The probability of a permutation σ is proportional to exp(-θ · d(σ, σ₀)),
 - `max_iter`: Maximum iterations for optimization (default: 100)
 - `consensus_method`: 'borda' or 'median' (default: 'borda')
 
+### 1b. Mallows Model with Cayley Distance
+
+The Mallows model with Cayley distance uses cycle decomposition for permutations.
+The Cayley distance counts the minimum number of swaps (not necessarily adjacent) needed to transform one permutation into another.
+
+**Learning**: `pateda.learning.mallows.LearnMallowsCayley`
+- Finds consensus using Borda count or median method
+- Estimates θ via Newton-Raphson using x-vector statistics based on cycle decomposition
+- Computes normalization constants specific to Cayley distance
+
+**Sampling**: `pateda.sampling.mallows.SampleMallowsCayley`
+- Samples x-vectors (binary values indicating cycle structure)
+- Converts x-vectors to permutations via random swaps
+- Composes with consensus permutation
+
+**Parameters**: Same as Kendall variant
+
+**References**:
+- E. Irurozki, B. Calvo, J.A Lozano: "Sampling and learning mallows and generalized mallows models under the cayley distance." Tech. Rep., 2013
+- J. Ceberio, E. Irurozki, A. Mendiburu, J.A Lozano: "Extending Distance-based Ranking Models in EDAs." CEC 2014
+
 ### 2. Edge Histogram Model (EHM)
 
 The Edge Histogram Model learns the probability of transitions between consecutive positions in a permutation. It maintains a matrix of edge frequencies.
@@ -297,9 +318,18 @@ pateda/functions/permutation/
 ## Future Extensions
 
 Potential additions to the permutation module:
-- Generalized Mallows model (position-dependent θ)
-- Cayley and Ulam distance variants for Mallows
+- **Generalized Mallows model** (position-dependent θ) for Kendall and Cayley distances [IN PROGRESS]
+- **Mallows with Ulam distance** [PLANNED]
 - Plackett-Luce model
 - Additional benchmark problems (QAP, LOP, PFSP)
 - Hybrid local search operators
 - Visualization tools for permutation distributions
+
+## Recent Additions
+
+### Mallows with Cayley Distance (Added 2025-11-19)
+- Implemented cycle-based x-vector computation for permutations
+- Added learning algorithm using Newton-Raphson optimization
+- Added sampling algorithm using x-vector probabilities
+- Based on MATEDA perm_mateda toolbox implementations
+- Includes comprehensive test suite

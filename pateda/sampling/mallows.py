@@ -13,6 +13,7 @@ References:
 import numpy as np
 from typing import Dict, Any
 from pateda.permutation.consensus import compose_permutations
+from pateda.permutation.distances import _generate_perm_from_x
 
 
 class SampleMallowsKendall:
@@ -138,4 +139,74 @@ def sample_mallows_kendall(
     See SampleMallowsKendall for parameter details.
     """
     sampler = SampleMallowsKendall()
+    return sampler(n_vars, model, cardinality, population, fitness, sample_size)
+
+
+class SampleMallowsCayley:
+    """Sample from Mallows model with Cayley distance"""
+
+    def __call__(
+        self,
+        n_vars: int,
+        model: Dict[str, Any],
+        cardinality: np.ndarray,
+        population: np.ndarray,
+        fitness: np.ndarray,
+        sample_size: int,
+    ) -> np.ndarray:
+        """
+        Sample permutations from Mallows model with Cayley distance.
+
+        Args:
+            n_vars: Number of variables (permutation length)
+            model: Model dictionary from learning phase containing:
+                   - x_probs: Probability vector for x-vector
+                   - consensus: Consensus ranking
+                   - theta: Theta parameter
+                   - psis: Normalization constants
+            cardinality: Not used for permutations
+            population: Current population (not used)
+            fitness: Fitness values (not used)
+            sample_size: Number of permutations to sample
+
+        Returns:
+            Array of sampled permutations, shape (sample_size, n_vars)
+        """
+        x_probs = model["x_probs"]
+        consensus = model["consensus"]
+
+        new_pop = np.zeros((sample_size, n_vars), dtype=int)
+
+        # Generate random values for all samples at once
+        rand_values = np.random.rand(sample_size, n_vars - 1)
+
+        for i in range(sample_size):
+            # Sample x-vector: for each position j, x[j] = 1 with probability x_probs[j]
+            x_vector = (rand_values[i] >= x_probs).astype(int)
+
+            # Generate permutation from x-vector
+            perm = _generate_perm_from_x(x_vector, n_vars)
+
+            # Compose with consensus
+            new_perm = compose_permutations(perm, consensus)
+
+            new_pop[i] = new_perm
+
+        return new_pop
+
+
+def sample_mallows_cayley(
+    n_vars: int,
+    model: Dict[str, Any],
+    cardinality: np.ndarray,
+    population: np.ndarray,
+    fitness: np.ndarray,
+    sample_size: int,
+) -> np.ndarray:
+    """
+    Convenience function to sample from Mallows model with Cayley distance.
+
+    See SampleMallowsCayley for parameter details.
+    """
+    sampler = SampleMallowsCayley()
     return sampler(n_vars, model, cardinality, population, fitness, sample_size)
