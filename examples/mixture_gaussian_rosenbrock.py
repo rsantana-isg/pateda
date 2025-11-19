@@ -7,13 +7,14 @@ multimodal distributions and diverse populations.
 """
 
 import numpy as np
-from pateda.core.eda import EDA
+from pateda.core.eda import EDA, EDAComponents
 from pateda.functions.continuous import rosenbrock
-from pateda.learning.gaussian import learn_mixture_gaussian_univariate
-from pateda.sampling.gaussian import sample_mixture_gaussian_univariate
-from pateda.selection.truncation import truncation_selection
-from pateda.replacement.elitist import elitist_replacement
-from pateda.stop_conditions.max_generations import MaxGenerations
+from pateda.learning.mixture_gaussian import learn_mixture_gaussian_univariate
+from pateda.sampling.mixture_gaussian import sample_mixture_gaussian_univariate
+from pateda.selection import TruncationSelection
+from pateda.replacement import ElitistReplacement
+from pateda.stop_conditions import MaxGenerations
+from pateda.seeding import RandomInit
 
 
 def main():

@@ -8,11 +8,8 @@ using UMDA with Pareto ranking for selection.
 import numpy as np
 from pateda.core.eda import EDA
 from pateda.functions.discrete.sat import load_random_3sat, evaluate_sat
-from pateda.learning.umda import learn_umda
-from pateda.sampling.utils import sample_from_marginals
-from pateda.selection.truncation import truncation_selection
-from pateda.replacement.elitist import elitist_replacement
-from pateda.stop_conditions.max_generations import MaxGenerations
+from pateda.learning import LearnUMDA
+from pateda.sampling.fda import SampleFDA
 
 
 def pareto_dominates(obj1, obj2):
@@ -127,10 +124,23 @@ def main():
         )
 
         # Learn model
-        model = learn_umda(selected_pop, selected_fit, params=None)
+        learner = LearnUMDA(alpha=0.0)
+        cardinality = np.full(n_vars, 2)  # Binary variables
+        model = learner.learn(
+            generation=gen,
+            n_vars=n_vars,
+            cardinality=cardinality,
+            population=selected_pop,
+            fitness=selected_fit
+        )
 
         # Sample new population
-        new_population = sample_from_marginals(model, pop_size)
+        sampler = SampleFDA(n_samples=pop_size)
+        new_population = sampler.sample(
+            n_vars=n_vars,
+            model=model,
+            cardinality=cardinality
+        )
 
         # Replacement (elitist)
         population = new_population
