@@ -8,7 +8,7 @@ import sys
 # Test imports
 try:
     from pateda.core.eda import EDA, EDAComponents
-    from pateda.core.components import StopCriteriaMaxGen
+    from pateda.stop_conditions import MaxGenerations
     from pateda.seeding import RandomInit
     from pateda.selection import TruncationSelection
     from pateda.replacement import NoReplacement
@@ -42,7 +42,7 @@ def test_mnfda():
             ),
             sampling=SampleFDA(n_samples=50),
             replacement=NoReplacement(),
-            stop_condition=StopCriteriaMaxGen(10),
+            stop_condition=MaxGenerations(10),
         )
 
         eda = EDA(
@@ -85,7 +85,7 @@ def test_mnfdag():
             ),
             sampling=SampleFDA(n_samples=50),
             replacement=NoReplacement(),
-            stop_condition=StopCriteriaMaxGen(10),
+            stop_condition=MaxGenerations(10),
         )
 
         eda = EDA(
@@ -132,7 +132,7 @@ def test_moa():
                 random_order=True
             ),
             replacement=NoReplacement(),
-            stop_condition=StopCriteriaMaxGen(10),
+            stop_condition=MaxGenerations(10),
         )
 
         eda = EDA(
