@@ -31,6 +31,26 @@ def elitist_replacement(old_pop, new_pop, old_fit, new_fit):
 
 
 def main():
+    print("=" * 70)
+    print("ERROR: This example needs refactoring")
+    print("=" * 70)
+    print()
+    print("This example uses a functional API (learning_func, sampling_func) that")
+    print("is no longer supported in the current version of pateda.")
+    print()
+    print("The current EDA architecture requires using EDAComponents with")
+    print("class-based learning and sampling methods, not lambda functions.")
+    print()
+    print("This example needs to be rewritten to use wrapper classes that")
+    print("convert the functional Gaussian approach to the component-based")
+    print("architecture.")
+    print()
+    print("Status: REQUIRES REFACTORING")
+    print("=" * 70)
+    return
+
+
+def main_old():
     # Problem setup
     n_vars = 10
     bounds = np.array([

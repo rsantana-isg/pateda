@@ -6,13 +6,14 @@ quadratic programming problem using Tree-based EDA.
 """
 
 import numpy as np
-from pateda.core.eda import EDA
+from pateda.core.eda import EDA, EDAComponents
 from pateda.functions.discrete.ubqp import generate_random_ubqp, evaluate_ubqp
-from pateda.learning.tree import learn_tree
-from pateda.sampling.utils import sample_tree_structure
-from pateda.selection.truncation import truncation_selection
-from pateda.replacement.elitist import elitist_replacement
-from pateda.stop_conditions.max_generations import MaxGenerations
+from pateda.learning import LearnTreeModel
+from pateda.sampling import SampleFDA
+from pateda.selection import TruncationSelection
+from pateda.replacement import GenerationalReplacement
+from pateda.seeding import RandomInit
+from pateda.stop_conditions import MaxGenerations
 
 
 def pareto_dominates(obj1, obj2):
