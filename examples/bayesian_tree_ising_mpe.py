@@ -189,7 +189,7 @@ def run_bayesian_tree_ising_mpe():
         seeding=RandomInit(),
 
         # Default selection (truncation 50%)
-        selection=TruncationSelection(proportion=0.5),
+        selection=TruncationSelection(ratio=0.5),
 
         # Bayesian Tree learning
         # In MATLAB: default learning method is tree-based
