@@ -26,8 +26,8 @@ from pateda.sampling.map_sampling import (
 from pateda.sampling.gibbs import SampleGibbs
 from pateda.sampling.fda import SampleFDA
 from pateda.inference.map_inference import MAPInference, compute_map, compute_k_map
-from pateda.selection.truncation import SelectTruncation
-from pateda.seeding.random import SeedRandom
+from pateda.selection import TruncationSelection
+from pateda.seeding import RandomInit
 
 
 # Test problems
@@ -262,10 +262,10 @@ class TestMAPWithMNFDA:
             fitness_function=onemax,
             pop_size=pop_size,
             n_generations=n_generations,
-            seeding=SeedRandom(),
+            seeding=RandomInit(),
             learning=LearnMNFDA(max_clique_size=3, return_factorized=False),
             sampling=SampleInsertMAP(n_samples=pop_size, map_method="bp"),
-            selection=SelectTruncation(ratio=0.5),
+            selection=TruncationSelection(ratio=0.5),
         )
 
         # Run optimization
@@ -292,14 +292,14 @@ class TestMAPWithMNFDA:
             fitness_function=trap5,
             pop_size=pop_size,
             n_generations=n_generations,
-            seeding=SeedRandom(),
+            seeding=RandomInit(),
             learning=LearnMNFDA(max_clique_size=5, return_factorized=False),
             sampling=SampleTemplateMAP(
                 n_samples=pop_size,
                 map_method="bp",
                 template_prob=0.6
             ),
-            selection=SelectTruncation(ratio=0.5),
+            selection=TruncationSelection(ratio=0.5),
         )
 
         result = eda.run()
@@ -324,14 +324,14 @@ class TestMAPWithMNFDA:
             fitness_function=onemax,
             pop_size=pop_size,
             n_generations=n_generations,
-            seeding=SeedRandom(),
+            seeding=RandomInit(),
             learning=LearnMNFDA(max_clique_size=3, return_factorized=False),
             sampling=SampleHybridMAP(
                 n_samples=pop_size,
                 map_method="bp",
                 template_prob=0.5
             ),
-            selection=SelectTruncation(ratio=0.5),
+            selection=TruncationSelection(ratio=0.5),
         )
 
         result = eda.run()
@@ -358,10 +358,10 @@ class TestMAPWithMOA:
             fitness_function=onemax,
             pop_size=pop_size,
             n_generations=n_generations,
-            seeding=SeedRandom(),
+            seeding=RandomInit(),
             learning=LearnMOA(k_neighbors=3),
             sampling=SampleInsertMAP(n_samples=pop_size, map_method="bp"),
-            selection=SelectTruncation(ratio=0.5),
+            selection=TruncationSelection(ratio=0.5),
         )
 
         result = eda.run()
@@ -385,14 +385,14 @@ class TestMAPWithMOA:
             fitness_function=onemax,
             pop_size=pop_size,
             n_generations=n_generations,
-            seeding=SeedRandom(),
+            seeding=RandomInit(),
             learning=LearnMOA(k_neighbors=5),
             sampling=SampleTemplateMAP(
                 n_samples=pop_size,
                 map_method="bp",
                 template_prob=0.5
             ),
-            selection=SelectTruncation(ratio=0.5),
+            selection=TruncationSelection(ratio=0.5),
         )
 
         result = eda.run()
@@ -440,10 +440,10 @@ class TestMAPPerformanceComparison:
                     fitness_function=onemax,
                     pop_size=pop_size,
                     n_generations=n_generations,
-                    seeding=SeedRandom(),
+                    seeding=RandomInit(),
                     learning=learner,
                     sampling=sampler,
-                    selection=SelectTruncation(ratio=0.5),
+                    selection=TruncationSelection(ratio=0.5),
                     verbose=False,
                 )
 
@@ -495,13 +495,13 @@ class TestMAPPerformanceComparison:
                     fitness_function=trap5,
                     pop_size=pop_size,
                     n_generations=n_generations,
-                    seeding=SeedRandom(),
+                    seeding=RandomInit(),
                     learning=LearnMNFDA(max_clique_size=5, return_factorized=False),
                     sampling=SampleInsertMAP(
                         n_samples=pop_size,
                         map_method=map_method
                     ),
-                    selection=SelectTruncation(ratio=0.5),
+                    selection=TruncationSelection(ratio=0.5),
                     verbose=False,
                 )
 
@@ -542,10 +542,10 @@ class TestMAPHighCardinality:
             fitness_function=ternary_onemax,
             pop_size=pop_size,
             n_generations=n_generations,
-            seeding=SeedRandom(),
+            seeding=RandomInit(),
             learning=LearnMNFDA(max_clique_size=3, return_factorized=False),
             sampling=SampleInsertMAP(n_samples=pop_size, map_method="bp"),
-            selection=SelectTruncation(ratio=0.5),
+            selection=TruncationSelection(ratio=0.5),
         )
 
         result = eda.run()

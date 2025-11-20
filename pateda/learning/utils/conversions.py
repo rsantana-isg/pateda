@@ -20,6 +20,9 @@ def find_acc_card(size: int, card: np.ndarray) -> np.ndarray:
     Returns:
         Accumulated cardinalities array
     """
+    if size == 0:
+        return np.array([], dtype=int)
+
     acc_card = np.zeros(size, dtype=int)
     acc_card[0] = 1
     for i in range(1, size):

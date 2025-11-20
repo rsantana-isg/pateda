@@ -71,7 +71,7 @@ def run_moa_deceptive3():
         # In MATLAB: exponential selection with parameter 2
         # We use truncation selection (50%) as a simpler alternative
         # For true exponential, we would need to implement exp_selection
-        selection=TruncationSelection(proportion=0.5),
+        selection=TruncationSelection(ratio=0.5),
 
         # MOA learning with parameters matching MATLAB:
         # MK_params(1:5) = {{},8,1.5,'Boltzman_linear',1.0}

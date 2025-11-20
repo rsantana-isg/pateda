@@ -237,20 +237,29 @@ class MAPInference:
             # Find cliques containing this variable
             for clique, table in zip(self.cliques, self.tables):
                 if var in clique:
+                    # Ensure table has correct shape for the clique
+                    expected_shape = tuple(self.cardinalities[v] for v in clique)
+                    if table.shape != expected_shape:
+                        table = table.reshape(expected_shape)
+
                     # Get variable position in clique
                     var_idx = np.where(clique == var)[0][0]
 
                     # Max-marginalize over other variables
                     axes_to_max = [i for i in range(len(clique)) if i != var_idx]
                     if axes_to_max:
-                        max_vals = table
-                        for axis in sorted(axes_to_max, reverse=True):
-                            max_vals = np.max(max_vals, axis=axis)
+                        # Use tuple of axes to marginalize all at once
+                        # This is more robust than iterating
+                        max_vals = np.max(table, axis=tuple(axes_to_max))
                     else:
                         max_vals = table
 
                     # Accumulate (multiply in log space)
-                    if len(marginal) == len(max_vals):
+                    # Handle both scalar and array max_vals
+                    if np.isscalar(max_vals) or max_vals.ndim == 0:
+                        # Scalar case - broadcast to marginal
+                        marginal += np.log(np.maximum(max_vals, 1e-300))
+                    elif len(marginal) == len(max_vals):
                         marginal += np.log(np.maximum(max_vals, 1e-300))
 
             max_marginals[var, :self.cardinalities[var]] = marginal
@@ -330,6 +339,11 @@ class MAPInference:
         # Find cliques containing this variable
         for clique, table in zip(self.cliques, self.tables):
             if var in clique:
+                # Ensure table has correct shape for the clique
+                expected_shape = tuple(self.cardinalities[v] for v in clique)
+                if table.shape != expected_shape:
+                    table = table.reshape(expected_shape)
+
                 # Create indices for this clique
                 # Start with all possible values for var
                 var_idx = np.where(clique == var)[0][0]

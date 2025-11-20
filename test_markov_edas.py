@@ -8,10 +8,10 @@ import sys
 # Test imports
 try:
     from pateda.core.eda import EDA, EDAComponents
-    from pateda.core.components import StopCriteriaMaxGen
+    from pateda.stop_conditions import MaxGenerations
     from pateda.seeding import RandomInit
     from pateda.selection import TruncationSelection
-    from pateda.replacement import NoReplacement
+    from pateda.replacement import GenerationalReplacement
     from pateda.learning import LearnMNFDA, LearnMNFDAG, LearnMOA
     from pateda.sampling import SampleFDA, SampleGibbs
     print("✓ All imports successful!")
@@ -34,15 +34,15 @@ def test_mnfda():
     try:
         components = EDAComponents(
             seeding=RandomInit(),
-            selection=TruncationSelection(proportion=0.5),
+            selection=TruncationSelection(ratio=0.5),
             learning=LearnMNFDA(
                 max_clique_size=3,
                 threshold=0.05,
                 return_factorized=True
             ),
             sampling=SampleFDA(n_samples=50),
-            replacement=NoReplacement(),
-            stop_condition=StopCriteriaMaxGen(10),
+            replacement=GenerationalReplacement(),
+            stop_condition=MaxGenerations(10),
         )
 
         eda = EDA(
@@ -77,15 +77,15 @@ def test_mnfdag():
     try:
         components = EDAComponents(
             seeding=RandomInit(),
-            selection=TruncationSelection(proportion=0.5),
+            selection=TruncationSelection(ratio=0.5),
             learning=LearnMNFDAG(
                 max_clique_size=3,
                 alpha=0.05,
                 return_factorized=True
             ),
             sampling=SampleFDA(n_samples=50),
-            replacement=NoReplacement(),
-            stop_condition=StopCriteriaMaxGen(10),
+            replacement=GenerationalReplacement(),
+            stop_condition=MaxGenerations(10),
         )
 
         eda = EDA(
@@ -120,7 +120,7 @@ def test_moa():
     try:
         components = EDAComponents(
             seeding=RandomInit(),
-            selection=TruncationSelection(proportion=0.5),
+            selection=TruncationSelection(ratio=0.5),
             learning=LearnMOA(
                 k_neighbors=5,
                 threshold_factor=1.5,
@@ -131,8 +131,8 @@ def test_moa():
                 temperature=1.0,
                 random_order=True
             ),
-            replacement=NoReplacement(),
-            stop_condition=StopCriteriaMaxGen(10),
+            replacement=GenerationalReplacement(),
+            stop_condition=MaxGenerations(10),
         )
 
         eda = EDA(

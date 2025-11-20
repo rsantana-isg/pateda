@@ -75,6 +75,11 @@ class SampleMixtureTrees(SamplingMethod):
         component_parameters = model.parameters["components"]
         n_components = len(weights)
 
+        # Normalize weights to ensure they sum to exactly 1.0
+        # (avoids numerical precision issues)
+        weights = np.array(weights)
+        weights = weights / weights.sum()
+
         # Initialize population
         new_pop = np.zeros((n_samples, n_vars), dtype=int)
 

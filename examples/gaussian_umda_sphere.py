@@ -6,47 +6,51 @@ to optimize the sphere function, a simple continuous optimization benchmark.
 """
 
 import numpy as np
-from pateda.core.eda import EDA
+from pateda.core.eda import EDA, EDAComponents
 from pateda.functions.continuous import sphere
-from pateda.learning.gaussian import learn_gaussian_univariate
-from pateda.sampling.gaussian import sample_gaussian_univariate
-from pateda.selection.truncation import truncation_selection
-from pateda.replacement.elitist import elitist_replacement
-from pateda.stop_conditions.max_generations import MaxGenerations
+from pateda.learning.basic_gaussian import LearnGaussianUnivariate
+from pateda.sampling.basic_gaussian import SampleGaussianUnivariate
+from pateda.selection import TruncationSelection
+from pateda.replacement import ElitistReplacement
+from pateda.stop_conditions import MaxGenerations
+from pateda.seeding import RandomInit
 
 
 def main():
     # Problem setup
     n_vars = 30
-    bounds = np.array([
-        [-5.12] * n_vars,  # Lower bounds
-        [5.12] * n_vars    # Upper bounds
-    ])
+    lower_bounds = np.array([-5.12] * n_vars)
+    upper_bounds = np.array([5.12] * n_vars)
 
     # Define objective function (minimize sphere)
     def objective(pop):
-        return -sphere(pop)  # Negative for maximization
+        # Handle both single individual (1D) and population (2D)
+        if pop.ndim == 1:
+            return -sphere(pop)  # Negative for maximization
+        else:
+            return np.array([-sphere(ind) for ind in pop])
 
     # EDA parameters
     pop_size = 100
-    n_selected = 50
     max_generations = 50
+
+    # Configure EDA components
+    components = EDAComponents(
+        seeding=RandomInit(),
+        selection=TruncationSelection(ratio=0.5),  # Select top 50%
+        learning=LearnGaussianUnivariate(),
+        sampling=SampleGaussianUnivariate(n_samples=pop_size),
+        replacement=ElitistReplacement(n_elite=10),
+        stop_condition=MaxGenerations(max_generations),
+    )
 
     # Create EDA instance
     eda = EDA(
         pop_size=pop_size,
         n_vars=n_vars,
-        objective_func=objective,
-        learning_func=learn_gaussian_univariate,
-        sampling_func=lambda model, n: sample_gaussian_univariate(
-            model, n, bounds=bounds
-        ),
-        selection_func=lambda pop, fit, n: truncation_selection(
-            pop, fit, n_select=n
-        ),
-        replacement_func=elitist_replacement,
-        stop_condition=MaxGenerations(max_generations),
-        bounds=bounds
+        fitness_func=objective,
+        cardinality=np.column_stack([lower_bounds, upper_bounds]),
+        components=components,
     )
 
     # Run optimization
@@ -54,21 +58,16 @@ def main():
     print("=" * 60)
     print(f"Problem size: {n_vars} variables")
     print(f"Population size: {pop_size}")
-    print(f"Selected individuals: {n_selected}")
     print(f"Max generations: {max_generations}")
     print()
 
-    best_solutions, best_fitnesses, stats = eda.run(
-        n_selected=n_selected,
-        verbose=True
-    )
+    stats, cache = eda.run(verbose=True)
 
     # Report results
     print("\nOptimization completed!")
     print("=" * 60)
-    best_idx = np.argmax(best_fitnesses)
-    best_solution = best_solutions[best_idx]
-    best_fitness = best_fitnesses[best_idx]
+    best_solution = stats.best_individual
+    best_fitness = stats.best_fitness_overall
 
     print(f"Best fitness (negative sphere): {best_fitness:.6f}")
     print(f"Best sphere value: {-best_fitness:.6f}")
@@ -78,9 +77,9 @@ def main():
 
     # Statistics
     print(f"\nConvergence statistics:")
-    print(f"Final mean fitness: {stats['mean_fitness'][-1]:.6f}")
-    print(f"Final std fitness: {stats['std_fitness'][-1]:.6f}")
-    print(f"Improvement: {(best_fitness - stats['best_fitness'][0]):.6f}")
+    print(f"Total generations: {len(stats.best_fitness)}")
+    print(f"Final mean fitness: {stats.mean_fitness[-1]:.6f}")
+    print(f"Improvement: {(best_fitness - stats.best_fitness[0]):.6f}")
 
 
 if __name__ == "__main__":

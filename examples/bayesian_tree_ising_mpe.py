@@ -31,10 +31,10 @@ we use a generated random instance for demonstration.
 import numpy as np
 from pathlib import Path
 from pateda.core.eda import EDA, EDAComponents
-from pateda.core.components import StopCriteria
+from pateda.core.components import StopCondition
 from pateda.seeding import RandomInit
 from pateda.selection import TruncationSelection
-from pateda.replacement import NoReplacement
+from pateda.replacement import GenerationalReplacement
 from pateda.learning.tree import LearnTreeModel
 from pateda.sampling.map_sampling import SampleInsertMAP
 
@@ -47,7 +47,7 @@ except ImportError:
     ISING_AVAILABLE = False
 
 
-class StopCriteriaMaxGenOrOptimum(StopCriteria):
+class StopCriteriaMaxGenOrOptimum(StopCondition):
     """
     Stop condition: max generations OR optimal value found
 
@@ -210,7 +210,7 @@ def run_bayesian_tree_ising_mpe():
         ),
 
         # No replacement (generational)
-        replacement=NoReplacement(),
+        replacement=GenerationalReplacement(),
 
         # Stop condition: max generations OR optimal value
         stop_condition=StopCriteriaMaxGenOrOptimum(
@@ -294,7 +294,7 @@ def run_comparison_with_without_mpe():
             selection=TruncationSelection(proportion=0.5),
             learning=LearnTreeModel(max_parents=1, scoring_method='MI'),
             sampling=SampleInsertMAP(n_samples=pop_size, map_method='bp'),
-            replacement=NoReplacement(),
+            replacement=GenerationalReplacement(),
             stop_condition=StopCriteriaMaxGenOrOptimum(max_generations, optimal_value),
         )
 
@@ -323,7 +323,7 @@ def run_comparison_with_without_mpe():
             selection=TruncationSelection(proportion=0.5),
             learning=LearnTreeModel(max_parents=1, scoring_method='MI'),
             sampling=SampleFDA(n_samples=pop_size),  # Standard PLS sampling
-            replacement=NoReplacement(),
+            replacement=GenerationalReplacement(),
             stop_condition=StopCriteriaMaxGenOrOptimum(max_generations, optimal_value),
         )
 
