@@ -28,8 +28,8 @@ from pateda.stop_conditions import MaxGenerations
 from pateda.seeding import RandomInit
 from pateda.selection import TruncationSelection
 from pateda.replacement.elitist import ElitistReplacement
-from pateda.learning.bayesian_network import LearnBayesianNetwork
-from pateda.sampling.bayesian_network import SampleBN
+from pateda.learning.ebna import LearnEBNA
+from pateda.sampling.bayesian_network import SampleBayesianNetwork
 
 
 # Import NK landscape if available
@@ -111,14 +111,14 @@ def run_ebna_nk_landscape(n_vars=50, k=4, seed=42):
         selection=TruncationSelection(proportion=0.5),
 
         # EBNA learning with K2 algorithm
-        learning=LearnBayesianNetwork(
+        learning=LearnEBNA(
             structure_algorithm='k2',
             max_parents=min(k + 2, 5),  # Allow slightly more parents than K
             scoring_metric='bic',
         ),
 
         # Bayesian Network sampling
-        sampling=SampleBN(n_samples=pop_size),
+        sampling=SampleBayesianNetwork(n_samples=pop_size),
 
         # Keep best 10 individuals
         replacement=ElitistReplacement(n_elite=10),
@@ -188,12 +188,12 @@ def run_ebna_varying_k():
             components = EDAComponents(
                 seeding=RandomInit(),
                 selection=TruncationSelection(proportion=0.5),
-                learning=LearnBayesianNetwork(
+                learning=LearnEBNA(
                     structure_algorithm='k2',
                     max_parents=min(k + 2, 5),
                     scoring_metric='bic',
                 ),
-                sampling=SampleBN(n_samples=pop_size),
+                sampling=SampleBayesianNetwork(n_samples=pop_size),
                 replacement=ElitistReplacement(n_elite=10),
                 stop_condition=MaxGenerations(max_gen=max_generations),
             )
@@ -256,7 +256,7 @@ def run_comparison_ebna_vs_umda():
     algorithms = [
         ("UMDA", LearnHistogram(), SampleHistogram(pop_size)),
         ("EBNA", LearnBayesianNetwork(structure_algorithm='k2', max_parents=5),
-         SampleBN(pop_size)),
+         SampleBayesianNetwork(pop_size)),
     ]
 
     results = {name: [] for name, _, _ in algorithms}

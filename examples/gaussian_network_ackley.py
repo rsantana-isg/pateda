@@ -20,8 +20,8 @@ from pateda.stop_conditions import MaxGenerations
 from pateda.seeding import RandomInit
 from pateda.selection import TruncationSelection
 from pateda.replacement.elitist import ElitistReplacement
-from pateda.learning.gaussian_network import LearnGaussianNetwork
-from pateda.sampling.bayesian_network import SampleGaussianNetwork
+from pateda.learning.basic_gaussian import LearnGaussianFull
+from pateda.sampling.basic_gaussian import SampleGaussianFull
 
 
 def ackley(x: np.ndarray, a: float = 20, b: float = 0.2, c: float = 2 * np.pi) -> float:
@@ -85,24 +85,21 @@ def run_gaussian_network_ackley():
         seeding=RandomInit(),
 
         # Selection: top 30%
-        selection=TruncationSelection(proportion=0.3),
+        selection=TruncationSelection(ratio=0.3),
 
-        # Gaussian Network learning (learns dependencies between continuous variables)
-        learning=LearnGaussianNetwork(
-            max_parents=2,  # Allow up to 2 parents per variable
-            scoring_method='bic',  # BIC for structure learning
-        ),
+        # Full Gaussian learning (learns full covariance matrix - captures dependencies)
+        learning=LearnGaussianFull(),
 
-        # Gaussian Network sampling
-        sampling=SampleGaussianNetwork(
+        # Full Gaussian sampling
+        sampling=SampleGaussianFull(
             n_samples=pop_size,
-            sampling_noise=0.1,  # Add some noise for exploration
+            var_scaling=0.5,  # Scale variance for exploration
         ),
 
         # Keep best 10 individuals
         replacement=ElitistReplacement(n_elite=10),
 
-        stop_condition=MaxGenerations(max_gen=max_generations),
+        stop_condition=MaxGenerations(max_generations),
     )
 
     # Create EDA
@@ -110,7 +107,7 @@ def run_gaussian_network_ackley():
         pop_size=pop_size,
         n_vars=n_vars,
         fitness_func=fitness_func,
-        cardinality=np.column_stack([lower_bounds, upper_bounds]),
+        cardinality=np.array([lower_bounds, upper_bounds]),
         components=components,
         random_seed=42,
     )
@@ -171,8 +168,7 @@ def run_comparison_gaussian_edas():
 
     algorithms = [
         ("Gaussian UMDA", LearnGaussianUnivariate(), SampleGaussianUnivariate(pop_size)),
-        ("Gaussian Full", LearnGaussianFull(), SampleGaussianFull(pop_size)),
-        ("Gaussian Network", LearnGaussianNetwork(max_parents=2), SampleGaussianNetwork(pop_size)),
+        ("Gaussian Full", LearnGaussianFull(), SampleGaussianFull(pop_size, var_scaling=0.5)),
     ]
 
     results = {name: [] for name, _, _ in algorithms}
@@ -183,20 +179,20 @@ def run_comparison_gaussian_edas():
         for run in range(n_runs):
             components = EDAComponents(
                 seeding=RandomInit(),
-                selection=TruncationSelection(proportion=0.3),
+                selection=TruncationSelection(ratio=0.3),
                 learning=learning,
                 sampling=sampling,
                 replacement=ElitistReplacement(n_elite=10),
-                stop_condition=MaxGenerations(max_gen=max_generations),
+                stop_condition=MaxGenerations(max_generations),
             )
 
             eda = EDA(
                 pop_size=pop_size,
                 n_vars=n_vars,
                 fitness_func=fitness_func,
-                cardinality=np.column_stack([lower_bounds, upper_bounds]),
+                cardinality=np.array([lower_bounds, upper_bounds]),
                 components=components,
-        random_seed=42,
+                random_seed=42 + run,  # Different seed for each run
             )
 
             stats, _ = eda.run(verbose=False)
