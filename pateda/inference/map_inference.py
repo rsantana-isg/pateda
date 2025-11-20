@@ -237,6 +237,11 @@ class MAPInference:
             # Find cliques containing this variable
             for clique, table in zip(self.cliques, self.tables):
                 if var in clique:
+                    # Ensure table has correct shape for the clique
+                    expected_shape = tuple(self.cardinalities[v] for v in clique)
+                    if table.shape != expected_shape:
+                        table = table.reshape(expected_shape)
+
                     # Get variable position in clique
                     var_idx = np.where(clique == var)[0][0]
 
@@ -330,6 +335,11 @@ class MAPInference:
         # Find cliques containing this variable
         for clique, table in zip(self.cliques, self.tables):
             if var in clique:
+                # Ensure table has correct shape for the clique
+                expected_shape = tuple(self.cardinalities[v] for v in clique)
+                if table.shape != expected_shape:
+                    table = table.reshape(expected_shape)
+
                 # Create indices for this clique
                 # Start with all possible values for var
                 var_idx = np.where(clique == var)[0][0]
