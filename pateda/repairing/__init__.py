@@ -15,6 +15,7 @@ Ported to Python: 2025
 """
 
 from pateda.repairing.unitation import unitation_repairing
+from pateda.repairing.unitation_method import UnitationRepairing
 from pateda.repairing.trigonometric import trigonometric_repairing
 from pateda.repairing.bounds import (
     set_in_bounds_repairing,
@@ -23,6 +24,7 @@ from pateda.repairing.bounds import (
 
 __all__ = [
     "unitation_repairing",
+    "UnitationRepairing",
     "trigonometric_repairing",
     "set_in_bounds_repairing",
     "set_within_bounds_repairing",
