@@ -34,7 +34,7 @@ from pateda.learning.mnfda import LearnMNFDA
 from pateda.sampling import SampleFDA
 from pateda.sampling.gibbs import SampleGibbs
 from pateda.selection import TruncationSelection
-from pateda.stop_conditions import MaxGenerations, TargetFitness
+from pateda.stop_conditions import MaxGenerations
 
 # Import all binary functions
 from pateda.functions.discrete.additive_decomposable import (
@@ -278,10 +278,8 @@ def get_eda_configuration(
     Returns:
         EDAComponents configuration
     """
-    # Stop conditions
-    stop_conditions = [MaxGenerations(max_gen=max_gen)]
-    if target_fitness is not None:
-        stop_conditions.append(TargetFitness(target=target_fitness))
+    # Stop condition (note: target_fitness parameter is ignored in current implementation)
+    stop_condition = MaxGenerations(max_gen=max_gen)
 
     if eda_name == 'umda':
         # UMDA: Univariate (independence assumption)
@@ -289,7 +287,7 @@ def get_eda_configuration(
             learning=LearnUMDA(alpha=0.01),  # Small Laplace smoothing
             sampling=SampleFDA(n_samples=pop_size),
             selection=TruncationSelection(ratio=selection_ratio),
-            stop_condition=stop_conditions[0] if len(stop_conditions) == 1 else stop_conditions,
+            stop_condition=stop_condition,
         )
 
     elif eda_name == 'tree_eda':
@@ -302,7 +300,7 @@ def get_eda_configuration(
             ),
             sampling=SampleFDA(n_samples=pop_size),
             selection=TruncationSelection(ratio=selection_ratio),
-            stop_condition=stop_conditions[0] if len(stop_conditions) == 1 else stop_conditions,
+            stop_condition=stop_condition,
         )
 
     elif eda_name == 'mnfda':
@@ -316,7 +314,7 @@ def get_eda_configuration(
             ),
             sampling=SampleFDA(n_samples=pop_size),
             selection=TruncationSelection(ratio=selection_ratio),
-            stop_condition=stop_conditions[0] if len(stop_conditions) == 1 else stop_conditions,
+            stop_condition=stop_condition,
         )
 
     else:

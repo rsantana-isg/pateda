@@ -22,6 +22,8 @@ from pateda.sampling.basic_gaussian import (
     sample_gaussian_univariate,
     sample_gaussian_full,
     sample_gaussian_with_diversity_trigger,
+    SampleGaussianUnivariate,
+    SampleGaussianFull,
 )
 from pateda.sampling.mixture_gaussian import (
     sample_mixture_gaussian_univariate,

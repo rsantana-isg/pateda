@@ -35,13 +35,13 @@ from pateda.learning import (
     LearnGaussianFull,
 )
 from pateda.learning.mixture_gaussian import LearnMixtureGaussian
-from pateda.learning.gmrf_eda import LearnGMRFEDA
+# from pateda.learning.gmrf_eda import LearnGMRFEDA  # Not available as class
 from pateda.sampling import (
     SampleGaussianUnivariate,
     SampleGaussianFull,
 )
 from pateda.sampling.mixture_gaussian import SampleMixtureGaussian
-from pateda.sampling.gmrf_eda import SampleGMRFEDA
+# from pateda.sampling.gmrf_eda import SampleGMRFEDA  # Not available as class
 from pateda.selection import TruncationSelection
 from pateda.stop_conditions import MaxGenerations
 
@@ -154,7 +154,7 @@ def get_eda_configuration(
     Get EDA component configuration for a specific algorithm.
 
     Args:
-        eda_name: Name of EDA ('gaussian_umda', 'gaussian_full', 'gaussian_mixture', 'gmrf_eda')
+        eda_name: Name of EDA ('gaussian_umda', 'gaussian_full', 'gaussian_mixture')
         n_vars: Number of variables
         pop_size: Population size
         max_gen: Maximum generations
@@ -195,21 +195,21 @@ def get_eda_configuration(
             stop_condition=MaxGenerations(max_gen=max_gen),
         )
 
-    elif eda_name == 'gmrf_eda':
-        # GMRF-EDA: Sparse dependencies via regularization
-        components = EDAComponents(
-            learning=LearnGMRFEDA(
-                regularization='lasso',
-                alpha=0.01,
-                clustering_method='affinity'
-            ),
-            sampling=SampleGMRFEDA(n_samples=pop_size),
-            selection=TruncationSelection(ratio=selection_ratio),
-            stop_condition=MaxGenerations(max_gen=max_gen),
-        )
+    # elif eda_name == 'gmrf_eda':
+    #     # GMRF-EDA: Sparse dependencies via regularization (not currently available)
+    #     components = EDAComponents(
+    #         learning=LearnGMRFEDA(
+    #             regularization='lasso',
+    #             alpha=0.01,
+    #             clustering_method='affinity'
+    #         ),
+    #         sampling=SampleGMRFEDA(n_samples=pop_size),
+    #         selection=TruncationSelection(ratio=selection_ratio),
+    #         stop_condition=MaxGenerations(max_gen=max_gen),
+    #     )
 
     else:
-        raise ValueError(f"Unknown EDA name: {eda_name}")
+        raise ValueError(f"Unknown EDA name: {eda_name}. Supported: 'gaussian_umda', 'gaussian_full', 'gaussian_mixture'")
 
     return components
 
@@ -517,7 +517,7 @@ if __name__ == '__main__':
         'gaussian_umda',      # Univariate Gaussian (independence)
         'gaussian_full',      # Full covariance matrix
         'gaussian_mixture',   # Mixture of Gaussians (multimodality)
-        'gmrf_eda',          # Sparse dependencies (regularization)
+        # 'gmrf_eda',          # Sparse dependencies (regularization) - not currently available
     ]
 
     # GNBG problems to test (can test all 24 or a subset)
