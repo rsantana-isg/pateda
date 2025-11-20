@@ -38,14 +38,13 @@ from pateda.replacement import ElitistReplacement, GenerationalReplacement
 
 # Import learning methods
 from pateda.learning.umda import LearnUMDA
-from pateda.learning.bayesian_network import LearnBayesianNetwork
+from pateda.learning.ebna import LearnEBNA
 from pateda.learning.tree import LearnTreeModel
-from pateda.learning.affinity import LearnAffinityModel
+from pateda.learning.affinity import LearnAffinityFactorization
 from pateda.learning.moa import LearnMOA
 
 # Import sampling methods
-from pateda.sampling.histogram import SampleHistogram
-from pateda.sampling.bayesian_network import SampleBN
+from pateda.sampling.bayesian_network import SampleBayesianNetwork
 from pateda.sampling.fda import SampleFDA
 from pateda.sampling.gibbs import SampleGibbs
 
@@ -84,7 +83,7 @@ def onemax(x: np.ndarray) -> float:
 def create_nk_landscape(n: int, k: int, seed: int):
     """Create NK landscape function"""
     from pateda.functions.discrete.nk_landscape import NKLandscape
-    nk = NKLandscape(n, k, seed=seed)
+    nk = NKLandscape(n, k, random_seed=seed)
     return nk.evaluate
 
 
@@ -102,35 +101,34 @@ def get_algorithms(pop_size: int) -> List[AlgorithmConfig]:
         AlgorithmConfig(
             name="UMDA",
             learning=LearnUMDA(alpha=1.0),
-            sampling=SampleHistogram(pop_size),
+            sampling=SampleFDA(n_samples=pop_size),
             replacement=GenerationalReplacement(),
         ),
         AlgorithmConfig(
             name="EBNA",
-            learning=LearnBayesianNetwork(
+            learning=LearnEBNA(
                 structure_algorithm='k2',
                 max_parents=3,
                 scoring_metric='bic'
             ),
-            sampling=SampleBN(pop_size),
+            sampling=SampleBayesianNetwork(n_samples=pop_size),
             replacement=GenerationalReplacement(),
         ),
         AlgorithmConfig(
             name="Tree EDA",
             learning=LearnTreeModel(
-                max_parents=1,
-                scoring_method='MI'
+                alpha=0.1
             ),
-            sampling=SampleFDA(pop_size),
+            sampling=SampleFDA(n_samples=pop_size),
             replacement=GenerationalReplacement(),
         ),
         AlgorithmConfig(
             name="Affinity EDA",
-            learning=LearnAffinityModel(
+            learning=LearnAffinityFactorization(
                 damping=0.5,
                 max_iter=200
             ),
-            sampling=SampleFDA(pop_size),
+            sampling=SampleFDA(n_samples=pop_size),
             replacement=GenerationalReplacement(),
         ),
         AlgorithmConfig(

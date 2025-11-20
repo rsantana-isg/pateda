@@ -15,7 +15,7 @@ from pateda.core.eda import EDA, EDAComponents
 from pateda.learning.affinity import LearnAffinityFactorizationElim
 from pateda.sampling.fda import SampleFDA
 from pateda.selection.truncation import TruncationSelection
-from pateda.replacement.generational import ReplaceGenerational, GenerationalReplacement
+from pateda.replacement.generational import GenerationalReplacement
 from pateda.seeding.random_init import RandomInit
 from pateda.stop_conditions.max_generations import MaxGenerations
 from pateda.functions.discrete.ising import IsingModel
