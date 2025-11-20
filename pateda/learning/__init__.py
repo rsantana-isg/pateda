@@ -2,6 +2,13 @@
 
 from pateda.learning.fda import LearnFDA
 from pateda.learning.umda import LearnUMDA
+from pateda.learning.cumda import LearnCUMDA
+from pateda.learning.cfda import (
+    LearnCFDA,
+    create_pairwise_chain_cliques,
+    create_block_cliques,
+    create_overlapping_windows_cliques,
+)
 from pateda.learning.bmda import LearnBMDA
 from pateda.learning.ebna import LearnEBNA
 from pateda.learning.boa import LearnBOA
@@ -74,6 +81,11 @@ except ImportError:
 __all__ = [
     "LearnFDA",
     "LearnUMDA",
+    "LearnCUMDA",
+    "LearnCFDA",
+    "create_pairwise_chain_cliques",
+    "create_block_cliques",
+    "create_overlapping_windows_cliques",
     "LearnBMDA",
     "LearnEBNA",
     "LearnBOA",
