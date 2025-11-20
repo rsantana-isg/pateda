@@ -7,11 +7,13 @@ previous variables.
 """
 
 import numpy as np
-from pateda.core.eda import EDA
-from pateda.learning.markov import LearnMarkovChain
-from pateda.sampling.markov import SampleMarkovChain
-from pateda.selection.tournament import TournamentSelection
-from pateda.replacement.generational import GenerationalReplacement
+from pateda.core.eda import EDA, EDAComponents
+from pateda.learning import LearnMarkovChain
+from pateda.sampling import SampleMarkovChain
+from pateda.selection import TournamentSelection
+from pateda.replacement import GenerationalReplacement
+from pateda.stop_conditions import MaxGenerations
+from pateda.seeding import RandomInit
 from pateda.functions.discrete import onemax, deceptive3
 
 
@@ -28,31 +30,34 @@ def markov_eda_onemax():
 
     # Problem parameters
     n_vars = 20
+    pop_size = 100
     cardinality = np.full(n_vars, 2)  # Binary variables
 
     # Create EDA with 2-order Markov model
+    components = EDAComponents(
+        seeding=RandomInit(),
+        selection=TournamentSelection(tournament_size=3, n_select=50),
+        learning=LearnMarkovChain(k=2, alpha=0.1),
+        sampling=SampleMarkovChain(n_samples=pop_size),
+        replacement=GenerationalReplacement(),
+        stop_condition=MaxGenerations(30),
+    )
+
     eda = EDA(
+        pop_size=pop_size,
         n_vars=n_vars,
         cardinality=cardinality,
-        learning_method=LearnMarkovChain(k=2, alpha=0.1),
-        sampling_method=SampleMarkovChain(n_samples=100),
-        selection_method=TournamentSelection(tournament_size=3, n_select=50),
-        replacement_method=GenerationalReplacement(),
-        objective_function=onemax,
-        maximize=True,  # OneMax is a maximization problem
+        fitness_func=onemax,
+        components=components,
     )
 
     # Run EDA
-    results = eda.run(
-        max_generations=30,
-        population_size=100,
-        verbose=True,
-    )
+    stats, cache = eda.run(verbose=True)
 
-    print(f"\nBest solution found: {results['best_individual']}")
-    print(f"Best fitness: {results['best_fitness']}")
+    print(f"\nBest solution found: {stats.best_individual}")
+    print(f"Best fitness: {stats.best_fitness_overall}")
     print(f"Optimal fitness (all 1s): {n_vars}")
-    print(f"Success: {'Yes' if results['best_fitness'] >= n_vars else 'No'}")
+    print(f"Success: {'Yes' if stats.best_fitness_overall >= n_vars else 'No'}")
 
 
 def markov_eda_deceptive():
@@ -68,34 +73,37 @@ def markov_eda_deceptive():
 
     # Problem parameters (must be divisible by 3)
     n_vars = 30
+    pop_size = 200
     cardinality = np.full(n_vars, 2)  # Binary variables
 
     # Create EDA with 3-order Markov model (to match block size)
+    components = EDAComponents(
+        seeding=RandomInit(),
+        selection=TournamentSelection(tournament_size=3, n_select=100),
+        learning=LearnMarkovChain(k=3, alpha=0.1),
+        sampling=SampleMarkovChain(n_samples=pop_size),
+        replacement=GenerationalReplacement(),
+        stop_condition=MaxGenerations(50),
+    )
+
     eda = EDA(
+        pop_size=pop_size,
         n_vars=n_vars,
         cardinality=cardinality,
-        learning_method=LearnMarkovChain(k=3, alpha=0.1),
-        sampling_method=SampleMarkovChain(n_samples=200),
-        selection_method=TournamentSelection(tournament_size=3, n_select=100),
-        replacement_method=GenerationalReplacement(),
-        objective_function=deceptive3,
-        maximize=True,
+        fitness_func=deceptive3,
+        components=components,
     )
 
     # Run EDA
-    results = eda.run(
-        max_generations=50,
-        population_size=200,
-        verbose=True,
-    )
+    stats, cache = eda.run(verbose=True)
 
     n_blocks = n_vars // 3
     optimal_fitness = n_blocks * 3  # 3 points per block
 
-    print(f"\nBest solution found: {results['best_individual']}")
-    print(f"Best fitness: {results['best_fitness']}")
+    print(f"\nBest solution found: {stats.best_individual}")
+    print(f"Best fitness: {stats.best_fitness_overall}")
     print(f"Optimal fitness: {optimal_fitness}")
-    print(f"Success rate: {results['best_fitness'] / optimal_fitness * 100:.1f}%")
+    print(f"Success rate: {stats.best_fitness_overall / optimal_fitness * 100:.1f}%")
 
 
 def compare_markov_orders():
@@ -109,31 +117,35 @@ def compare_markov_orders():
     print("=" * 70)
 
     n_vars = 15
+    pop_size = 100
     cardinality = np.full(n_vars, 2)
     max_gens = 25
 
     for k in [1, 2, 3]:
         print(f"\n--- k={k} (Markov order {k}) ---")
 
+        components = EDAComponents(
+            seeding=RandomInit(),
+            selection=TournamentSelection(tournament_size=2, n_select=50),
+            learning=LearnMarkovChain(k=k, alpha=0.1),
+            sampling=SampleMarkovChain(n_samples=pop_size),
+            replacement=GenerationalReplacement(),
+            stop_condition=MaxGenerations(max_gens),
+        )
+
         eda = EDA(
+            pop_size=pop_size,
             n_vars=n_vars,
             cardinality=cardinality,
-            learning_method=LearnMarkovChain(k=k, alpha=0.1),
-            sampling_method=SampleMarkovChain(n_samples=100),
-            selection_method=TournamentSelection(tournament_size=2, n_select=50),
-            replacement_method=GenerationalReplacement(),
-            objective_function=onemax,
-            maximize=True,
+            fitness_func=onemax,
+            components=components,
         )
 
-        results = eda.run(
-            max_generations=max_gens,
-            population_size=100,
-            verbose=False,
-        )
+        stats, cache = eda.run(verbose=False)
 
-        print(f"Best fitness: {results['best_fitness']} / {n_vars}")
-        print(f"Generations to optimum: {results.get('generations_to_optimum', 'Not reached')}")
+        print(f"Best fitness: {stats.best_fitness_overall} / {n_vars}")
+        # Note: generations_to_optimum not available in stats object
+        print(f"Total generations: {len(stats.best_fitness)}")
 
 
 if __name__ == "__main__":

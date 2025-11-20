@@ -7,11 +7,13 @@ complex dependencies.
 """
 
 import numpy as np
-from pateda.core.eda import EDA
+from pateda.core.eda import EDA, EDAComponents
 from pateda.learning.mixture_trees import LearnMixtureTrees
 from pateda.sampling.mixture_trees import SampleMixtureTrees
 from pateda.selection.tournament import TournamentSelection
 from pateda.replacement.generational import GenerationalReplacement
+from pateda.seeding import RandomInit
+from pateda.stop_conditions import MaxGenerations
 from pateda.functions.discrete import onemax, deceptive3
 
 
@@ -28,37 +30,40 @@ def mixture_trees_onemax():
 
     # Problem parameters
     n_vars = 20
+    pop_size = 100
     cardinality = np.full(n_vars, 2)  # Binary variables
 
     # Create EDA with Mixture of Trees model
-    eda = EDA(
-        n_vars=n_vars,
-        cardinality=cardinality,
-        learning_method=LearnMixtureTrees(
+    components = EDAComponents(
+        seeding=RandomInit(),
+        selection=TournamentSelection(tournament_size=3, n_select=50),
+        learning=LearnMixtureTrees(
             n_components=3,
             component_learning="tree",
             alpha=0.1,
             weight_learning="uniform",
             random_seed=42
         ),
-        sampling_method=SampleMixtureTrees(n_samples=100),
-        selection_method=TournamentSelection(tournament_size=3, n_select=50),
-        replacement_method=GenerationalReplacement(),
-        objective_function=onemax,
-        maximize=True,
+        sampling=SampleMixtureTrees(n_samples=pop_size),
+        replacement=GenerationalReplacement(),
+        stop_condition=MaxGenerations(30),
+    )
+
+    eda = EDA(
+        pop_size=pop_size,
+        n_vars=n_vars,
+        cardinality=cardinality,
+        fitness_func=onemax,
+        components=components,
     )
 
     # Run EDA
-    results = eda.run(
-        max_generations=30,
-        population_size=100,
-        verbose=True,
-    )
+    stats, cache = eda.run(verbose=True)
 
-    print(f"\nBest solution found: {results['best_individual']}")
-    print(f"Best fitness: {results['best_fitness']}")
+    print(f"\nBest solution found: {stats.best_individual}")
+    print(f"Best fitness: {stats.best_fitness_overall}")
     print(f"Optimal fitness (all 1s): {n_vars}")
-    print(f"Success: {'Yes' if results['best_fitness'] >= n_vars else 'No'}")
+    print(f"Success: {'Yes' if stats.best_fitness_overall >= n_vars else 'No'}")
 
 
 def mixture_trees_deceptive():
@@ -74,40 +79,43 @@ def mixture_trees_deceptive():
 
     # Problem parameters
     n_vars = 30
+    pop_size = 200
     cardinality = np.full(n_vars, 2)
 
     # Create EDA with Mixture of Trees
-    eda = EDA(
-        n_vars=n_vars,
-        cardinality=cardinality,
-        learning_method=LearnMixtureTrees(
+    components = EDAComponents(
+        seeding=RandomInit(),
+        selection=TournamentSelection(tournament_size=3, n_select=100),
+        learning=LearnMixtureTrees(
             n_components=5,  # More components for complex problem
             component_learning="tree",
             alpha=0.1,
             weight_learning="uniform",
             random_seed=42
         ),
-        sampling_method=SampleMixtureTrees(n_samples=200),
-        selection_method=TournamentSelection(tournament_size=3, n_select=100),
-        replacement_method=GenerationalReplacement(),
-        objective_function=deceptive3,
-        maximize=True,
+        sampling=SampleMixtureTrees(n_samples=pop_size),
+        replacement=GenerationalReplacement(),
+        stop_condition=MaxGenerations(50),
+    )
+
+    eda = EDA(
+        pop_size=pop_size,
+        n_vars=n_vars,
+        cardinality=cardinality,
+        fitness_func=deceptive3,
+        components=components,
     )
 
     # Run EDA
-    results = eda.run(
-        max_generations=50,
-        population_size=200,
-        verbose=True,
-    )
+    stats, cache = eda.run(verbose=True)
 
     n_blocks = n_vars // 3
     optimal_fitness = n_blocks * 3
 
-    print(f"\nBest solution found: {results['best_individual']}")
-    print(f"Best fitness: {results['best_fitness']}")
+    print(f"\nBest solution found: {stats.best_individual}")
+    print(f"Best fitness: {stats.best_fitness_overall}")
     print(f"Optimal fitness: {optimal_fitness}")
-    print(f"Success rate: {results['best_fitness'] / optimal_fitness * 100:.1f}%")
+    print(f"Success rate: {stats.best_fitness_overall / optimal_fitness * 100:.1f}%")
 
 
 def compare_mixture_sizes():
@@ -121,37 +129,40 @@ def compare_mixture_sizes():
     print("=" * 70)
 
     n_vars = 15
+    pop_size = 100
     cardinality = np.full(n_vars, 2)
     max_gens = 25
 
     for n_components in [1, 3, 5]:
         print(f"\n--- {n_components} component(s) ---")
 
-        eda = EDA(
-            n_vars=n_vars,
-            cardinality=cardinality,
-            learning_method=LearnMixtureTrees(
+        components = EDAComponents(
+            seeding=RandomInit(),
+            selection=TournamentSelection(tournament_size=2, n_select=50),
+            learning=LearnMixtureTrees(
                 n_components=n_components,
                 component_learning="tree",
                 alpha=0.1,
                 weight_learning="uniform",
                 random_seed=42
             ),
-            sampling_method=SampleMixtureTrees(n_samples=100),
-            selection_method=TournamentSelection(tournament_size=2, n_select=50),
-            replacement_method=GenerationalReplacement(),
-            objective_function=onemax,
-            maximize=True,
+            sampling=SampleMixtureTrees(n_samples=pop_size),
+            replacement=GenerationalReplacement(),
+            stop_condition=MaxGenerations(max_gens),
         )
 
-        results = eda.run(
-            max_generations=max_gens,
-            population_size=100,
-            verbose=False,
+        eda = EDA(
+            pop_size=pop_size,
+            n_vars=n_vars,
+            cardinality=cardinality,
+            fitness_func=onemax,
+            components=components,
         )
 
-        print(f"Best fitness: {results['best_fitness']} / {n_vars}")
-        print(f"Convergence rate: {results['best_fitness'] / n_vars * 100:.1f}%")
+        stats, cache = eda.run(verbose=False)
+
+        print(f"Best fitness: {stats.best_fitness_overall} / {n_vars}")
+        print(f"Convergence rate: {stats.best_fitness_overall / n_vars * 100:.1f}%")
 
 
 def mixture_trees_with_em_weights():
@@ -165,12 +176,13 @@ def mixture_trees_with_em_weights():
     print("=" * 70)
 
     n_vars = 20
+    pop_size = 100
     cardinality = np.full(n_vars, 2)
 
-    eda = EDA(
-        n_vars=n_vars,
-        cardinality=cardinality,
-        learning_method=LearnMixtureTrees(
+    components = EDAComponents(
+        seeding=RandomInit(),
+        selection=TournamentSelection(tournament_size=3, n_select=50),
+        learning=LearnMixtureTrees(
             n_components=3,
             component_learning="tree",
             alpha=0.1,
@@ -178,20 +190,22 @@ def mixture_trees_with_em_weights():
             em_iterations=5,
             random_seed=42
         ),
-        sampling_method=SampleMixtureTrees(n_samples=100),
-        selection_method=TournamentSelection(tournament_size=3, n_select=50),
-        replacement_method=GenerationalReplacement(),
-        objective_function=onemax,
-        maximize=True,
+        sampling=SampleMixtureTrees(n_samples=pop_size),
+        replacement=GenerationalReplacement(),
+        stop_condition=MaxGenerations(30),
     )
 
-    results = eda.run(
-        max_generations=30,
-        population_size=100,
-        verbose=True,
+    eda = EDA(
+        pop_size=pop_size,
+        n_vars=n_vars,
+        cardinality=cardinality,
+        fitness_func=onemax,
+        components=components,
     )
 
-    print(f"\nBest fitness: {results['best_fitness']} / {n_vars}")
+    stats, cache = eda.run(verbose=True)
+
+    print(f"\nBest fitness: {stats.best_fitness_overall} / {n_vars}")
     print(f"Using EM for adaptive mixture weights")
 
 

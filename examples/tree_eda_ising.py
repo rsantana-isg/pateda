@@ -27,15 +27,15 @@ def main():
     cardinality = 2 * np.ones(n_vars, dtype=int)
 
     # Load Ising instance (instance 6)
-    ising_lattice, ising_interactions = load_ising(n_vars, instance_id=6)
+    ising_lattice, ising_interactions = load_ising(n_vars, inst=6)
 
     # Create objective function
     objective = create_ising_objective_function(ising_lattice, ising_interactions)
 
     # Create EDA components
     learning = LearnTreeModel(alpha=0.0)
-    sampling = SampleFDA()
-    selection = TruncationSelection(truncation_rate=0.5)
+    sampling = SampleFDA(n_samples=pop_size)
+    selection = TruncationSelection(ratio=0.5)
     replacement = GenerationalReplacement()
     stop_condition = MaxGenerations(max_generations=150)
 
