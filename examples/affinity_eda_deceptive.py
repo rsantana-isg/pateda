@@ -17,7 +17,7 @@ from pateda.selection.truncation import TruncationSelection
 from pateda.replacement.generational import GenerationalReplacement
 from pateda.seeding.random_init import RandomInit
 from pateda.stop_conditions.max_generations import MaxGenerations
-from pateda.functions.discrete.deceptive import deceptive_function
+from pateda.functions.discrete.additive_decomposable import decep3
 
 
 def run_affinity_eda():
@@ -35,7 +35,11 @@ def run_affinity_eda():
 
     # Define fitness function
     def fitness_func(population):
-        return np.array([deceptive_function(ind, trap_size) for ind in population])
+        # Handle both single individual and population
+        if population.ndim == 1:
+            return decep3(population)
+        else:
+            return np.array([decep3(ind) for ind in population])
 
     # Initialize EDA components
     components = EDAComponents(

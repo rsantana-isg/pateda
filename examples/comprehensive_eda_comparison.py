@@ -49,8 +49,8 @@ from pateda.sampling.fda import SampleFDA
 from pateda.sampling.gibbs import SampleGibbs
 
 # Import test functions
-from pateda.functions.discrete.deceptive import deceptive3
-from pateda.functions.discrete.trap import trap_k
+from pateda.functions.discrete.additive_decomposable import decep3 as deceptive3
+from pateda.functions.discrete.trap import trap_n as trap_k
 
 
 @dataclass
@@ -107,9 +107,8 @@ def get_algorithms(pop_size: int) -> List[AlgorithmConfig]:
         AlgorithmConfig(
             name="EBNA",
             learning=LearnEBNA(
-                structure_algorithm='k2',
                 max_parents=3,
-                scoring_metric='bic'
+                score_metric='bic'
             ),
             sampling=SampleBayesianNetwork(n_samples=pop_size),
             replacement=GenerationalReplacement(),

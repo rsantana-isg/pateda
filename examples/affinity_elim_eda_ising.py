@@ -18,7 +18,38 @@ from pateda.selection.truncation import TruncationSelection
 from pateda.replacement.generational import GenerationalReplacement
 from pateda.seeding.random_init import RandomInit
 from pateda.stop_conditions.max_generations import MaxGenerations
-from pateda.functions.discrete.ising import IsingModel
+
+
+def create_ising_model(grid_size, coupling_strength=1.0):
+    """Create an Ising spin glass model on a 2D lattice"""
+    n_vars = grid_size * grid_size
+    interactions = {}
+
+    for i in range(grid_size):
+        for j in range(grid_size):
+            var_idx = i * grid_size + j
+
+            # Right neighbor
+            if j < grid_size - 1:
+                neighbor_idx = i * grid_size + (j + 1)
+                interactions[(var_idx, neighbor_idx)] = coupling_strength
+
+            # Bottom neighbor
+            if i < grid_size - 1:
+                neighbor_idx = (i + 1) * grid_size + j
+                interactions[(var_idx, neighbor_idx)] = coupling_strength
+
+    def evaluate_ising(spins):
+        """Evaluate energy of spin configuration"""
+        energy = 0.0
+        for (i, j), coupling in interactions.items():
+            # Spins are 0 or 1, convert to -1 or +1
+            spin_i = 2 * spins[i] - 1
+            spin_j = 2 * spins[j] - 1
+            energy += coupling * spin_i * spin_j
+        return -energy  # Negative because we want to maximize alignment
+
+    return evaluate_ising
 
 
 def run_affinity_elim_eda():
@@ -29,23 +60,7 @@ def run_affinity_elim_eda():
     n_vars = grid_size * grid_size
 
     # Create Ising model with ferromagnetic coupling
-    ising = IsingModel(grid_size=grid_size, grid_size_y=grid_size)
-
-    # Add ferromagnetic interactions (prefer aligned spins)
-    coupling_strength = 1.0
-    for i in range(grid_size):
-        for j in range(grid_size):
-            var_idx = i * grid_size + j
-
-            # Right neighbor
-            if j < grid_size - 1:
-                neighbor_idx = i * grid_size + (j + 1)
-                ising.add_coupling(var_idx, neighbor_idx, coupling_strength)
-
-            # Bottom neighbor
-            if i < grid_size - 1:
-                neighbor_idx = (i + 1) * grid_size + j
-                ising.add_coupling(var_idx, neighbor_idx, coupling_strength)
+    ising_eval = create_ising_model(grid_size, coupling_strength=1.0)
 
     cardinality = np.full(n_vars, 2)  # Binary spins: 0 or 1
 
@@ -56,7 +71,11 @@ def run_affinity_elim_eda():
 
     # Define fitness function (negative energy = we want to minimize energy)
     def fitness_func(population):
-        return np.array([ising.evaluate(ind)[0] for ind in population])
+        # Handle both single individual and population
+        if population.ndim == 1:
+            return ising_eval(population)
+        else:
+            return np.array([ising_eval(ind) for ind in population])
 
     # Initialize EDA components with elimination strategy
     components = EDAComponents(

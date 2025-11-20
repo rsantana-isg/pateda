@@ -79,6 +79,10 @@ class StopCriteriaMaxGenOrOptimum(StopCondition):
 
         return False
 
+    def reset(self):
+        """Reset the stop condition state (no state to reset for this condition)"""
+        pass
+
 
 def create_ising_function(n_vars: int, instance: int = 1):
     """
@@ -292,8 +296,8 @@ def run_comparison_with_without_mpe():
 
         components = EDAComponents(
             seeding=RandomInit(),
-            selection=TruncationSelection(proportion=0.5),
-            learning=LearnTreeModel(max_parents=1, scoring_method='MI'),
+            selection=TruncationSelection(ratio=0.5),
+            learning=LearnTreeModel(),
             sampling=SampleInsertMAP(n_samples=pop_size, map_method='bp'),
             replacement=GenerationalReplacement(),
             stop_condition=StopCriteriaMaxGenOrOptimum(max_generations, optimal_value),
@@ -322,8 +326,8 @@ def run_comparison_with_without_mpe():
 
         components = EDAComponents(
             seeding=RandomInit(),
-            selection=TruncationSelection(proportion=0.5),
-            learning=LearnTreeModel(max_parents=1, scoring_method='MI'),
+            selection=TruncationSelection(ratio=0.5),
+            learning=LearnTreeModel(),
             sampling=SampleFDA(n_samples=pop_size),  # Standard PLS sampling
             replacement=GenerationalReplacement(),
             stop_condition=StopCriteriaMaxGenOrOptimum(max_generations, optimal_value),
