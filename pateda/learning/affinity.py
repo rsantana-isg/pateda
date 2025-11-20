@@ -577,9 +577,12 @@ class LearnAffinityFactorizationElim(LearningMethod):
                 )
                 cliques.extend(sub_cliques)
             else:
-                # Reached max recursion depth, add all remaining large vars as single clique
-                # to ensure all variables are covered
-                cliques.append(np.array(large_cluster_vars))
+                # Reached max recursion depth, split remaining vars into smaller cliques
+                # to avoid memory issues with huge cliques
+                large_vars_array = np.array(large_cluster_vars)
+                for i in range(0, len(large_vars_array), self.max_clique_size):
+                    chunk = large_vars_array[i:i + self.max_clique_size]
+                    cliques.append(chunk)
 
         return cliques
 

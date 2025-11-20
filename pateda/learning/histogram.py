@@ -18,6 +18,25 @@ from typing import Dict, Any
 class LearnEHM:
     """Learn Edge Histogram Model for permutations"""
 
+    def learn(
+        self,
+        generation: int,
+        n_vars: int,
+        cardinality: np.ndarray,
+        population: np.ndarray,
+        fitness: np.ndarray,
+        **kwargs
+    ) -> Dict[str, Any]:
+        """Learn method to match EDA interface. Calls __call__ internally."""
+        return self.__call__(
+            generation=generation,
+            n_vars=n_vars,
+            cardinality=cardinality,
+            selected_pop=population,
+            selected_fitness=fitness,
+            **kwargs
+        )
+
     def __call__(
         self,
         generation: int,

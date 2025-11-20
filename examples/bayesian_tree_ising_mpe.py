@@ -193,9 +193,9 @@ def run_bayesian_tree_ising_mpe():
 
         # Bayesian Tree learning
         # In MATLAB: default learning method is tree-based
+        # Tree models always have max_parents=1 and use MI for edge weights
         learning=LearnTreeModel(
-            max_parents=1,  # Tree structure (each node has at most 1 parent)
-            scoring_method='MI',  # Mutual information for edge weights
+            alpha=0.1,  # Laplace smoothing
         ),
 
         # MPE/MAP sampling

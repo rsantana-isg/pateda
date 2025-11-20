@@ -30,6 +30,8 @@ from pateda.learning.mimic import LearnMIMIC
 from pateda.learning.basic_gaussian import (
     learn_gaussian_univariate,
     learn_gaussian_full,
+    LearnGaussianUnivariate,
+    LearnGaussianFull,
 )
 from pateda.learning.mixture_gaussian import (
     learn_mixture_gaussian_univariate,

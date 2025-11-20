@@ -13,6 +13,36 @@ from typing import Dict, Any, Optional
 class SampleEHM:
     """Sample from Edge Histogram Model"""
 
+    def sample(
+        self,
+        n_vars: int,
+        model: Dict[str, Any],
+        cardinality: np.ndarray,
+        population: np.ndarray = None,
+        fitness: np.ndarray = None,
+        **kwargs
+    ) -> np.ndarray:
+        """Sample method to match EDA interface. Calls __call__ internally."""
+        # Handle None values
+        if population is None:
+            population = np.array([])
+        if fitness is None:
+            fitness = np.array([])
+
+        # Extract parameters from kwargs if provided
+        sample_size = kwargs.get('sample_size', 100)
+        rng = kwargs.get('rng', None)
+
+        return self.__call__(
+            n_vars=n_vars,
+            model=model,
+            cardinality=cardinality,
+            population=population,
+            fitness=fitness,
+            sample_size=sample_size,
+            rng=rng
+        )
+
     def __call__(
         self,
         n_vars: int,

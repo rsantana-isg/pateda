@@ -64,8 +64,17 @@ class ElitistReplacement(ReplacementMethod):
         # Ensure we don't select more elite than available
         n_elite = min(n_elite, old_pop_size)
 
+        # Handle multi-objective fitness by using mean fitness for selection
+        # For single-objective, this just flattens if needed
+        if old_fitness.ndim == 2 and old_fitness.shape[1] > 1:
+            old_fitness_flat = np.mean(old_fitness, axis=1)
+            new_fitness_flat = np.mean(new_fitness, axis=1)
+        else:
+            old_fitness_flat = old_fitness.flatten()
+            new_fitness_flat = new_fitness.flatten()
+
         # Get best individuals from old population
-        elite_indices = np.argsort(old_fitness)[-n_elite:]
+        elite_indices = np.argsort(old_fitness_flat)[-n_elite:]
         elite_pop = old_pop[elite_indices]
         elite_fitness = old_fitness[elite_indices]
 
@@ -74,13 +83,27 @@ class ElitistReplacement(ReplacementMethod):
 
         if n_from_new > 0:
             # Sort new population and take best n_from_new
-            new_sorted_indices = np.argsort(new_fitness)[-n_from_new:]
+            new_sorted_indices = np.argsort(new_fitness_flat)[-n_from_new:]
             selected_new_pop = new_pop[new_sorted_indices]
             selected_new_fitness = new_fitness[new_sorted_indices]
 
             # Combine elite and new
             combined_pop = np.vstack([elite_pop, selected_new_pop])
-            combined_fitness = np.hstack([elite_fitness, selected_new_fitness])
+
+            # Determine if single or multi-objective based on original fitness shape
+            is_single_objective = old_fitness.ndim == 1 or (old_fitness.ndim == 2 and old_fitness.shape[1] == 1)
+
+            if is_single_objective:
+                # For single objective, flatten both, concatenate, and reshape if needed
+                elite_fit_flat = elite_fitness.flatten()
+                new_fit_flat = selected_new_fitness.flatten()
+                combined_fitness = np.concatenate([elite_fit_flat, new_fit_flat])
+                # Reshape back to (n, 1) if original was 2D
+                if old_fitness.ndim == 2:
+                    combined_fitness = combined_fitness.reshape(-1, 1)
+            else:
+                # Multi-objective: use vstack
+                combined_fitness = np.vstack([elite_fitness, selected_new_fitness])
         else:
             # Only keep elite (shouldn't normally happen)
             combined_pop = elite_pop

@@ -83,7 +83,7 @@ def learn_tree(population, fitness, params=None):
 
 def sample_tree_structure(model, n_samples):
     """Helper function to sample from tree model"""
-    sampler = SampleFDA()
+    sampler = SampleFDA(n_samples=n_samples)
     n_vars = model.structure.shape[0]  # Number of cliques
     cardinality = np.full(n_vars, 2)  # Binary variables
     population = sampler.sample(
@@ -182,7 +182,8 @@ def main():
             print(f"Generation {gen}:")
             print(f"  Pareto front size: {len(pareto_objectives)}")
             print(f"  Best objectives: {np.max(pareto_objectives, axis=0)}")
-            print(f"  Mean objectives: {np.mean(objectives, axis=0):.2f}")
+            mean_obj = np.mean(objectives, axis=0)
+            print(f"  Mean objectives: [{mean_obj[0]:.2f}, {mean_obj[1]:.2f}]")
 
     # Final evaluation
     final_objectives = objective(population)
