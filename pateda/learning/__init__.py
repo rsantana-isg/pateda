@@ -47,18 +47,29 @@ from pateda.learning.vine_copula import (
     learn_vine_copula_auto,
 )
 
-# VAE learning functions for continuous optimization
-from pateda.learning.vae import (
-    learn_vae,
-    learn_extended_vae,
-    learn_conditional_extended_vae,
-)
+# VAE learning functions for continuous optimization (requires PyTorch)
+try:
+    from pateda.learning.vae import (
+        learn_vae,
+        learn_extended_vae,
+        learn_conditional_extended_vae,
+    )
+except ImportError:
+    learn_vae = None
+    learn_extended_vae = None
+    learn_conditional_extended_vae = None
 
-# Backdrive learning functions for continuous optimization
-from pateda.learning.backdrive import learn_backdrive
+# Backdrive learning functions for continuous optimization (requires PyTorch)
+try:
+    from pateda.learning.backdrive import learn_backdrive
+except ImportError:
+    learn_backdrive = None
 
-# GAN learning functions for continuous optimization
-from pateda.learning.gan import learn_gan
+# GAN learning functions for continuous optimization (requires PyTorch)
+try:
+    from pateda.learning.gan import learn_gan
+except ImportError:
+    learn_gan = None
 
 __all__ = [
     "LearnFDA",
