@@ -54,6 +54,7 @@ def run_ebna_deceptive():
         fitness_func=deceptive3,
         cardinality=cardinality,
         components=components,
+        random_seed=42,
     )
 
     # Run optimization

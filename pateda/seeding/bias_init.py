@@ -4,7 +4,7 @@ Biased population initialization
 Equivalent to MATEDA's Bias_Init.m
 """
 
-from typing import Any
+from typing import Any, Optional
 import numpy as np
 
 from pateda.core.components import SeedingMethod
@@ -29,6 +29,7 @@ class BiasInit(SeedingMethod):
         n_vars: int,
         pop_size: int,
         cardinality: np.ndarray,
+        rng: Optional[np.random.Generator] = None,
         **params: Any,
     ) -> np.ndarray:
         """
@@ -38,16 +39,20 @@ class BiasInit(SeedingMethod):
             n_vars: Number of variables
             pop_size: Population size
             cardinality: Vector with the cardinality of all variables (should be 2 for binary)
+            rng: Random number generator (None = create new generator)
             **params: Additional parameters
                 p (float): Probability of generating 1 (default: 0.5)
 
         Returns:
             Biased random population as (pop_size, n_vars) array with binary values
         """
+        if rng is None:
+            rng = np.random.default_rng()
+
         # Extract probability parameter
         p = params.get('p', 0.5)
 
         # Generate binary population where each variable is 1 with probability p
-        new_pop = (np.random.rand(pop_size, n_vars) <= p).astype(int)
+        new_pop = (rng.random(size=(pop_size, n_vars)) <= p).astype(int)
 
         return new_pop

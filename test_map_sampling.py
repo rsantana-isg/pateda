@@ -49,7 +49,8 @@ def create_eda(n_vars, cardinality, fitness_function, pop_size, n_generations,
         n_vars=n_vars,
         fitness_func=fitness_function,
         cardinality=cardinality,
-        components=components
+        components=components,
+        random_seed=42,
     )
 
     # Wrap the run method to return a dict instead of (stats, cache)

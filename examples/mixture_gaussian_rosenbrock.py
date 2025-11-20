@@ -58,6 +58,7 @@ def main():
         fitness_func=objective,
         cardinality=np.column_stack([lower_bounds, upper_bounds]),
         components=components,
+        random_seed=42,
     )
 
     # Run optimization

@@ -84,6 +84,7 @@ def run_affinity_elim_eda():
         replacement_method=replacement,
         seeding_method=seeding,
         stop_condition=stop_condition,
+        random_seed=42,
     )
 
     print("Running Affinity-based EDA with Elimination on Ising Model")

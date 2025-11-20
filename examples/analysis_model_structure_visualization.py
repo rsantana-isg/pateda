@@ -318,6 +318,7 @@ def run_analysis_example():
         fitness_func=fitness_func,
         cardinality=np.full(n_vars, 2),
         components=components,
+        random_seed=42,
     )
 
     print("Running EBNA...")

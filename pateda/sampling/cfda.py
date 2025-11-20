@@ -80,6 +80,7 @@ class SampleCFDA(SamplingMethod):
         cardinality: np.ndarray,
         aux_pop: Optional[np.ndarray] = None,
         aux_fitness: Optional[np.ndarray] = None,
+        rng: Optional[np.random.Generator] = None,
         **params: Any,
     ) -> np.ndarray:
         """
@@ -91,6 +92,7 @@ class SampleCFDA(SamplingMethod):
             cardinality: Variable cardinalities (should be all 2)
             aux_pop: Auxiliary population (not used)
             aux_fitness: Auxiliary fitness (not used)
+            rng: Random number generator (optional)
             **params: Additional parameters
                      - n_samples: Override instance n_samples
                      - n_ones: Override instance n_ones
@@ -102,6 +104,9 @@ class SampleCFDA(SamplingMethod):
             TypeError: If model is not a FactorizedModel
             ValueError: If parameters are invalid
         """
+        if rng is None:
+            rng = np.random.default_rng()
+
         if not isinstance(model, FactorizedModel):
             raise TypeError(f"Expected FactorizedModel, got {type(model)}")
 
@@ -122,6 +127,7 @@ class SampleCFDA(SamplingMethod):
             n_vars=n_vars,
             model=model,
             cardinality=cardinality,
+            rng=rng,
             n_samples=n_samples,
         )
 
@@ -166,6 +172,7 @@ class SampleCFDARange(SamplingMethod):
         cardinality: np.ndarray,
         aux_pop: Optional[np.ndarray] = None,
         aux_fitness: Optional[np.ndarray] = None,
+        rng: Optional[np.random.Generator] = None,
         **params: Any,
     ) -> np.ndarray:
         """
@@ -177,6 +184,7 @@ class SampleCFDARange(SamplingMethod):
             cardinality: Variable cardinalities (should be all 2)
             aux_pop: Auxiliary population (not used)
             aux_fitness: Auxiliary fitness (not used)
+            rng: Random number generator (optional)
             **params: Additional parameters
                      - n_samples: Override instance n_samples
                      - min_ones: Override instance min_ones
@@ -189,6 +197,9 @@ class SampleCFDARange(SamplingMethod):
             TypeError: If model is not a FactorizedModel
             ValueError: If parameters are invalid
         """
+        if rng is None:
+            rng = np.random.default_rng()
+
         if not isinstance(model, FactorizedModel):
             raise TypeError(f"Expected FactorizedModel, got {type(model)}")
 
@@ -214,6 +225,7 @@ class SampleCFDARange(SamplingMethod):
             n_vars=n_vars,
             model=model,
             cardinality=cardinality,
+            rng=rng,
             n_samples=n_samples,
         )
 
@@ -270,6 +282,7 @@ class SampleCFDAWeighted(SamplingMethod):
         cardinality: np.ndarray,
         aux_pop: Optional[np.ndarray] = None,
         aux_fitness: Optional[np.ndarray] = None,
+        rng: Optional[np.random.Generator] = None,
         **params: Any,
     ) -> np.ndarray:
         """
@@ -281,11 +294,15 @@ class SampleCFDAWeighted(SamplingMethod):
             cardinality: Variable cardinalities
             aux_pop: Auxiliary population (not used)
             aux_fitness: Auxiliary fitness (not used)
+            rng: Random number generator (optional)
             **params: Additional parameters
 
         Returns:
             Sampled population with exactly n_ones ones per solution
         """
+        if rng is None:
+            rng = np.random.default_rng()
+
         if not isinstance(model, FactorizedModel):
             raise TypeError(f"Expected FactorizedModel, got {type(model)}")
 
@@ -305,6 +322,7 @@ class SampleCFDAWeighted(SamplingMethod):
             n_vars=n_vars,
             model=biased_model,
             cardinality=cardinality,
+            rng=rng,
             n_samples=n_samples,
         )
 

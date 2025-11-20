@@ -405,6 +405,7 @@ def run_single_experiment(
         fitness_func=fitness_func,
         cardinality=cardinality,
         components=components,
+        random_seed=seed,
     )
 
     # Measure runtime

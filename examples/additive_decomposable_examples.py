@@ -61,6 +61,7 @@ def run_eda_on_function(objective, n_vars, cardinality, pop_size=1000,
         cardinality=cardinality,
         fitness_func=objective,
         components=components,
+        random_seed=42,
     )
 
     # Run optimization

@@ -51,6 +51,7 @@ def test_mnfda():
             fitness_func=onemax,
             cardinality=np.full(20, 2),
             components=components,
+            random_seed=42,
         )
 
         stats, _ = eda.run(verbose=False)
@@ -94,6 +95,7 @@ def test_mnfdag():
             fitness_func=onemax,
             cardinality=np.full(20, 2),
             components=components,
+            random_seed=42,
         )
 
         stats, _ = eda.run(verbose=False)
@@ -141,6 +143,7 @@ def test_moa():
             fitness_func=onemax,
             cardinality=np.full(20, 2),
             components=components,
+            random_seed=42,
         )
 
         stats, _ = eda.run(verbose=False)

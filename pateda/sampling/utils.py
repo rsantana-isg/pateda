@@ -2,10 +2,15 @@
 Sampling utility functions
 """
 
+from typing import Optional
 import numpy as np
 
 
-def stochastic_universal_sampling(n_samples: int, cum_probs: np.ndarray) -> np.ndarray:
+def stochastic_universal_sampling(
+    n_samples: int,
+    cum_probs: np.ndarray,
+    rng: Optional[np.random.Generator] = None
+) -> np.ndarray:
     """
     Stochastic Universal Sampling (SUS)
 
@@ -17,12 +22,16 @@ def stochastic_universal_sampling(n_samples: int, cum_probs: np.ndarray) -> np.n
     Args:
         n_samples: Number of samples to draw
         cum_probs: Cumulative probability distribution (must end with 1.0)
+        rng: Random number generator (optional)
 
     Returns:
         Array of indices indicating which class each sample belongs to
     """
+    if rng is None:
+        rng = np.random.default_rng()
+
     # Start at random position
-    pointer = np.random.rand()
+    pointer = rng.random()
     step = 1.0 / n_samples
 
     indices = np.zeros(n_samples, dtype=int)
@@ -38,6 +47,6 @@ def stochastic_universal_sampling(n_samples: int, cum_probs: np.ndarray) -> np.n
             pointer -= 1.0
 
     # Randomize order to avoid bias
-    np.random.shuffle(indices)
+    rng.shuffle(indices)
 
     return indices

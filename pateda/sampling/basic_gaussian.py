@@ -16,7 +16,8 @@ def sample_gaussian_univariate(
     model: Dict[str, Any],
     n_samples: int,
     bounds: Optional[np.ndarray] = None,
-    params: Optional[Dict[str, Any]] = None
+    params: Optional[Dict[str, Any]] = None,
+    rng: Optional[np.random.Generator] = None,
 ) -> np.ndarray:
     """
     Sample from a univariate Gaussian model.
@@ -31,18 +32,23 @@ def sample_gaussian_univariate(
         Array of shape (2, n_vars) with [min, max] bounds for each variable
     params : dict, optional
         Additional parameters (not used)
+    rng : np.random.Generator, optional
+        Random number generator
 
     Returns
     -------
     population : np.ndarray
         Sampled population of shape (n_samples, n_vars)
     """
+    if rng is None:
+        rng = np.random.default_rng()
+
     means = model['means']
     stds = model['stds']
     n_vars = len(means)
 
     # Sample from normal distribution
-    population = np.random.normal(
+    population = rng.normal(
         loc=np.tile(means, (n_samples, 1)),
         scale=np.tile(stds, (n_samples, 1))
     )
@@ -58,7 +64,8 @@ def sample_gaussian_full(
     model: Dict[str, Any],
     n_samples: int,
     bounds: Optional[np.ndarray] = None,
-    params: Optional[Dict[str, Any]] = None
+    params: Optional[Dict[str, Any]] = None,
+    rng: Optional[np.random.Generator] = None,
 ) -> np.ndarray:
     """
     Sample from a full multivariate Gaussian model.
@@ -74,12 +81,17 @@ def sample_gaussian_full(
     params : dict, optional
         Additional parameters:
         - 'var_scaling': scaling factor for covariance (default: 1.0)
+    rng : np.random.Generator, optional
+        Random number generator
 
     Returns
     -------
     population : np.ndarray
         Sampled population of shape (n_samples, n_vars)
     """
+    if rng is None:
+        rng = np.random.default_rng()
+
     mean = model['mean']
     cov = model['cov']
 
@@ -89,7 +101,7 @@ def sample_gaussian_full(
         cov = cov * var_scaling
 
     # Sample from multivariate normal distribution
-    population = np.random.multivariate_normal(mean, cov, size=n_samples)
+    population = rng.multivariate_normal(mean, cov, size=n_samples)
 
     # Apply bounds if provided
     if bounds is not None:
@@ -102,7 +114,8 @@ def sample_gaussian_with_diversity_trigger(
     model: Dict[str, Any],
     n_samples: int,
     bounds: Optional[np.ndarray] = None,
-    params: Optional[Dict[str, Any]] = None
+    params: Optional[Dict[str, Any]] = None,
+    rng: Optional[np.random.Generator] = None,
 ) -> np.ndarray:
     """
     Sample from a Gaussian model with diversity-triggered variance expansion.
@@ -122,12 +135,17 @@ def sample_gaussian_with_diversity_trigger(
         Additional parameters:
         - 'diversity_threshold': threshold for triggering variance expansion (default: -1, disabled)
         - 'diversity_scaling': scaling factor when diversity is low (default: 2.0)
+    rng : np.random.Generator, optional
+        Random number generator
 
     Returns
     -------
     population : np.ndarray
         Sampled population of shape (n_samples, n_vars)
     """
+    if rng is None:
+        rng = np.random.default_rng()
+
     if params is None:
         params = {}
 
@@ -148,7 +166,7 @@ def sample_gaussian_with_diversity_trigger(
             if mean_std < diversity_threshold:
                 cov = (1 + mean_std) * diversity_scaling * cov
 
-            population = np.random.multivariate_normal(mean, cov, size=n_samples)
+            population = rng.multivariate_normal(mean, cov, size=n_samples)
         else:
             # Univariate model
             means = model['means']
@@ -159,16 +177,16 @@ def sample_gaussian_with_diversity_trigger(
             if mean_std < diversity_threshold:
                 stds = (1 + mean_std) * diversity_scaling * stds
 
-            population = np.random.normal(
+            population = rng.normal(
                 loc=np.tile(means, (n_samples, 1)),
                 scale=np.tile(stds, (n_samples, 1))
             )
     else:
         # No diversity trigger, use standard sampling
         if 'cov' in model:
-            population = np.random.multivariate_normal(model['mean'], model['cov'], size=n_samples)
+            population = rng.multivariate_normal(model['mean'], model['cov'], size=n_samples)
         else:
-            population = np.random.normal(
+            population = rng.normal(
                 loc=np.tile(model['means'], (n_samples, 1)),
                 scale=np.tile(model['stds'], (n_samples, 1))
             )
@@ -213,6 +231,7 @@ class SampleGaussianUnivariate(SamplingMethod):
         cardinality: np.ndarray,
         aux_pop: Optional[np.ndarray] = None,
         aux_fitness: Optional[np.ndarray] = None,
+        rng: Optional[np.random.Generator] = None,
         **params: Any,
     ) -> np.ndarray:
         """
@@ -224,11 +243,15 @@ class SampleGaussianUnivariate(SamplingMethod):
             cardinality: Variable bounds (2, n_vars) or (n_vars, 2) array
             aux_pop: Auxiliary population (not used)
             aux_fitness: Auxiliary fitness values (not used)
+            rng: Random number generator (optional)
             **params: Additional parameters
 
         Returns:
             Sampled population of shape (n_samples, n_vars)
         """
+        if rng is None:
+            rng = np.random.default_rng()
+
         # Extract parameters from model
         if isinstance(model, GaussianModel):
             means = model.parameters['means']
@@ -246,7 +269,7 @@ class SampleGaussianUnivariate(SamplingMethod):
             bounds = cardinality.T  # Transpose to get [lower, upper]
 
         # Sample from normal distribution
-        population = np.random.normal(
+        population = rng.normal(
             loc=np.tile(means, (self.n_samples, 1)),
             scale=np.tile(stds, (self.n_samples, 1))
         )
@@ -289,6 +312,7 @@ class SampleGaussianFull(SamplingMethod):
         cardinality: np.ndarray,
         aux_pop: Optional[np.ndarray] = None,
         aux_fitness: Optional[np.ndarray] = None,
+        rng: Optional[np.random.Generator] = None,
         **params: Any,
     ) -> np.ndarray:
         """
@@ -300,12 +324,16 @@ class SampleGaussianFull(SamplingMethod):
             cardinality: Variable bounds (2, n_vars) or (n_vars, 2) array
             aux_pop: Auxiliary population (not used)
             aux_fitness: Auxiliary fitness values (not used)
+            rng: Random number generator (optional)
             **params: Additional parameters
                       - 'var_scaling': override instance var_scaling
 
         Returns:
             Sampled population of shape (n_samples, n_vars)
         """
+        if rng is None:
+            rng = np.random.default_rng()
+
         # Extract parameters from model
         if isinstance(model, GaussianModel):
             mean = model.parameters['mean']
@@ -326,7 +354,7 @@ class SampleGaussianFull(SamplingMethod):
             bounds = cardinality.T  # Transpose to get [lower, upper]
 
         # Sample from multivariate normal distribution
-        population = np.random.multivariate_normal(mean, cov_scaled, size=self.n_samples)
+        population = rng.multivariate_normal(mean, cov_scaled, size=self.n_samples)
 
         # Apply bounds
         population = np.clip(population, bounds[0], bounds[1])

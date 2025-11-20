@@ -23,6 +23,7 @@ class SeedingMethod(ABC):
         n_vars: int,
         pop_size: int,
         cardinality: np.ndarray,
+        rng: Optional[np.random.Generator] = None,
         **params: Any,
     ) -> np.ndarray:
         """
@@ -32,6 +33,7 @@ class SeedingMethod(ABC):
             n_vars: Number of variables
             pop_size: Population size
             cardinality: Variable cardinalities (discrete) or ranges (continuous)
+            rng: Random number generator (None = create new generator)
             **params: Additional method-specific parameters
 
         Returns:
@@ -81,6 +83,7 @@ class SamplingMethod(ABC):
         cardinality: np.ndarray,
         aux_pop: Optional[np.ndarray] = None,
         aux_fitness: Optional[np.ndarray] = None,
+        rng: Optional[np.random.Generator] = None,
         **params: Any,
     ) -> np.ndarray:
         """
@@ -92,6 +95,7 @@ class SamplingMethod(ABC):
             cardinality: Variable cardinalities or ranges
             aux_pop: Auxiliary population (for partial sampling/resampling)
             aux_fitness: Auxiliary fitness values
+            rng: Random number generator (None = create new generator)
             **params: Additional method-specific parameters
 
         Returns:
@@ -109,6 +113,7 @@ class SelectionMethod(ABC):
         population: np.ndarray,
         fitness: np.ndarray,
         n_select: Optional[int] = None,
+        rng: Optional[np.random.Generator] = None,
         **params: Any,
     ) -> Tuple[np.ndarray, np.ndarray]:
         """
@@ -118,6 +123,7 @@ class SelectionMethod(ABC):
             population: Population to select from
             fitness: Fitness values
             n_select: Number of individuals to select (None = use method default)
+            rng: Random number generator (None = create new generator)
             **params: Additional method-specific parameters
 
         Returns:
@@ -136,6 +142,7 @@ class ReplacementMethod(ABC):
         old_fitness: np.ndarray,
         new_pop: np.ndarray,
         new_fitness: np.ndarray,
+        rng: Optional[np.random.Generator] = None,
         **params: Any,
     ) -> Tuple[np.ndarray, np.ndarray]:
         """
@@ -146,6 +153,7 @@ class ReplacementMethod(ABC):
             old_fitness: Previous generation fitness
             new_pop: Newly sampled population
             new_fitness: New population fitness
+            rng: Random number generator (None = create new generator)
             **params: Additional method-specific parameters
 
         Returns:

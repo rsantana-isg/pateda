@@ -81,6 +81,7 @@ class SampleInsertMAP(SamplingMethod):
         cardinality: np.ndarray,
         aux_pop: Optional[np.ndarray] = None,
         aux_fitness: Optional[np.ndarray] = None,
+        rng: Optional[np.random.Generator] = None,
         **params: Any,
     ) -> np.ndarray:
         """
@@ -92,16 +93,20 @@ class SampleInsertMAP(SamplingMethod):
             cardinality: Variable cardinalities
             aux_pop: Auxiliary population (optional, for replacement)
             aux_fitness: Auxiliary fitness (for identifying worst individuals)
+            rng: Random number generator (optional)
             **params: Additional parameters
 
         Returns:
             Sampled population (n_samples, n_vars) with MAP inserted
         """
+        if rng is None:
+            rng = np.random.default_rng()
+
         # Override n_samples if provided in params
         n_samples = params.get('n_samples', self.n_samples)
 
         # Step 1: Sample M individuals using PLS
-        population = self._sample_pls(n_vars, model, cardinality, n_samples)
+        population = self._sample_pls(n_vars, model, cardinality, n_samples, rng)
 
         # Step 2: Compute MAP configuration(s)
         if self.k_map > 1:
@@ -131,7 +136,8 @@ class SampleInsertMAP(SamplingMethod):
         n_vars: int,
         model: Model,
         cardinality: np.ndarray,
-        n_samples: int
+        n_samples: int,
+        rng: np.random.Generator,
     ) -> np.ndarray:
         """
         Probabilistic Logic Sampling (PLS) for factorized models
@@ -181,7 +187,7 @@ class SampleInsertMAP(SamplingMethod):
                 # Sample configuration for new variables
                 if len(prob_dist) > 0 and np.sum(prob_dist) > 0:
                     prob_dist = prob_dist / np.sum(prob_dist)
-                    idx = np.random.choice(len(prob_dist), p=prob_dist)
+                    idx = rng.choice(len(prob_dist), p=prob_dist)
 
                     # Convert index to configuration
                     config = self._index_to_config(
@@ -194,7 +200,7 @@ class SampleInsertMAP(SamplingMethod):
             # Fill any remaining unsampled variables randomly
             for v in range(n_vars):
                 if sampled[v] < 0:
-                    sampled[v] = np.random.randint(0, cardinality[v])
+                    sampled[v] = rng.integers(0, cardinality[v])
 
             population[i] = sampled
 
@@ -352,6 +358,7 @@ class SampleTemplateMAP(SamplingMethod):
         cardinality: np.ndarray,
         aux_pop: Optional[np.ndarray] = None,
         aux_fitness: Optional[np.ndarray] = None,
+        rng: Optional[np.random.Generator] = None,
         **params: Any,
     ) -> np.ndarray:
         """
@@ -363,11 +370,15 @@ class SampleTemplateMAP(SamplingMethod):
             cardinality: Variable cardinalities
             aux_pop: Auxiliary population (optional)
             aux_fitness: Auxiliary fitness (not used)
+            rng: Random number generator (optional)
             **params: Additional parameters
 
         Returns:
             Sampled population using MAP as template
         """
+        if rng is None:
+            rng = np.random.default_rng()
+
         n_samples = params.get('n_samples', self.n_samples)
 
         # Step 1: Compute MAP template
@@ -397,13 +408,13 @@ class SampleTemplateMAP(SamplingMethod):
                 individual = map_config.copy()
 
                 # Randomly select variables to resample
-                resample_mask = np.random.random(n_vars) > self.template_prob
+                resample_mask = rng.random(n_vars) > self.template_prob
 
                 # Ensure minimum template variables
                 n_template = np.sum(~resample_mask)
                 if n_template < self.min_template_vars:
                     # Keep some template variables
-                    keep_indices = np.random.choice(
+                    keep_indices = rng.choice(
                         n_vars,
                         size=self.min_template_vars,
                         replace=False
@@ -413,7 +424,7 @@ class SampleTemplateMAP(SamplingMethod):
                 # Resample selected variables from model
                 for var in np.where(resample_mask)[0]:
                     individual[var] = self._sample_variable(
-                        var, individual, cliques, tables, cardinality
+                        var, individual, cliques, tables, cardinality, rng
                     )
 
                 population[i] = individual
@@ -426,7 +437,8 @@ class SampleTemplateMAP(SamplingMethod):
         current_config: np.ndarray,
         cliques: List[np.ndarray],
         tables: List[np.ndarray],
-        cardinality: np.ndarray
+        cardinality: np.ndarray,
+        rng: np.random.Generator,
     ) -> int:
         """Sample a single variable conditioned on current configuration"""
         # Find cliques containing this variable
@@ -459,9 +471,9 @@ class SampleTemplateMAP(SamplingMethod):
         # Normalize and sample
         if np.sum(marginal) > 0:
             marginal /= np.sum(marginal)
-            return np.random.choice(cardinality[var], p=marginal)
+            return rng.choice(cardinality[var], p=marginal)
         else:
-            return np.random.randint(0, cardinality[var])
+            return rng.integers(0, cardinality[var])
 
     def _compute_map(self, model: Model, cardinality: np.ndarray) -> np.ndarray:
         """Compute MAP configuration"""
@@ -534,6 +546,7 @@ class SampleHybridMAP(SamplingMethod):
         cardinality: np.ndarray,
         aux_pop: Optional[np.ndarray] = None,
         aux_fitness: Optional[np.ndarray] = None,
+        rng: Optional[np.random.Generator] = None,
         **params: Any,
     ) -> np.ndarray:
         """
@@ -545,16 +558,20 @@ class SampleHybridMAP(SamplingMethod):
             cardinality: Variable cardinalities
             aux_pop: Auxiliary population
             aux_fitness: Auxiliary fitness
+            rng: Random number generator (optional)
             **params: Additional parameters
 
         Returns:
             Sampled population combining template and insert strategies
         """
+        if rng is None:
+            rng = np.random.default_rng()
+
         n_samples = params.get('n_samples', self.n_samples)
 
         # Use Template-MAP for sampling
         population = self.template_sampler.sample(
-            n_vars, model, cardinality, aux_pop, aux_fitness, **params
+            n_vars, model, cardinality, aux_pop, aux_fitness, rng, **params
         )
 
         # The first individual from Template-MAP is already pure MAP,

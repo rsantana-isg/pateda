@@ -56,6 +56,7 @@ def main():
         cardinality=cardinality,
         fitness_func=fitness_func,
         components=components,
+        random_seed=42,
     )
 
     # Run optimization

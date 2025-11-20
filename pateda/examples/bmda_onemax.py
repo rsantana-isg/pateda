@@ -52,6 +52,7 @@ def run_bmda_onemax():
         fitness_func=onemax,
         cardinality=cardinality,
         components=components,
+        random_seed=42,
     )
 
     # Run optimization

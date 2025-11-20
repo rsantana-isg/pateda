@@ -35,6 +35,7 @@ class StochasticUniversalSampling(SelectionMethod):
         population: np.ndarray,
         fitness: np.ndarray,
         n_select: Optional[int] = None,
+        rng: Optional[np.random.Generator] = None,
         **params: Any,
     ) -> Tuple[np.ndarray, np.ndarray]:
         """
@@ -45,6 +46,7 @@ class StochasticUniversalSampling(SelectionMethod):
             fitness: Fitness values (pop_size,) or (pop_size, n_objectives)
                     For multi-objective, uses mean fitness across objectives
             n_select: Number to select (overrides instance n_select)
+            rng: Random number generator (None = create default generator)
             **params: Additional parameters
                      - ratio: Override instance ratio
                      - offset: Value to add to all fitness values (for negative fitness)
@@ -56,6 +58,9 @@ class StochasticUniversalSampling(SelectionMethod):
             If fitness values are negative or zero, an offset is automatically
             applied to make all values positive.
         """
+        if rng is None:
+            rng = np.random.default_rng()
+
         pop_size = population.shape[0]
 
         # Determine number to select
@@ -92,7 +97,7 @@ class StochasticUniversalSampling(SelectionMethod):
 
         if total_fitness == 0:
             # All fitness values are equal, use uniform selection
-            selected_indices = np.random.choice(pop_size, size=n_select, replace=False)
+            selected_indices = rng.choice(pop_size, size=n_select, replace=False)
         else:
             # Calculate cumulative fitness
             cumulative_fitness = np.cumsum(adjusted_fitness)
@@ -101,7 +106,7 @@ class StochasticUniversalSampling(SelectionMethod):
             pointer_distance = total_fitness / n_select
 
             # Random start position
-            start = np.random.uniform(0, pointer_distance)
+            start = rng.uniform(0, pointer_distance)
 
             # Generate equally spaced pointers
             pointers = start + np.arange(n_select) * pointer_distance

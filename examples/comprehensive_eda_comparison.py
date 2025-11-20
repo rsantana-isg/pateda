@@ -193,6 +193,7 @@ def run_single_experiment(
             fitness_func=fitness_func,
             cardinality=np.full(n_vars, 2),
             components=components,
+        random_seed=42,
         )
 
         stats, _ = eda.run(verbose=False)

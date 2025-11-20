@@ -112,6 +112,7 @@ def run_gaussian_network_ackley():
         fitness_func=fitness_func,
         cardinality=np.column_stack([lower_bounds, upper_bounds]),
         components=components,
+        random_seed=42,
     )
 
     print("Running Gaussian Network EDA...")
@@ -195,6 +196,7 @@ def run_comparison_gaussian_edas():
                 fitness_func=fitness_func,
                 cardinality=np.column_stack([lower_bounds, upper_bounds]),
                 components=components,
+        random_seed=42,
             )
 
             stats, _ = eda.run(verbose=False)

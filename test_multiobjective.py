@@ -62,6 +62,7 @@ def test_single_objective():
         fitness_func=single_objective_onemax,
         cardinality=cardinality,
         components=components,
+        random_seed=42,
     )
 
     stats, cache = eda.run(verbose=True)
@@ -104,6 +105,7 @@ def test_multi_objective_basic():
         fitness_func=multi_objective_onemax,
         cardinality=cardinality,
         components=components,
+        random_seed=42,
     )
 
     stats, cache = eda.run(verbose=True)
@@ -148,6 +150,7 @@ def test_multi_objective_pareto():
         fitness_func=multi_objective_onemax,
         cardinality=cardinality,
         components=components,
+        random_seed=42,
     )
 
     stats, cache = eda.run(verbose=True)
@@ -192,6 +195,7 @@ def test_non_dominated_selection():
         fitness_func=multi_objective_onemax,
         cardinality=cardinality,
         components=components,
+        random_seed=42,
     )
 
     stats, cache = eda.run(verbose=True)

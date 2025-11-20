@@ -42,6 +42,7 @@ class SampleMarkovChain(SamplingMethod):
         cardinality: np.ndarray,
         aux_pop: Optional[np.ndarray] = None,
         aux_fitness: Optional[np.ndarray] = None,
+        rng: Optional[np.random.Generator] = None,
         **params: Any,
     ) -> np.ndarray:
         """
@@ -53,6 +54,7 @@ class SampleMarkovChain(SamplingMethod):
             cardinality: Variable cardinalities
             aux_pop: Auxiliary population (not used for basic Markov sampling)
             aux_fitness: Auxiliary fitness (not used)
+            rng: Random number generator (optional)
             **params: Additional parameters
                      - n_samples: Override instance n_samples
 
@@ -64,6 +66,9 @@ class SampleMarkovChain(SamplingMethod):
             - First, sample the initial k+1 variables from their joint distribution
             - Then, for each remaining variable, sample from p(x_i | x_{i-k}, ..., x_{i-1})
         """
+        if rng is None:
+            rng = np.random.default_rng()
+
         if not isinstance(model, FactorizedModel):
             raise TypeError(f"Expected FactorizedModel, got {type(model)}")
 
@@ -73,7 +78,7 @@ class SampleMarkovChain(SamplingMethod):
 
         # Delegate to FDA sampler (Markov chains are a special case of FDA)
         return self._fda_sampler.sample(
-            n_vars, model, cardinality, aux_pop, aux_fitness, **params
+            n_vars, model, cardinality, aux_pop, aux_fitness, rng, **params
         )
 
     def _is_markov_structure(self, model: FactorizedModel) -> bool:
@@ -125,6 +130,7 @@ class SampleMarkovChainForward(SamplingMethod):
         cardinality: np.ndarray,
         aux_pop: Optional[np.ndarray] = None,
         aux_fitness: Optional[np.ndarray] = None,
+        rng: Optional[np.random.Generator] = None,
         **params: Any,
     ) -> np.ndarray:
         """
@@ -136,11 +142,15 @@ class SampleMarkovChainForward(SamplingMethod):
             cardinality: Variable cardinalities
             aux_pop: Auxiliary population (not used)
             aux_fitness: Auxiliary fitness (not used)
+            rng: Random number generator (optional)
             **params: Additional parameters
 
         Returns:
             Sampled population (n_samples, n_vars)
         """
+        if rng is None:
+            rng = np.random.default_rng()
+
         if not isinstance(model, FactorizedModel):
             raise TypeError(f"Expected FactorizedModel, got {type(model)}")
 
@@ -161,7 +171,7 @@ class SampleMarkovChainForward(SamplingMethod):
         # Sample configurations for all individuals
         for i in range(n_samples):
             # Sample configuration index
-            config_idx = np.random.choice(len(joint_probs_flat), p=joint_probs_flat)
+            config_idx = rng.choice(len(joint_probs_flat), p=joint_probs_flat)
 
             # Convert configuration index to variable values
             init_cards = [int(cardinality[j]) for j in range(self.k + 1)]
@@ -186,7 +196,7 @@ class SampleMarkovChainForward(SamplingMethod):
                 cond_probs = cpd[parent_config_idx, :]
 
                 # Sample variable value
-                var_value = np.random.choice(len(cond_probs), p=cond_probs)
+                var_value = rng.choice(len(cond_probs), p=cond_probs)
                 new_pop[i, var] = var_value
 
         return new_pop

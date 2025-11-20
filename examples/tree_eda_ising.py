@@ -51,6 +51,7 @@ def main():
         replacement_method=replacement,
         stop_condition=stop_condition,
         maximize=True,
+        random_seed=42,
     )
 
     # Run optimization

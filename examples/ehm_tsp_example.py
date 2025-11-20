@@ -67,6 +67,7 @@ def main():
         fitness_func=tsp,
         cardinality=cardinality,
         components=components,
+        random_seed=42,
     )
 
     # Run the algorithm
