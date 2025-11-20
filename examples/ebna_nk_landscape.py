@@ -112,9 +112,8 @@ def run_ebna_nk_landscape(n_vars=50, k=4, seed=42):
 
         # EBNA learning with K2 algorithm
         learning=LearnEBNA(
-            structure_algorithm='k2',
             max_parents=min(k + 2, 5),  # Allow slightly more parents than K
-            scoring_metric='bic',
+            score_metric='k2',
         ),
 
         # Bayesian Network sampling
@@ -183,15 +182,14 @@ def run_ebna_varying_k():
 
         for run in range(n_runs):
             # Create new instance for each run
-            nk = NKLandscape(n_vars, k, seed=run)
+            nk = NKLandscape(n_vars, k, random_seed=run)
 
             components = EDAComponents(
                 seeding=RandomInit(),
-                selection=TruncationSelection(proportion=0.5),
+                selection=TruncationSelection(ratio=0.5),
                 learning=LearnEBNA(
-                    structure_algorithm='k2',
                     max_parents=min(k + 2, 5),
-                    scoring_metric='bic',
+                    score_metric='k2',
                 ),
                 sampling=SampleBayesianNetwork(n_samples=pop_size),
                 replacement=ElitistReplacement(n_elite=10),
@@ -244,8 +242,8 @@ def run_comparison_ebna_vs_umda():
     print("=" * 80)
     print()
 
-    from pateda.learning.histogram import LearnHistogram
-    from pateda.sampling.histogram import SampleHistogram
+    from pateda.learning import LearnUMDA
+    from pateda.sampling import SampleFDA
 
     n_vars = 40
     k = 4
@@ -254,9 +252,8 @@ def run_comparison_ebna_vs_umda():
     n_runs = 5
 
     algorithms = [
-        ("UMDA", LearnHistogram(), SampleHistogram(pop_size)),
-        ("EBNA", LearnBayesianNetwork(structure_algorithm='k2', max_parents=5),
-         SampleBayesianNetwork(pop_size)),
+        ("UMDA", LearnUMDA(), SampleFDA(n_samples=pop_size)),
+        ("EBNA", LearnEBNA(max_parents=5, score_metric='k2'), SampleBayesianNetwork(n_samples=pop_size)),
     ]
 
     results = {name: [] for name, _, _ in algorithms}
@@ -265,11 +262,11 @@ def run_comparison_ebna_vs_umda():
         print(f"\nRunning {name}...")
 
         for run in range(n_runs):
-            nk = NKLandscape(n_vars, k, seed=run)
+            nk = NKLandscape(n_vars, k, random_seed=run)
 
             components = EDAComponents(
                 seeding=RandomInit(),
-                selection=TruncationSelection(proportion=0.5),
+                selection=TruncationSelection(ratio=0.5),
                 learning=learning,
                 sampling=sampling,
                 replacement=ElitistReplacement(n_elite=10),

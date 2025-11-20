@@ -56,7 +56,7 @@ def main():
         pop_size=pop_size,
         n_vars=n_vars,
         fitness_func=objective,
-        cardinality=np.column_stack([lower_bounds, upper_bounds]),
+        cardinality=np.array([lower_bounds, upper_bounds]),
         components=components,
         random_seed=42,
     )

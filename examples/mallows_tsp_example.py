@@ -9,10 +9,10 @@ import numpy as np
 from pateda.core.eda import EDA
 from pateda.core.components import EDAComponents
 from pateda.seeding import RandomInit
-from pateda.selection import Truncation
+from pateda.selection import TruncationSelection
 from pateda.learning.mallows import LearnMallowsKendall
 from pateda.sampling.mallows import SampleMallowsKendall
-from pateda.replacement import Elitist
+from pateda.replacement import ElitistReplacement
 from pateda.stop_conditions import MaxGenerations
 from pateda.functions.permutation import create_random_tsp
 
@@ -38,10 +38,10 @@ def main():
     # Configure EDA components
     components = EDAComponents(
         seeding=RandomInit(),
-        selection=Truncation(),
+        selection=TruncationSelection(ratio=selection_ratio),
         learning=LearnMallowsKendall(),
         sampling=SampleMallowsKendall(),
-        replacement=Elitist(),
+        replacement=ElitistReplacement(n_elite=int(pop_size * 0.1)),
         stop_condition=MaxGenerations(n_generations),
     )
 
@@ -54,11 +54,10 @@ def main():
     }
 
     components.sampling_params = {"sample_size": pop_size}
-    components.selection_params = {"ratio": selection_ratio}
-    components.replacement_params = {"elite_size": int(pop_size * 0.1)}
 
-    # Create cardinality array for permutations (not actually used but required by EDA)
-    cardinality = np.arange(n_cities)
+    # Create cardinality array for permutations
+    # Each position can have any city, so cardinality is n_cities for each position
+    cardinality = np.full(n_cities, n_cities, dtype=int)
 
     # Initialize and run EDA
     print("\nRunning Mallows EDA with Kendall distance...\n")
