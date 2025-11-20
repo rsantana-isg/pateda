@@ -14,6 +14,7 @@ from pateda.learning import LearnUMDA
 from pateda.sampling import SampleFDA
 from pateda.selection import TruncationSelection
 from pateda.replacement import ElitistReplacement
+from pateda.seeding import RandomInit
 from pateda.stop_conditions import MaxGenerations
 from pateda.functions.discrete import create_nk_objective_function
 
@@ -32,12 +33,12 @@ def main():
 
     # Create EDA components
     components = EDAComponents(
-        seeding=None,  # Will use default
+        seeding=RandomInit(),
         selection=TruncationSelection(ratio=0.5),
         learning=LearnUMDA(alpha=1.0),  # Laplace smoothing
         sampling=SampleFDA(n_samples=pop_size),
         replacement=ElitistReplacement(n_elite=10),
-        stop_condition=MaxGenerations(max_generations=100),
+        stop_condition=MaxGenerations(100),
     )
 
     # Create and run EDA
