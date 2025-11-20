@@ -10,11 +10,11 @@ is surrounded by local optima that mislead optimization algorithms.
 """
 
 import numpy as np
-from pateda.core.eda import EDA
+from pateda.core.eda import EDA, EDAComponents
 from pateda.learning.affinity import LearnAffinityFactorization
 from pateda.sampling.fda import SampleFDA
-from pateda.selection.truncation import SelectTruncation
-from pateda.replacement.generational import ReplaceGenerational
+from pateda.selection.truncation import TruncationSelection
+from pateda.replacement.generational import ReplaceGenerational, GenerationalReplacement
 from pateda.seeding.random_init import RandomInit
 from pateda.stop_conditions.max_generations import MaxGenerations
 from pateda.functions.discrete.deceptive import deceptive_function
@@ -38,31 +38,28 @@ def run_affinity_eda():
         return np.array([deceptive_function(ind, trap_size) for ind in population])
 
     # Initialize EDA components
-    learning = LearnAffinityFactorization(
-        max_clique_size=5,  # Maximum variables per cluster
-        preference=None,  # Use median similarity as preference
-        damping=0.5,  # Damping factor for message passing
-        recursive=True,  # Recursively factorize large clusters
-        alpha=0.1,  # Laplace smoothing
+    components = EDAComponents(
+        seeding=RandomInit(),
+        selection=TruncationSelection(n_select=selection_size),
+        learning=LearnAffinityFactorization(
+            max_clique_size=5,  # Maximum variables per cluster
+            preference=None,  # Use median similarity as preference
+            damping=0.5,  # Damping factor for message passing
+            recursive=True,  # Recursively factorize large clusters
+            alpha=0.1,  # Laplace smoothing
+        ),
+        sampling=SampleFDA(n_samples=pop_size),
+        replacement=GenerationalReplacement(),
+        stop_condition=MaxGenerations(max_generations),
     )
-
-    sampling = SampleFDA(n_samples=pop_size)
-    selection = SelectTruncation(n_selected=selection_size)
-    replacement = ReplaceGenerational()
-    seeding = RandomInit(pop_size=pop_size)
-    stop_condition = MaxGenerations(max_generations=max_generations)
 
     # Create and run EDA
     eda = EDA(
-        fitness_function=fitness_func,
+        pop_size=pop_size,
         n_vars=n_vars,
+        fitness_func=fitness_func,
         cardinality=cardinality,
-        learning_method=learning,
-        sampling_method=sampling,
-        selection_method=selection,
-        replacement_method=replacement,
-        seeding_method=seeding,
-        stop_condition=stop_condition,
+        components=components,
         random_seed=42,
     )
 
@@ -70,20 +67,20 @@ def run_affinity_eda():
     print(f"Problem size: {n_vars} variables")
     print(f"Trap size: {trap_size}")
     print(f"Population size: {pop_size}")
-    print(f"Max clique size: {learning.max_clique_size}")
+    print(f"Max clique size: {components.learning.max_clique_size}")
     print("-" * 60)
 
-    result = eda.run()
+    stats, cache = eda.run(verbose=True)
 
     # Display results
     print("\nOptimization Results:")
-    print(f"Generations run: {result['generation']}")
-    print(f"Best fitness: {result['best_fitness']:.4f}")
+    print(f"Generations run: {len(stats.best_fitness)}")
+    print(f"Best fitness: {stats.best_fitness_overall:.4f}")
     print(f"Global optimum: {n_vars // trap_size}")  # One per trap
-    print(f"Best solution: {result['best_individual']}")
+    print(f"Best solution: {stats.best_individual}")
 
     # Analyze learned structure
-    model = result.get("model")
+    model = cache.models[-1] if cache.models else None
     if model:
         metadata = model.metadata
         n_cliques = metadata.get("n_cliques", 0)
@@ -115,9 +112,10 @@ def run_affinity_eda():
 
     # Fitness evolution
     print("\nFitness Evolution:")
-    for gen in range(0, result["generation"] + 1, max(1, result["generation"] // 10)):
-        if gen < len(result["best_fitness_history"]):
-            fitness = result["best_fitness_history"][gen]
+    num_gens = len(stats.best_fitness)
+    for gen in range(0, num_gens, max(1, num_gens // 10)):
+        if gen < len(stats.best_fitness):
+            fitness = stats.best_fitness[gen]
             print(f"  Generation {gen:3d}: {fitness:.4f}")
 
 

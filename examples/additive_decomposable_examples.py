@@ -109,7 +109,7 @@ def example_k_deceptive():
     )
 
     # Check if optimal was found
-    is_optimal = stats['best_fitness'][-1] >= n_vars
+    is_optimal = stats.best_fitness[-1] >= n_vars
     print(f"Optimal solution found: {is_optimal}")
 
     return stats
@@ -165,7 +165,7 @@ def example_hiff():
     )
 
     # Check if solution is uniform
-    best_sol = stats['best_solution']
+    best_sol = stats.best_individual
     is_uniform = (np.all(best_sol == 0) or np.all(best_sol == 1))
     print(f"Solution is uniform (optimal): {is_uniform}")
     print(f"Sum of best solution: {np.sum(best_sol)}")
@@ -252,9 +252,9 @@ def compare_k_values():
         )
 
         results[f"k={k}"] = {
-            "best_fitness": stats['best_fitness'][-1],
-            "mean_fitness": stats['mean_fitness'][-1],
-            "generations": len(stats['best_fitness'])
+            "best_fitness": stats.best_fitness[-1],
+            "mean_fitness": stats.mean_fitness[-1],
+            "generations": len(stats.best_fitness)
         }
 
     # Print comparison
