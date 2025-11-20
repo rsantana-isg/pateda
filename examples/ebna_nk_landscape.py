@@ -89,7 +89,7 @@ def run_ebna_nk_landscape(n_vars=50, k=4, seed=42):
     print()
 
     # Create NK landscape
-    nk = NKLandscape(n_vars, k, seed=seed)
+    nk = NKLandscape(n_vars, k, random_seed=seed)
 
     pop_size = 500
     max_generations = 100
@@ -108,7 +108,7 @@ def run_ebna_nk_landscape(n_vars=50, k=4, seed=42):
         seeding=RandomInit(),
 
         # Selection: top 50%
-        selection=TruncationSelection(proportion=0.5),
+        selection=TruncationSelection(ratio=0.5),
 
         # EBNA learning with K2 algorithm
         learning=LearnEBNA(
