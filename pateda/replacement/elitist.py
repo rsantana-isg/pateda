@@ -89,10 +89,20 @@ class ElitistReplacement(ReplacementMethod):
 
             # Combine elite and new
             combined_pop = np.vstack([elite_pop, selected_new_pop])
-            # Use vstack for fitness to handle both 1D and 2D cases
-            if old_fitness.ndim == 1:
-                combined_fitness = np.hstack([elite_fitness, selected_new_fitness])
+
+            # Determine if single or multi-objective based on original fitness shape
+            is_single_objective = old_fitness.ndim == 1 or (old_fitness.ndim == 2 and old_fitness.shape[1] == 1)
+
+            if is_single_objective:
+                # For single objective, flatten both, concatenate, and reshape if needed
+                elite_fit_flat = elite_fitness.flatten()
+                new_fit_flat = selected_new_fitness.flatten()
+                combined_fitness = np.concatenate([elite_fit_flat, new_fit_flat])
+                # Reshape back to (n, 1) if original was 2D
+                if old_fitness.ndim == 2:
+                    combined_fitness = combined_fitness.reshape(-1, 1)
             else:
+                # Multi-objective: use vstack
                 combined_fitness = np.vstack([elite_fitness, selected_new_fitness])
         else:
             # Only keep elite (shouldn't normally happen)
