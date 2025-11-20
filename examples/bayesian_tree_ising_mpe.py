@@ -66,22 +66,45 @@ class StopCriteriaMaxGenOrOptimum(StopCondition):
         self.max_generations = max_generations
         self.optimal_value = optimal_value
         self.tolerance = tolerance
+        self.best_fitness_overall = -np.inf
 
-    def should_stop(self, stats) -> bool:
-        """Check if should stop based on max generations or optimal value"""
+    def should_stop(
+        self,
+        generation: int,
+        population: np.ndarray,
+        fitness: np.ndarray,
+        **params,
+    ) -> bool:
+        """
+        Check if should stop based on max generations or optimal value
+
+        Args:
+            generation: Current generation number
+            population: Current population
+            fitness: Current fitness values
+            **params: Additional parameters
+
+        Returns:
+            True if should stop, False otherwise
+        """
+        # Update best fitness seen so far
+        current_best = np.max(fitness)
+        if current_best > self.best_fitness_overall:
+            self.best_fitness_overall = current_best
+
         # Stop if max generations reached
-        if stats.generation >= self.max_generations:
+        if generation >= self.max_generations:
             return True
 
         # Stop if optimal value reached (within tolerance)
-        if abs(stats.best_fitness_overall - self.optimal_value) <= self.tolerance:
+        if abs(self.best_fitness_overall - self.optimal_value) <= self.tolerance:
             return True
 
         return False
 
     def reset(self):
-        """Reset the stop condition state (no state to reset for this condition)"""
-        pass
+        """Reset the stop condition state"""
+        self.best_fitness_overall = -np.inf
 
 
 def create_ising_function(n_vars: int, instance: int = 1):
