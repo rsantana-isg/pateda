@@ -14,7 +14,10 @@ Tests:
 
 import numpy as np
 import pytest
+from dataclasses import dataclass
 from pateda.core.eda import EDA
+from pateda.core.components import EDAComponents
+from pateda.stop_conditions.max_generations import MaxGenerations
 from pateda.learning.mnfda import LearnMNFDA
 from pateda.learning.mnfdag import LearnMNFDAG
 from pateda.learning.moa import LearnMOA
@@ -26,18 +29,56 @@ from pateda.sampling.map_sampling import (
 from pateda.sampling.gibbs import SampleGibbs
 from pateda.sampling.fda import SampleFDA
 from pateda.inference.map_inference import MAPInference, compute_map, compute_k_map
-from pateda.selection import TruncationSelection
-from pateda.seeding import RandomInit
+from pateda.selection.truncation import TruncationSelection
+from pateda.seeding.random_init import RandomInit
+
+
+# Helper function to create EDA with simplified API
+def create_eda(n_vars, cardinality, fitness_function, pop_size, n_generations,
+               seeding, learning, sampling, selection, verbose=True):
+    """Create EDA with components wrapped properly and add run wrapper"""
+    components = EDAComponents()
+    components.seeding = seeding
+    components.learning = learning
+    components.sampling = sampling
+    components.selection = selection
+    components.stop_condition = MaxGenerations(max_gen=n_generations)
+
+    eda_instance = EDA(
+        pop_size=pop_size,
+        n_vars=n_vars,
+        fitness_func=fitness_function,
+        cardinality=cardinality,
+        components=components
+    )
+
+    # Wrap the run method to return a dict instead of (stats, cache)
+    original_run = eda_instance.run
+    def run_wrapper(**kwargs):
+        if 'verbose' not in kwargs:
+            kwargs['verbose'] = verbose
+        stats, cache = original_run(**kwargs)
+        return {
+            'best_fitness': stats.best_fitness_overall,
+            'best_solution': stats.best_individual,
+            'generation_found': stats.generation_found,
+            'n_evaluations': pop_size * (len(stats.best_fitness) + 1)  # Approx
+        }
+    eda_instance.run = run_wrapper
+
+    return eda_instance
 
 
 # Test problems
 def onemax(x):
     """OneMax: maximize number of ones"""
+    x = np.atleast_2d(x)
     return np.sum(x, axis=1)
 
 
 def trap5(x):
     """Trap-5: deceptive problem with 5-bit traps"""
+    x = np.atleast_2d(x)
     n = x.shape[1]
     fitness = np.zeros(x.shape[0])
 
@@ -53,6 +94,7 @@ def trap5(x):
 
 def four_peaks(x, t=None):
     """Four Peaks problem"""
+    x = np.atleast_2d(x)
     n = x.shape[1]
     if t is None:
         t = n // 10
@@ -216,8 +258,9 @@ class TestMAPSampling:
 
         # First should be pure MAP, others should be variations
         if n_samples > 1:
-            # Not all individuals should be identical
-            assert not np.all(new_pop[0] == new_pop[1])
+            # Not all individuals should be identical (check that at least some differ)
+            all_same = all(np.all(new_pop[i] == new_pop[0]) for i in range(n_samples))
+            assert not all_same, "All individuals are identical, expected some variation"
 
     def test_hybrid_map_basic(self):
         """Test Hybrid MAP combines both strategies"""
@@ -256,7 +299,7 @@ class TestMAPWithMNFDA:
         cardinality = np.array([2] * n_vars)
 
         # Create EDA with MN-FDA + Insert-MAP
-        eda = EDA(
+        eda = create_eda(
             n_vars=n_vars,
             cardinality=cardinality,
             fitness_function=onemax,
@@ -286,7 +329,7 @@ class TestMAPWithMNFDA:
         n_generations = 100
         cardinality = np.array([2] * n_vars)
 
-        eda = EDA(
+        eda = create_eda(
             n_vars=n_vars,
             cardinality=cardinality,
             fitness_function=trap5,
@@ -318,7 +361,7 @@ class TestMAPWithMNFDA:
         n_generations = 50
         cardinality = np.array([2] * n_vars)
 
-        eda = EDA(
+        eda = create_eda(
             n_vars=n_vars,
             cardinality=cardinality,
             fitness_function=onemax,
@@ -352,7 +395,7 @@ class TestMAPWithMOA:
         n_generations = 50
         cardinality = np.array([2] * n_vars)
 
-        eda = EDA(
+        eda = create_eda(
             n_vars=n_vars,
             cardinality=cardinality,
             fitness_function=onemax,
@@ -379,7 +422,7 @@ class TestMAPWithMOA:
         n_generations = 50
         cardinality = np.array([2] * n_vars)
 
-        eda = EDA(
+        eda = create_eda(
             n_vars=n_vars,
             cardinality=cardinality,
             fitness_function=onemax,
@@ -434,7 +477,7 @@ class TestMAPPerformanceComparison:
                 else:
                     learner = LearnMNFDA(max_clique_size=3, return_factorized=False)
 
-                eda = EDA(
+                eda = create_eda(
                     n_vars=n_vars,
                     cardinality=cardinality,
                     fitness_function=onemax,
@@ -489,7 +532,7 @@ class TestMAPPerformanceComparison:
             best_fitnesses = []
 
             for run in range(n_runs):
-                eda = EDA(
+                eda = create_eda(
                     n_vars=n_vars,
                     cardinality=cardinality,
                     fitness_function=trap5,
@@ -534,9 +577,10 @@ class TestMAPHighCardinality:
 
         def ternary_onemax(x):
             """Maximize sum (prefer higher values)"""
+            x = np.atleast_2d(x)
             return np.sum(x, axis=1)
 
-        eda = EDA(
+        eda = create_eda(
             n_vars=n_vars,
             cardinality=cardinality,
             fitness_function=ternary_onemax,
