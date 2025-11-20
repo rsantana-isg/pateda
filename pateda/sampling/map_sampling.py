@@ -228,6 +228,11 @@ class SampleInsertMAP(SamplingMethod):
         cardinality: np.ndarray
     ) -> np.ndarray:
         """Get conditional probability distribution given sampled variables"""
+        # Ensure table has correct shape for the clique
+        expected_shape = tuple(cardinality[v] for v in clique)
+        if table.shape != expected_shape:
+            table = table.reshape(expected_shape)
+
         # Build marginal distribution conditioned on already sampled variables
         overlap = [i for i, v in enumerate(clique) if sampled[v] >= 0]
         new_vars = [i for i, v in enumerate(clique) if sampled[v] < 0]
@@ -429,6 +434,11 @@ class SampleTemplateMAP(SamplingMethod):
 
         for clique, table in zip(cliques, tables):
             if var in clique:
+                # Ensure table has correct shape for the clique
+                expected_shape = tuple(cardinality[v] for v in clique)
+                if table.shape != expected_shape:
+                    table = table.reshape(expected_shape)
+
                 # Get conditional probability P(var | other vars in clique)
                 var_idx = np.where(clique == var)[0][0]
 
