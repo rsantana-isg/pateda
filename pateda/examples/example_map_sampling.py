@@ -93,6 +93,7 @@ def main():
             replace_worst=True  # Replace worst individual with MAP
         ),
         selection=SelectTruncation(ratio=0.5),
+        random_seed=42,
         verbose=True,
     )
 
@@ -131,6 +132,7 @@ def main():
             min_template_vars=5  # At least 5 variables from template
         ),
         selection=SelectTruncation(ratio=0.5),
+        random_seed=42,
         verbose=True,
     )
 
@@ -168,6 +170,7 @@ def main():
             n_map_inserts=1
         ),
         selection=SelectTruncation(ratio=0.5),
+        random_seed=42,
         verbose=True,
     )
 
@@ -199,6 +202,7 @@ def main():
             map_method="bp"
         ),
         selection=SelectTruncation(ratio=0.5),
+        random_seed=42,
         verbose=True,
     )
 
@@ -235,6 +239,7 @@ def main():
             map_method="bp"
         ),
         selection=SelectTruncation(ratio=0.5),
+        random_seed=42,
         verbose=True,
     )
 
@@ -273,6 +278,7 @@ def main():
                 map_method=method_code
             ),
             selection=SelectTruncation(ratio=0.5),
+            random_seed=42,
             verbose=False,
         )
 
@@ -333,6 +339,7 @@ def main():
                 learning=learner,
                 sampling=sampler,
                 selection=SelectTruncation(ratio=0.5),
+                random_seed=42,
                 verbose=False,
             )
 

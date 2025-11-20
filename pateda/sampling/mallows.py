@@ -11,7 +11,7 @@ References:
 """
 
 import numpy as np
-from typing import Dict, Any
+from typing import Dict, Any, Optional
 from pateda.permutation.consensus import compose_permutations
 from pateda.permutation.distances import _generate_perm_from_x
 
@@ -27,6 +27,7 @@ class SampleMallowsKendall:
         population: np.ndarray,
         fitness: np.ndarray,
         sample_size: int,
+        rng: Optional[np.random.Generator] = None,
     ) -> np.ndarray:
         """
         Sample permutations from Mallows model with Kendall distance.
@@ -42,17 +43,21 @@ class SampleMallowsKendall:
             population: Current population (not used)
             fitness: Fitness values (not used)
             sample_size: Number of permutations to sample
+            rng: Random number generator (optional)
 
         Returns:
             Array of sampled permutations, shape (sample_size, n_vars)
         """
+        if rng is None:
+            rng = np.random.default_rng()
+
         v_probs = model["v_probs"]
         consensus = model["consensus"]
 
         new_pop = np.zeros((sample_size, n_vars), dtype=int)
 
         # Generate random values for all samples at once
-        rand_values = np.random.rand(sample_size, n_vars - 1)
+        rand_values = rng.random((sample_size, n_vars - 1))
 
         for i in range(sample_size):
             # Sample v-vector
@@ -153,6 +158,7 @@ class SampleMallowsCayley:
         population: np.ndarray,
         fitness: np.ndarray,
         sample_size: int,
+        rng: Optional[np.random.Generator] = None,
     ) -> np.ndarray:
         """
         Sample permutations from Mallows model with Cayley distance.
@@ -168,17 +174,21 @@ class SampleMallowsCayley:
             population: Current population (not used)
             fitness: Fitness values (not used)
             sample_size: Number of permutations to sample
+            rng: Random number generator (optional)
 
         Returns:
             Array of sampled permutations, shape (sample_size, n_vars)
         """
+        if rng is None:
+            rng = np.random.default_rng()
+
         x_probs = model["x_probs"]
         consensus = model["consensus"]
 
         new_pop = np.zeros((sample_size, n_vars), dtype=int)
 
         # Generate random values for all samples at once
-        rand_values = np.random.rand(sample_size, n_vars - 1)
+        rand_values = rng.random((sample_size, n_vars - 1))
 
         for i in range(sample_size):
             # Sample x-vector: for each position j, x[j] = 1 with probability x_probs[j]
@@ -233,6 +243,7 @@ class SampleGeneralizedMallowsKendall:
         population: np.ndarray,
         fitness: np.ndarray,
         sample_size: int,
+        rng: Optional[np.random.Generator] = None,
     ) -> np.ndarray:
         """
         Sample permutations from Generalized Mallows model with Kendall distance.
@@ -248,17 +259,21 @@ class SampleGeneralizedMallowsKendall:
             population: Current population (not used)
             fitness: Fitness values (not used)
             sample_size: Number of permutations to sample
+            rng: Random number generator (optional)
 
         Returns:
             Array of sampled permutations, shape (sample_size, n_vars)
         """
+        if rng is None:
+            rng = np.random.default_rng()
+
         v_probs = model["v_probs"]
         consensus = model["consensus"]
 
         new_pop = np.zeros((sample_size, n_vars), dtype=int)
 
         # Generate random values for all samples at once
-        rand_values = np.random.rand(sample_size, n_vars - 1)
+        rand_values = rng.random((sample_size, n_vars - 1))
 
         for i in range(sample_size):
             # Sample v-vector
@@ -356,6 +371,7 @@ class SampleGeneralizedMallowsCayley:
         population: np.ndarray,
         fitness: np.ndarray,
         sample_size: int,
+        rng: Optional[np.random.Generator] = None,
     ) -> np.ndarray:
         """
         Sample permutations from Generalized Mallows model with Cayley distance.
@@ -371,17 +387,21 @@ class SampleGeneralizedMallowsCayley:
             population: Current population (not used)
             fitness: Fitness values (not used)
             sample_size: Number of permutations to sample
+            rng: Random number generator (optional)
 
         Returns:
             Array of sampled permutations, shape (sample_size, n_vars)
         """
+        if rng is None:
+            rng = np.random.default_rng()
+
         x_probs = model["x_probs"]
         consensus = model["consensus"]
 
         new_pop = np.zeros((sample_size, n_vars), dtype=int)
 
         # Generate random values for all samples at once
-        rand_values = np.random.rand(sample_size, n_vars - 1)
+        rand_values = rng.random((sample_size, n_vars - 1))
 
         for i in range(sample_size):
             # Sample x-vector: for each position j, x[j] = 1 with probability x_probs[j, 1]

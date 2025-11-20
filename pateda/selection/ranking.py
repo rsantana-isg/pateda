@@ -51,6 +51,7 @@ class RankingSelection(SelectionMethod):
         population: np.ndarray,
         fitness: np.ndarray,
         n_select: Optional[int] = None,
+        rng: Optional[np.random.Generator] = None,
         **params: Any,
     ) -> Tuple[np.ndarray, np.ndarray]:
         """
@@ -61,6 +62,7 @@ class RankingSelection(SelectionMethod):
             fitness: Fitness values (pop_size,) or (pop_size, n_objectives)
                     For multi-objective, uses mean fitness across objectives
             n_select: Number to select (overrides instance n_select)
+            rng: Random number generator (None = create default generator)
             **params: Additional parameters
                      - ratio: Override instance ratio
                      - selection_pressure: Override instance selection_pressure
@@ -70,6 +72,9 @@ class RankingSelection(SelectionMethod):
         Returns:
             Tuple of (selected_population, selected_fitness)
         """
+        if rng is None:
+            rng = np.random.default_rng()
+
         pop_size = population.shape[0]
 
         # Determine number to select
@@ -128,7 +133,7 @@ class RankingSelection(SelectionMethod):
         probabilities = probabilities / np.sum(probabilities)
 
         # Select individuals
-        selected_indices = np.random.choice(
+        selected_indices = rng.choice(
             pop_size, size=n_select, replace=replacement, p=probabilities
         )
 

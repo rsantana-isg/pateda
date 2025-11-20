@@ -16,7 +16,8 @@ def sample_mixture_gaussian_univariate(
     model: Dict[str, Any],
     n_samples: int,
     bounds: Optional[np.ndarray] = None,
-    params: Optional[Dict[str, Any]] = None
+    params: Optional[Dict[str, Any]] = None,
+    rng: Optional[np.random.Generator] = None,
 ) -> np.ndarray:
     """
     Sample from a mixture of univariate Gaussian models.
@@ -31,12 +32,17 @@ def sample_mixture_gaussian_univariate(
         Array of shape (2, n_vars) with [min, max] bounds for each variable
     params : dict, optional
         Additional parameters (not used)
+    rng : np.random.Generator, optional
+        Random number generator
 
     Returns
     -------
     population : np.ndarray
         Sampled population of shape (n_samples, n_vars)
     """
+    if rng is None:
+        rng = np.random.default_rng()
+
     components = model['components']
     n_clusters = model['n_clusters']
 
@@ -45,7 +51,7 @@ def sample_mixture_gaussian_univariate(
     weights = weights / weights.sum()  # Normalize
 
     # Sample component assignments
-    component_assignments = np.random.choice(
+    component_assignments = rng.choice(
         n_clusters,
         size=n_samples,
         p=weights
@@ -64,7 +70,7 @@ def sample_mixture_gaussian_univariate(
             means = components[i]['means']
             stds = components[i]['stds']
 
-            population[mask] = np.random.normal(
+            population[mask] = rng.normal(
                 loc=np.tile(means, (n_comp_samples, 1)),
                 scale=np.tile(stds, (n_comp_samples, 1))
             )
@@ -80,7 +86,8 @@ def sample_mixture_gaussian_full(
     model: Dict[str, Any],
     n_samples: int,
     bounds: Optional[np.ndarray] = None,
-    params: Optional[Dict[str, Any]] = None
+    params: Optional[Dict[str, Any]] = None,
+    rng: Optional[np.random.Generator] = None,
 ) -> np.ndarray:
     """
     Sample from a mixture of full multivariate Gaussian models.
@@ -96,12 +103,17 @@ def sample_mixture_gaussian_full(
     params : dict, optional
         Additional parameters:
         - 'var_scaling': scaling factor for covariance (default: 1.0)
+    rng : np.random.Generator, optional
+        Random number generator
 
     Returns
     -------
     population : np.ndarray
         Sampled population of shape (n_samples, n_vars)
     """
+    if rng is None:
+        rng = np.random.default_rng()
+
     components = model['components']
     n_clusters = model['n_clusters']
 
@@ -110,7 +122,7 @@ def sample_mixture_gaussian_full(
     weights = weights / weights.sum()  # Normalize
 
     # Sample component assignments
-    component_assignments = np.random.choice(
+    component_assignments = rng.choice(
         n_clusters,
         size=n_samples,
         p=weights
@@ -134,7 +146,7 @@ def sample_mixture_gaussian_full(
             mean = components[i]['mean']
             cov = components[i]['cov'] * var_scaling
 
-            population[mask] = np.random.multivariate_normal(
+            population[mask] = rng.multivariate_normal(
                 mean, cov, size=n_comp_samples
             )
 
@@ -220,6 +232,7 @@ class SampleMixtureGaussian(SamplingMethod):
         cardinality: np.ndarray,
         aux_pop: Optional[np.ndarray] = None,
         aux_fitness: Optional[np.ndarray] = None,
+        rng: Optional[np.random.Generator] = None,
         **params: Any,
     ) -> np.ndarray:
         """
@@ -231,12 +244,16 @@ class SampleMixtureGaussian(SamplingMethod):
             cardinality: Variable bounds (2, n_vars) or (n_vars, 2) array
             aux_pop: Auxiliary population (not used)
             aux_fitness: Auxiliary fitness values (not used)
+            rng: Random number generator (optional)
             **params: Additional parameters
                       - 'var_scaling': override instance var_scaling
 
         Returns:
             Sampled population of shape (n_samples, n_vars)
         """
+        if rng is None:
+            rng = np.random.default_rng()
+
         # Extract parameters from model
         if isinstance(model, MixtureModel):
             components = model.parameters['components']
@@ -264,11 +281,11 @@ class SampleMixtureGaussian(SamplingMethod):
 
         if 'univariate' in model_type:
             population = sample_mixture_gaussian_univariate(
-                model_dict, self.n_samples, bounds, sampling_params
+                model_dict, self.n_samples, bounds, sampling_params, rng
             )
         else:
             population = sample_mixture_gaussian_full(
-                model_dict, self.n_samples, bounds, sampling_params
+                model_dict, self.n_samples, bounds, sampling_params, rng
             )
 
         return population

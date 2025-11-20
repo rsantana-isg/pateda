@@ -4,7 +4,7 @@ Unitation-constrained seeding
 Equivalent to MATEDA's seeding_unitation_constraint.m
 """
 
-from typing import Any
+from typing import Any, Optional
 import numpy as np
 
 from pateda.core.components import SeedingMethod
@@ -29,6 +29,7 @@ class SeedingUnitationConstraint(SeedingMethod):
         n_vars: int,
         pop_size: int,
         cardinality: np.ndarray,
+        rng: Optional[np.random.Generator] = None,
         **params: Any,
     ) -> np.ndarray:
         """
@@ -38,6 +39,7 @@ class SeedingUnitationConstraint(SeedingMethod):
             n_vars: Number of variables
             pop_size: Population size
             cardinality: Vector with the cardinality of all variables (should be 2 for binary)
+            rng: Random number generator (None = create new generator)
             **params: Additional parameters
                 num_ones (int): Number of ones in each binary solution (must be in [1, n_vars-1])
 
@@ -47,6 +49,9 @@ class SeedingUnitationConstraint(SeedingMethod):
         Raises:
             ValueError: If num_ones is not provided or is out of valid range
         """
+        if rng is None:
+            rng = np.random.default_rng()
+
         if 'num_ones' not in params:
             raise ValueError("num_ones parameter is required for SeedingUnitationConstraint")
 
@@ -64,7 +69,7 @@ class SeedingUnitationConstraint(SeedingMethod):
         # For each individual, randomly place num_ones ones
         for i in range(pop_size):
             # Generate random permutation of variable indices
-            perm = np.random.permutation(n_vars)
+            perm = rng.permutation(n_vars)
             # Set the first num_ones positions to 1
             new_pop[i, perm[:num_ones]] = 1
 

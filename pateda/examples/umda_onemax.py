@@ -50,6 +50,7 @@ def run_umda_onemax():
         fitness_func=onemax,
         cardinality=cardinality,
         components=components,
+        random_seed=42,
     )
 
     # Run optimization

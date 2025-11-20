@@ -106,6 +106,7 @@ def run_moa_deceptive3():
         fitness_func=deceptive3,
         cardinality=np.full(n_vars, 2),  # Binary variables
         components=components,
+        random_seed=42,
     )
 
     print("Running MOA...")
@@ -180,6 +181,7 @@ def run_moa_deceptive3_comparison():
             fitness_func=deceptive3,
             cardinality=np.full(n_vars, 2),
             components=components,
+        random_seed=42,
         )
 
         stats, _ = eda.run(verbose=False)

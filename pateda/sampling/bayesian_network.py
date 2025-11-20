@@ -69,6 +69,7 @@ class SampleBayesianNetwork(SamplingMethod):
         cardinality: np.ndarray,
         aux_pop: Optional[np.ndarray] = None,
         aux_fitness: Optional[np.ndarray] = None,
+        rng: Optional[np.random.Generator] = None,
         **params: Any,
     ) -> np.ndarray:
         """
@@ -80,12 +81,16 @@ class SampleBayesianNetwork(SamplingMethod):
             cardinality: Variable cardinalities
             aux_pop: Auxiliary population (not used)
             aux_fitness: Auxiliary fitness (not used)
+            rng: Random number generator (optional)
             **params: Additional parameters
                      - n_samples: Override instance n_samples
 
         Returns:
             Sampled population (n_samples, n_vars)
         """
+        if rng is None:
+            rng = np.random.default_rng()
+
         if not isinstance(model, BayesianNetworkModel):
             raise TypeError(f"Expected BayesianNetworkModel, got {type(model)}")
 
@@ -111,7 +116,7 @@ class SampleBayesianNetwork(SamplingMethod):
                 # No parents: sample from marginal distribution
                 # cpd is 1D array of probabilities
                 for i in range(n_samples):
-                    new_pop[i, var] = np.random.choice(k, p=cpd)
+                    new_pop[i, var] = rng.choice(k, p=cpd)
 
             else:
                 # Has parents: sample from conditional distribution
@@ -127,6 +132,6 @@ class SampleBayesianNetwork(SamplingMethod):
 
                     # Sample from P(var | parent_config)
                     probs = cpd[config, :]
-                    new_pop[i, var] = np.random.choice(k, p=probs)
+                    new_pop[i, var] = rng.choice(k, p=probs)
 
         return new_pop

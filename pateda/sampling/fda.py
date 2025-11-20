@@ -130,6 +130,7 @@ class SampleFDA(SamplingMethod):
         cardinality: np.ndarray,
         aux_pop: Optional[np.ndarray] = None,
         aux_fitness: Optional[np.ndarray] = None,
+        rng: Optional[np.random.Generator] = None,
         **params: Any,
     ) -> np.ndarray:
         """
@@ -141,12 +142,16 @@ class SampleFDA(SamplingMethod):
             cardinality: Variable cardinalities
             aux_pop: Auxiliary population (not used for basic FDA sampling)
             aux_fitness: Auxiliary fitness (not used)
+            rng: Random number generator (optional)
             **params: Additional parameters
                      - n_samples: Override instance n_samples
 
         Returns:
             Sampled population (n_samples, n_vars)
         """
+        if rng is None:
+            rng = np.random.default_rng()
+
         if not isinstance(model, FactorizedModel):
             raise TypeError(f"Expected FactorizedModel, got {type(model)}")
 
@@ -184,7 +189,7 @@ class SampleFDA(SamplingMethod):
             if n_overlap == 0:
                 # Root node: sample directly from marginal distribution
                 cum_probs = np.cumsum(table)
-                indices = stochastic_universal_sampling(n_samples, cum_probs)
+                indices = stochastic_universal_sampling(n_samples, cum_probs, rng)
 
                 # Convert indices to variable values
                 for j in range(n_samples):
@@ -222,7 +227,7 @@ class SampleFDA(SamplingMethod):
                         cond_probs = cond_probs / np.sum(cond_probs)
 
                         cum_probs = np.cumsum(cond_probs)
-                        indices = stochastic_universal_sampling(n_matching, cum_probs)
+                        indices = stochastic_universal_sampling(n_matching, cum_probs, rng)
 
                         # Assign values
                         for j, ind_idx in enumerate(which_indices):

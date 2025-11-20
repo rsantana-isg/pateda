@@ -152,6 +152,7 @@ class TournamentSelection(SelectionMethod):
         population: np.ndarray,
         fitness: np.ndarray,
         n_select: Optional[int] = None,
+        rng: Optional[np.random.Generator] = None,
         **params: Any,
     ) -> Tuple[np.ndarray, np.ndarray]:
         """
@@ -162,6 +163,7 @@ class TournamentSelection(SelectionMethod):
             fitness: Fitness values (pop_size,) or (pop_size, n_objectives)
                     For multi-objective, uses mean fitness across objectives
             n_select: Number to select (overrides instance n_select)
+            rng: Random number generator (None = create default generator)
             **params: Additional parameters
                      - tournament_size: Override instance tournament_size
                      - ratio: Override instance ratio
@@ -170,6 +172,9 @@ class TournamentSelection(SelectionMethod):
         Returns:
             Tuple of (selected_population, selected_fitness)
         """
+        if rng is None:
+            rng = np.random.default_rng()
+
         pop_size = population.shape[0]
 
         # Determine number to select
@@ -200,7 +205,7 @@ class TournamentSelection(SelectionMethod):
             # With replacement: can select same individual multiple times
             for _ in range(n_select):
                 # Randomly select tournament participants
-                tournament_indices = np.random.choice(
+                tournament_indices = rng.choice(
                     pop_size, size=tournament_size, replace=False
                 )
 
@@ -217,7 +222,7 @@ class TournamentSelection(SelectionMethod):
                     # Not enough individuals left for full tournament
                     tournament_indices = list(available)
                 else:
-                    tournament_indices = np.random.choice(
+                    tournament_indices = rng.choice(
                         list(available), size=tournament_size, replace=False
                     )
 

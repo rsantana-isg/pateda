@@ -59,6 +59,7 @@ def run_eda_variant(learning_method, method_name):
         fitness_func=fitness_func,
         cardinality=cardinality,
         components=components,
+        random_seed=42,
     )
 
     print(f"\n{'=' * 60}")

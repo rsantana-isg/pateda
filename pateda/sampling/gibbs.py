@@ -82,6 +82,7 @@ class SampleGibbs(SamplingMethod):
         cardinality: np.ndarray,
         aux_pop: Optional[np.ndarray] = None,
         aux_fitness: Optional[np.ndarray] = None,
+        rng: Optional[np.random.Generator] = None,
         **params: Any,
     ) -> np.ndarray:
         """
@@ -93,11 +94,15 @@ class SampleGibbs(SamplingMethod):
             cardinality: Variable cardinalities
             aux_pop: Auxiliary population for initialization (optional)
             aux_fitness: Auxiliary fitness (not used)
+            rng: Random number generator (optional)
             **params: Additional parameters (n_samples override)
 
         Returns:
             Sampled population (n_samples, n_vars)
         """
+        if rng is None:
+            rng = np.random.default_rng()
+
         if not isinstance(model, MarkovNetworkModel):
             raise TypeError(
                 f"SampleGibbs requires MarkovNetworkModel, got {type(model)}"
@@ -113,7 +118,7 @@ class SampleGibbs(SamplingMethod):
             n_iters = self.n_iterations
 
         # Initialize population
-        new_pop = self._initialize_population(n_samples, n_vars, cardinality, aux_pop)
+        new_pop = self._initialize_population(n_samples, n_vars, cardinality, aux_pop, rng)
 
         # Extract model structure and tables
         cliques = model.structure
@@ -130,6 +135,7 @@ class SampleGibbs(SamplingMethod):
                 tables,
                 cardinality,
                 metadata,
+                rng,
             )
 
         return new_pop
@@ -140,6 +146,7 @@ class SampleGibbs(SamplingMethod):
         n_vars: int,
         cardinality: np.ndarray,
         aux_pop: Optional[np.ndarray],
+        rng: np.random.Generator,
     ) -> np.ndarray:
         """Initialize population for Gibbs sampling"""
         if aux_pop is not None and len(aux_pop) >= n_samples:
@@ -149,7 +156,7 @@ class SampleGibbs(SamplingMethod):
             # Random initialization
             new_pop = np.zeros((n_samples, n_vars), dtype=int)
             for var in range(n_vars):
-                new_pop[:, var] = np.random.randint(
+                new_pop[:, var] = rng.integers(
                     0, int(cardinality[var]), size=n_samples
                 )
             return new_pop
@@ -163,6 +170,7 @@ class SampleGibbs(SamplingMethod):
         tables: list,
         cardinality: np.ndarray,
         metadata: dict,
+        rng: np.random.Generator,
     ) -> np.ndarray:
         """
         Perform Gibbs sampling for one individual
@@ -192,7 +200,7 @@ class SampleGibbs(SamplingMethod):
         for iter_idx in range(total_iters):
             # Determine variable order
             if self.random_order:
-                var_order = np.random.permutation(n_vars)
+                var_order = rng.permutation(n_vars)
             else:
                 var_order = np.arange(n_vars)
 
@@ -201,12 +209,12 @@ class SampleGibbs(SamplingMethod):
                 if is_moa:
                     # MOA: variable corresponds directly to clique index
                     config[var] = self._sample_moa_variable(
-                        var, config, cliques[var], tables[var], cardinality
+                        var, config, cliques[var], tables[var], cardinality, rng
                     )
                 else:
                     # General Markov network: find cliques containing this variable
                     config[var] = self._sample_variable_general(
-                        var, config, cliques, tables, cardinality
+                        var, config, cliques, tables, cardinality, rng
                     )
 
         return config
@@ -218,6 +226,7 @@ class SampleGibbs(SamplingMethod):
         clique: np.ndarray,
         table: np.ndarray,
         cardinality: np.ndarray,
+        rng: np.random.Generator,
     ) -> int:
         """
         Sample one variable in MOA model
@@ -263,7 +272,7 @@ class SampleGibbs(SamplingMethod):
             probs = probs_temp / np.sum(probs_temp)
 
         # Sample value
-        value = np.random.choice(var_card, p=probs)
+        value = rng.choice(var_card, p=probs)
 
         return value
 
@@ -274,6 +283,7 @@ class SampleGibbs(SamplingMethod):
         cliques: np.ndarray,
         tables: list,
         cardinality: np.ndarray,
+        rng: np.random.Generator,
     ) -> int:
         """
         Sample one variable in general Markov network
@@ -293,7 +303,7 @@ class SampleGibbs(SamplingMethod):
 
         if len(var_cliques) == 0:
             # Shouldn't happen, but fall back to uniform
-            return np.random.randint(0, var_card)
+            return rng.integers(0, var_card)
 
         # Use first clique containing this variable
         # (For better accuracy, should combine information from all cliques)
@@ -330,9 +340,9 @@ class SampleGibbs(SamplingMethod):
                 probs_temp = np.exp(log_probs_temp)
                 probs = probs_temp / np.sum(probs_temp)
 
-            value = np.random.choice(var_card, p=probs)
+            value = rng.choice(var_card, p=probs)
             return value
         else:
             # Var is not the target of this clique - use uniform for now
             # (Better approach: derive conditional from joint)
-            return np.random.randint(0, var_card)
+            return rng.integers(0, var_card)

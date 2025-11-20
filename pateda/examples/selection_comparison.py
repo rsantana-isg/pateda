@@ -53,6 +53,7 @@ def run_with_selection(selection_method, selection_name):
         fitness_func=onemax,
         cardinality=cardinality,
         components=components,
+        random_seed=42,
     )
 
     # Run optimization

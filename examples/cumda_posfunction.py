@@ -150,6 +150,7 @@ def run_cumda_posfunction(
         fitness_func=fitness_func,
         cardinality=cardinality,
         components=components,
+        random_seed=42,
     )
 
     # Run optimization

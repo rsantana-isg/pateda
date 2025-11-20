@@ -62,6 +62,7 @@ class SampleCUMDA(SamplingMethod):
         cardinality: np.ndarray,
         aux_pop: Optional[np.ndarray] = None,
         aux_fitness: Optional[np.ndarray] = None,
+        rng: Optional[np.random.Generator] = None,
         **params: Any,
     ) -> np.ndarray:
         """
@@ -73,6 +74,7 @@ class SampleCUMDA(SamplingMethod):
             cardinality: Variable cardinalities (should be all 2)
             aux_pop: Auxiliary population (not used)
             aux_fitness: Auxiliary fitness (not used)
+            rng: Random number generator (optional)
             **params: Additional parameters
                      - n_samples: Override instance n_samples
                      - n_ones: Override instance n_ones
@@ -84,6 +86,9 @@ class SampleCUMDA(SamplingMethod):
             TypeError: If model is not a FactorizedModel
             ValueError: If cardinalities are not binary or n_ones is invalid
         """
+        if rng is None:
+            rng = np.random.default_rng()
+
         if not isinstance(model, FactorizedModel):
             raise TypeError(f"Expected FactorizedModel, got {type(model)}")
 
@@ -123,7 +128,7 @@ class SampleCUMDA(SamplingMethod):
         for i in range(n_samples):
             # Use Stochastic Universal Sampling to select n_ones variables
             # SUS returns indices of selected variables
-            selected_indices = stochastic_universal_sampling(n_ones, cum_probs)
+            selected_indices = stochastic_universal_sampling(n_ones, cum_probs, rng)
 
             # Set selected variables to 1
             new_pop[i, selected_indices] = 1
@@ -165,6 +170,7 @@ class SampleCUMDARange(SamplingMethod):
         cardinality: np.ndarray,
         aux_pop: Optional[np.ndarray] = None,
         aux_fitness: Optional[np.ndarray] = None,
+        rng: Optional[np.random.Generator] = None,
         **params: Any,
     ) -> np.ndarray:
         """
@@ -176,6 +182,7 @@ class SampleCUMDARange(SamplingMethod):
             cardinality: Variable cardinalities (should be all 2)
             aux_pop: Auxiliary population (not used)
             aux_fitness: Auxiliary fitness (not used)
+            rng: Random number generator (optional)
             **params: Additional parameters
                      - n_samples: Override instance n_samples
                      - min_ones: Override instance min_ones
@@ -188,6 +195,9 @@ class SampleCUMDARange(SamplingMethod):
             TypeError: If model is not a FactorizedModel
             ValueError: If parameters are invalid
         """
+        if rng is None:
+            rng = np.random.default_rng()
+
         if not isinstance(model, FactorizedModel):
             raise TypeError(f"Expected FactorizedModel, got {type(model)}")
 
@@ -228,11 +238,11 @@ class SampleCUMDARange(SamplingMethod):
         # Sample each individual
         for i in range(n_samples):
             # Randomly choose number of ones within range
-            n_ones_this = np.random.randint(min_ones, max_ones + 1)
+            n_ones_this = rng.integers(min_ones, max_ones + 1)
 
             # Use SUS to select variables
             if n_ones_this > 0:
-                selected_indices = stochastic_universal_sampling(n_ones_this, cum_probs)
+                selected_indices = stochastic_universal_sampling(n_ones_this, cum_probs, rng)
                 new_pop[i, selected_indices] = 1
 
         return new_pop

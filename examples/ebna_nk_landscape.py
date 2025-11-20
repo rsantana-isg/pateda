@@ -133,6 +133,7 @@ def run_ebna_nk_landscape(n_vars=50, k=4, seed=42):
         fitness_func=nk.evaluate,
         cardinality=np.full(n_vars, 2),
         components=components,
+        random_seed=42,
     )
 
     print("Running EBNA on NK Landscape...")
@@ -203,6 +204,7 @@ def run_ebna_varying_k():
                 fitness_func=nk.evaluate,
                 cardinality=np.full(n_vars, 2),
                 components=components,
+                random_seed=42,
             )
 
             stats, _ = eda.run(verbose=False)
@@ -280,6 +282,7 @@ def run_comparison_ebna_vs_umda():
                 fitness_func=nk.evaluate,
                 cardinality=np.full(n_vars, 2),
                 components=components,
+                random_seed=42,
             )
 
             stats, _ = eda.run(verbose=False)

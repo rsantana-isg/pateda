@@ -190,6 +190,7 @@ def run_cfda_onemaxblock(
         fitness_func=fitness_func,
         cardinality=cardinality,
         components=components,
+        random_seed=42,
     )
 
     # Run optimization

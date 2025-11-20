@@ -55,6 +55,7 @@ def mixture_trees_onemax():
         cardinality=cardinality,
         fitness_func=onemax,
         components=components,
+        random_seed=42,
     )
 
     # Run EDA
@@ -104,6 +105,7 @@ def mixture_trees_deceptive():
         cardinality=cardinality,
         fitness_func=deceptive3,
         components=components,
+        random_seed=42,
     )
 
     # Run EDA
@@ -157,6 +159,7 @@ def compare_mixture_sizes():
             cardinality=cardinality,
             fitness_func=onemax,
             components=components,
+            random_seed=42,
         )
 
         stats, cache = eda.run(verbose=False)
@@ -201,6 +204,7 @@ def mixture_trees_with_em_weights():
         cardinality=cardinality,
         fitness_func=onemax,
         components=components,
+        random_seed=42,
     )
 
     stats, cache = eda.run(verbose=True)

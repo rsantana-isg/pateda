@@ -42,6 +42,7 @@ class SampleMixtureTrees(SamplingMethod):
         cardinality: np.ndarray,
         aux_pop: Optional[np.ndarray] = None,
         aux_fitness: Optional[np.ndarray] = None,
+        rng: Optional[np.random.Generator] = None,
         **params: Any,
     ) -> np.ndarray:
         """
@@ -53,6 +54,7 @@ class SampleMixtureTrees(SamplingMethod):
             cardinality: Variable cardinalities
             aux_pop: Auxiliary population (not used)
             aux_fitness: Auxiliary fitness (not used)
+            rng: Random number generator (optional)
             **params: Additional parameters
                      - n_samples: Override instance n_samples
 
@@ -64,6 +66,9 @@ class SampleMixtureTrees(SamplingMethod):
             1. Selecting a component j with probability λ_j (mixture weight)
             2. Sampling from tree component f_j(x)
         """
+        if rng is None:
+            rng = np.random.default_rng()
+
         if not isinstance(model, MixtureModel):
             raise TypeError(f"Expected MixtureModel, got {type(model)}")
 
@@ -86,7 +91,7 @@ class SampleMixtureTrees(SamplingMethod):
         # Sample each individual
         for i in range(n_samples):
             # Select component according to mixture weights
-            component_idx = np.random.choice(n_components, p=weights)
+            component_idx = rng.choice(n_components, p=weights)
 
             # Create temporary FactorizedModel for this component
             from pateda.core.models import FactorizedModel
@@ -112,7 +117,7 @@ class SampleMixtureTrees(SamplingMethod):
 
             # Sample one individual from this component
             individual = self._fda_sampler.sample(
-                n_vars, component_model, cardinality, n_samples=1
+                n_vars, component_model, cardinality, rng, n_samples=1
             )
 
             new_pop[i, :] = individual[0, :]
@@ -230,6 +235,7 @@ class SampleMixtureTreesDirect(SamplingMethod):
         cardinality: np.ndarray,
         aux_pop: Optional[np.ndarray] = None,
         aux_fitness: Optional[np.ndarray] = None,
+        rng: Optional[np.random.Generator] = None,
         **params: Any,
     ) -> np.ndarray:
         """
@@ -241,11 +247,15 @@ class SampleMixtureTreesDirect(SamplingMethod):
             cardinality: Variable cardinalities
             aux_pop: Auxiliary population (not used)
             aux_fitness: Auxiliary fitness (not used)
+            rng: Random number generator (optional)
             **params: Additional parameters
 
         Returns:
             Sampled population (n_samples, n_vars)
         """
+        if rng is None:
+            rng = np.random.default_rng()
+
         if not isinstance(model, MixtureModel):
             raise TypeError(f"Expected MixtureModel, got {type(model)}")
 
@@ -263,11 +273,11 @@ class SampleMixtureTreesDirect(SamplingMethod):
         # Sample each individual
         for i in range(n_samples):
             # Select component
-            component_idx = np.random.choice(n_components, p=weights)
+            component_idx = rng.choice(n_components, p=weights)
 
             # Sample from tree (would require implementing tree sampling)
             # For now, use random sampling as placeholder
             # TODO: Implement proper tree sampling
-            new_pop[i, :] = np.random.randint(0, cardinality, size=n_vars)
+            new_pop[i, :] = rng.integers(0, cardinality, size=n_vars)
 
         return new_pop

@@ -340,6 +340,7 @@ class TestCUMDAIntegration:
             fitness_func=fitness_func,
             cardinality=cardinality,
             components=components,
+            random_seed=42,
         )
 
         statistics, cache = eda.run(verbose=False)
@@ -403,6 +404,7 @@ class TestCFDAIntegration:
             fitness_func=fitness_func,
             cardinality=cardinality,
             components=components,
+            random_seed=42,
         )
 
         statistics, cache = eda.run(verbose=False)

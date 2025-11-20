@@ -49,6 +49,7 @@ def markov_eda_onemax():
         cardinality=cardinality,
         fitness_func=onemax,
         components=components,
+        random_seed=42,
     )
 
     # Run EDA
@@ -92,6 +93,7 @@ def markov_eda_deceptive():
         cardinality=cardinality,
         fitness_func=deceptive3,
         components=components,
+        random_seed=42,
     )
 
     # Run EDA
@@ -139,6 +141,7 @@ def compare_markov_orders():
             cardinality=cardinality,
             fitness_func=onemax,
             components=components,
+            random_seed=42,
         )
 
         stats, cache = eda.run(verbose=False)

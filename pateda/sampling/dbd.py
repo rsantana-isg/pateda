@@ -69,7 +69,8 @@ def sample_dbd(
     p0: np.ndarray,
     n_samples: int,
     bounds: Optional[np.ndarray] = None,
-    params: Optional[Dict[str, Any]] = None
+    params: Optional[Dict[str, Any]] = None,
+    rng: Optional[np.random.Generator] = None,
 ) -> np.ndarray:
     """
     Sample from a trained alpha-deblending diffusion model.
@@ -95,12 +96,17 @@ def sample_dbd(
     params : dict, optional
         Additional parameters:
         - 'num_iterations': number of deblending iterations (default: 10)
+    rng : np.random.Generator, optional
+        Random number generator
 
     Returns
     -------
     population : np.ndarray
         Sampled population of shape (n_samples, n_vars)
     """
+    if rng is None:
+        rng = np.random.default_rng()
+
     if params is None:
         params = {}
 
@@ -112,9 +118,9 @@ def sample_dbd(
 
     # Sample from p0
     if len(p0) >= n_samples:
-        indices = np.random.choice(len(p0), n_samples, replace=False)
+        indices = rng.choice(len(p0), n_samples, replace=False)
     else:
-        indices = np.random.choice(len(p0), n_samples, replace=True)
+        indices = rng.choice(len(p0), n_samples, replace=True)
 
     p0_samples = p0[indices]
 
@@ -159,7 +165,8 @@ def sample_dbd_from_univariate(
     population: np.ndarray,
     n_samples: int,
     bounds: Optional[np.ndarray] = None,
-    params: Optional[Dict[str, Any]] = None
+    params: Optional[Dict[str, Any]] = None,
+    rng: Optional[np.random.Generator] = None,
 ) -> np.ndarray:
     """
     Sample from DbD model starting from univariate Gaussian approximation.
@@ -179,23 +186,28 @@ def sample_dbd_from_univariate(
         Bounds for each variable
     params : dict, optional
         Additional parameters including 'num_iterations'
+    rng : np.random.Generator, optional
+        Random number generator
 
     Returns
     -------
     samples : np.ndarray
         Generated samples
     """
+    if rng is None:
+        rng = np.random.default_rng()
+
     # Compute univariate Gaussian parameters
     mean = np.mean(population, axis=0)
     std = np.std(population, axis=0)
     std = np.maximum(std, 1e-8)  # Avoid zero std
 
     # Sample from univariate Gaussian
-    p0_samples = np.random.normal(
+    p0_samples = rng.normal(
         loc=mean[np.newaxis, :],
         scale=std[np.newaxis, :],
         size=(n_samples, len(mean))
     )
 
     # Use standard sampling with these p0 samples
-    return sample_dbd(model, p0_samples, n_samples, bounds, params)
+    return sample_dbd(model, p0_samples, n_samples, bounds, params, rng)

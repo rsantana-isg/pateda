@@ -30,7 +30,8 @@ def sample_vine_copula(
     model: Dict[str, Any],
     n_samples: int,
     bounds: Optional[np.ndarray] = None,
-    params: Optional[Dict[str, Any]] = None
+    params: Optional[Dict[str, Any]] = None,
+    rng: Optional[np.random.Generator] = None,
 ) -> np.ndarray:
     """
     Sample from a vine copula model.
@@ -74,6 +75,9 @@ def sample_vine_copula(
     >>> print(new_pop.shape)
     (50, 2)
     """
+    if rng is None:
+        rng = np.random.default_rng()
+
     if not PYVINECOPULIB_AVAILABLE:
         raise RuntimeError("pyvinecopulib is required. Install with: pip install pyvinecopulib")
 
@@ -99,7 +103,7 @@ def sample_vine_copula(
     # Sample from vine copula in uniform [0,1] space
     if use_inverse_rosenblatt:
         # Use inverse Rosenblatt transform with user-provided uniform samples
-        u = np.random.random((n_samples, n_vars))
+        u = rng.random((n_samples, n_vars))
         u_sim = vine_model.inverse_rosenblatt(u)
     else:
         # Direct simulation from vine copula
@@ -124,7 +128,8 @@ def sample_vine_copula_biased(
     model: Dict[str, Any],
     n_samples: int,
     bounds: Optional[np.ndarray] = None,
-    params: Optional[Dict[str, Any]] = None
+    params: Optional[Dict[str, Any]] = None,
+    rng: Optional[np.random.Generator] = None,
 ) -> np.ndarray:
     """
     Sample from a vine copula model with bias towards better solutions.
@@ -172,6 +177,9 @@ def sample_vine_copula_biased(
     >>> print(new_pop.shape)
     (50, 2)
     """
+    if rng is None:
+        rng = np.random.default_rng()
+
     if not PYVINECOPULIB_AVAILABLE:
         raise RuntimeError("pyvinecopulib is required. Install with: pip install pyvinecopulib")
 
@@ -194,7 +202,7 @@ def sample_vine_copula_biased(
     clip_bounds_flag = params.get('clip_bounds', True)
 
     # Create biased uniform samples
-    u = np.random.random((n_samples, n_vars))
+    u = rng.random((n_samples, n_vars))
     # Bias the first variable towards lower values for exploitation
     u[:, 0] = u[:, 0] * exploit_factor
 
@@ -218,7 +226,8 @@ def sample_vine_copula_conditional(
     n_samples: int,
     fixed_vars: Dict[int, float],
     bounds: Optional[np.ndarray] = None,
-    params: Optional[Dict[str, Any]] = None
+    params: Optional[Dict[str, Any]] = None,
+    rng: Optional[np.random.Generator] = None,
 ) -> np.ndarray:
     """
     Sample from a vine copula model with some variables fixed.
@@ -267,6 +276,9 @@ def sample_vine_copula_conditional(
     >>> print(np.all(new_pop[:, 0] == 0.5))
     True
     """
+    if rng is None:
+        rng = np.random.default_rng()
+
     if not PYVINECOPULIB_AVAILABLE:
         raise RuntimeError("pyvinecopulib is required. Install with: pip install pyvinecopulib")
 
@@ -288,7 +300,7 @@ def sample_vine_copula_conditional(
     clip_bounds_flag = params.get('clip_bounds', True)
 
     # Sample normally first
-    population = sample_vine_copula(model, n_samples, bounds, params)
+    population = sample_vine_copula(model, n_samples, bounds, params, rng)
 
     # Fix specified variables
     for var_idx, var_value in fixed_vars.items():

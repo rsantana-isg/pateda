@@ -131,6 +131,7 @@ class EDA:
         fitness_func: Union[Callable, str],
         cardinality: Union[np.ndarray, List],
         components: EDAComponents,
+        random_seed: Optional[int] = None,
     ):
         """
         Initialize EDA
@@ -143,6 +144,7 @@ class EDA:
                         For discrete: 1D array of cardinalities
                         For continuous: 2D array [min_values, max_values]
             components: EDA components configuration
+            random_seed: Random seed for reproducibility (None = use system entropy)
 
         Raises:
             ValueError: If components are invalid or incompatible
@@ -151,6 +153,9 @@ class EDA:
         self.n_vars = n_vars
         self.cardinality = np.array(cardinality)
         self.components = components
+
+        # Initialize random number generator
+        self.rng = np.random.default_rng(random_seed)
 
         # Validate components
         self.components.validate()
@@ -256,6 +261,7 @@ class EDA:
                     self.n_vars,
                     self.pop_size,
                     self.cardinality,
+                    rng=self.rng,
                     **self.components.seeding_params,
                 )
 
@@ -291,6 +297,7 @@ class EDA:
                     self.cardinality,
                     self.population,
                     self.fitness,
+                    rng=self.rng,
                     **self.components.sampling_params,
                 )
 
@@ -320,6 +327,7 @@ class EDA:
                         self.fitness,
                         new_pop,
                         new_fitness,
+                        rng=self.rng,
                         **self.components.replacement_params,
                     )
                 else:
@@ -362,6 +370,7 @@ class EDA:
             selected_pop, selected_fitness = self.components.selection.select(
                 self.population,
                 self.fitness,
+                rng=self.rng,
                 **self.components.selection_params,
             )
 

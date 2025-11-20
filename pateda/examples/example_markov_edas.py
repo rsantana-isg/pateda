@@ -93,6 +93,7 @@ def run_mnfda_example():
         fitness_func=onemax,
         cardinality=np.full(n_vars, 2),
         components=components,
+        random_seed=42,
     )
 
     # Run
@@ -138,6 +139,7 @@ def run_mnfdag_example():
         fitness_func=trap5,
         cardinality=np.full(n_vars, 2),
         components=components,
+        random_seed=42,
     )
 
     stats, cache = eda.run(verbose=True)
@@ -186,6 +188,7 @@ def run_moa_example():
         fitness_func=onemax,
         cardinality=np.full(n_vars, 2),
         components=components,
+        random_seed=42,
     )
 
     stats, cache = eda.run(verbose=True)
@@ -235,6 +238,7 @@ def run_moa_trap5_example():
         fitness_func=trap5,
         cardinality=np.full(n_vars, 2),
         components=components,
+        random_seed=42,
     )
 
     stats, cache = eda.run(verbose=True)
@@ -289,6 +293,7 @@ def comparison_example():
                 fitness_func=onemax,
                 cardinality=np.full(n_vars, 2),
                 components=components,
+                random_seed=42,
             )
 
             stats, _ = eda.run(verbose=False)

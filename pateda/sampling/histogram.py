@@ -7,7 +7,7 @@ This module implements sampling methods for histogram-based models:
 """
 
 import numpy as np
-from typing import Dict, Any
+from typing import Dict, Any, Optional
 
 
 class SampleEHM:
@@ -21,6 +21,7 @@ class SampleEHM:
         population: np.ndarray,
         fitness: np.ndarray,
         sample_size: int,
+        rng: Optional[np.random.Generator] = None,
     ) -> np.ndarray:
         """
         Sample permutations from Edge Histogram Model.
@@ -36,10 +37,14 @@ class SampleEHM:
             population: Current population (not used)
             fitness: Fitness values (not used)
             sample_size: Number of permutations to sample
+            rng: Random number generator (optional)
 
         Returns:
             Array of sampled permutations, shape (sample_size, n_vars)
         """
+        if rng is None:
+            rng = np.random.default_rng()
+
         ehm_matrix = model["ehm_matrix"]
 
         # Determine if 0-indexed or 1-indexed
@@ -49,7 +54,7 @@ class SampleEHM:
 
         for i in range(sample_size):
             # Start with a random city/item
-            current_perm = [np.random.randint(0, n_vars)]
+            current_perm = [rng.integers(0, n_vars)]
 
             for j in range(1, n_vars - 1):
                 # Get remaining items
@@ -63,7 +68,7 @@ class SampleEHM:
                 probs = probs / np.sum(probs)
 
                 # Sample next item using stochastic universal sampling
-                next_item_idx = self._sample_categorical(probs)
+                next_item_idx = self._sample_categorical(probs, rng)
                 next_item = remaining[next_item_idx]
 
                 current_perm.append(next_item)
@@ -77,10 +82,10 @@ class SampleEHM:
 
         return new_pop
 
-    def _sample_categorical(self, probs: np.ndarray) -> int:
+    def _sample_categorical(self, probs: np.ndarray, rng: np.random.Generator) -> int:
         """Sample from categorical distribution."""
         cumsum = np.cumsum(probs)
-        rand_val = np.random.rand()
+        rand_val = rng.random()
         return int(np.searchsorted(cumsum, rand_val))
 
 
@@ -95,6 +100,7 @@ class SampleNHM:
         population: np.ndarray,
         fitness: np.ndarray,
         sample_size: int,
+        rng: Optional[np.random.Generator] = None,
     ) -> np.ndarray:
         """
         Sample permutations from Node Histogram Model.
@@ -110,10 +116,14 @@ class SampleNHM:
             population: Current population (not used)
             fitness: Fitness values (not used)
             sample_size: Number of permutations to sample
+            rng: Random number generator (optional)
 
         Returns:
             Array of sampled permutations, shape (sample_size, n_vars)
         """
+        if rng is None:
+            rng = np.random.default_rng()
+
         nhm_matrix = model["nhm_matrix"]
 
         # Determine if 0-indexed or 1-indexed
@@ -144,7 +154,7 @@ class SampleNHM:
                     probs[remaining] = 1.0 / len(remaining)
 
                 # Sample item for this position
-                item = self._sample_categorical(probs)
+                item = self._sample_categorical(probs, rng)
                 perm.append(item)
                 used.add(item)
 
@@ -153,10 +163,10 @@ class SampleNHM:
 
         return new_pop
 
-    def _sample_categorical(self, probs: np.ndarray) -> int:
+    def _sample_categorical(self, probs: np.ndarray, rng: np.random.Generator) -> int:
         """Sample from categorical distribution."""
         cumsum = np.cumsum(probs)
-        rand_val = np.random.rand()
+        rand_val = rng.random()
         return int(np.searchsorted(cumsum, rand_val))
 
 
