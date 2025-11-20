@@ -37,21 +37,33 @@ from pateda.sampling.vine_copula import (
     sample_vine_copula_conditional,
 )
 
-# VAE sampling functions for continuous optimization
-from pateda.sampling.vae import (
-    sample_vae,
-    sample_extended_vae,
-    sample_conditional_extended_vae,
-)
+# VAE sampling functions for continuous optimization (requires PyTorch)
+try:
+    from pateda.sampling.vae import (
+        sample_vae,
+        sample_extended_vae,
+        sample_conditional_extended_vae,
+    )
+except ImportError:
+    sample_vae = None
+    sample_extended_vae = None
+    sample_conditional_extended_vae = None
 
-# Backdrive sampling functions for continuous optimization
-from pateda.sampling.backdrive import (
-    sample_backdrive,
-    sample_backdrive_adaptive,
-)
+# Backdrive sampling functions for continuous optimization (requires PyTorch)
+try:
+    from pateda.sampling.backdrive import (
+        sample_backdrive,
+        sample_backdrive_adaptive,
+    )
+except ImportError:
+    sample_backdrive = None
+    sample_backdrive_adaptive = None
 
-# GAN sampling functions for continuous optimization
-from pateda.sampling.gan import sample_gan
+# GAN sampling functions for continuous optimization (requires PyTorch)
+try:
+    from pateda.sampling.gan import sample_gan
+except ImportError:
+    sample_gan = None
 
 __all__ = [
     "SampleFDA",
