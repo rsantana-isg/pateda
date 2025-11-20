@@ -559,22 +559,27 @@ class LearnAffinityFactorizationElim(LearningMethod):
         cliques.extend(small_clusters)
 
         # Recursively process large clusters together
-        if len(large_cluster_vars) > 0 and depth < self.max_recursion_depth:
-            large_vars = np.array(large_cluster_vars)
+        if len(large_cluster_vars) > 0:
+            if depth < self.max_recursion_depth:
+                large_vars = np.array(large_cluster_vars)
 
-            # Create sub-matrix for large cluster variables
-            var_to_idx = {v: i for i, v in enumerate(var_indices)}
-            large_indices = np.array([var_to_idx[v] for v in large_vars])
-            sub_mi = mi_matrix[np.ix_(large_indices, large_indices)]
+                # Create sub-matrix for large cluster variables
+                var_to_idx = {v: i for i, v in enumerate(var_indices)}
+                large_indices = np.array([var_to_idx[v] for v in large_vars])
+                sub_mi = mi_matrix[np.ix_(large_indices, large_indices)]
 
-            # Use median as preference for recursion
-            sub_pref = np.median(sub_mi)
+                # Use median as preference for recursion
+                sub_pref = np.median(sub_mi)
 
-            # Recursive call
-            sub_cliques = self._elimination_factorization(
-                sub_mi, large_vars, sub_pref, depth + 1
-            )
-            cliques.extend(sub_cliques)
+                # Recursive call
+                sub_cliques = self._elimination_factorization(
+                    sub_mi, large_vars, sub_pref, depth + 1
+                )
+                cliques.extend(sub_cliques)
+            else:
+                # Reached max recursion depth, add all remaining large vars as single clique
+                # to ensure all variables are covered
+                cliques.append(np.array(large_cluster_vars))
 
         return cliques
 

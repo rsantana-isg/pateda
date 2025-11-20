@@ -37,7 +37,7 @@ from pateda.selection import TruncationSelection
 from pateda.replacement import ElitistReplacement, GenerationalReplacement
 
 # Import learning methods
-from pateda.learning.histogram import LearnHistogram
+from pateda.learning.umda import LearnUMDA
 from pateda.learning.bayesian_network import LearnBayesianNetwork
 from pateda.learning.tree import LearnTreeModel
 from pateda.learning.affinity import LearnAffinityModel
@@ -101,7 +101,7 @@ def get_algorithms(pop_size: int) -> List[AlgorithmConfig]:
     return [
         AlgorithmConfig(
             name="UMDA",
-            learning=LearnHistogram(),
+            learning=LearnUMDA(alpha=1.0),
             sampling=SampleHistogram(pop_size),
             replacement=GenerationalReplacement(),
         ),
