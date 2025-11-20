@@ -177,7 +177,7 @@ def run_single_experiment(
     for run in range(n_runs):
         components = EDAComponents(
             seeding=RandomInit(),
-            selection=TruncationSelection(proportion=0.5),
+            selection=TruncationSelection(ratio=0.5),
             learning=algorithm.learning,
             sampling=algorithm.sampling,
             replacement=algorithm.replacement if algorithm.replacement else GenerationalReplacement(),
