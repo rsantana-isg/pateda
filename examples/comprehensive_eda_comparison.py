@@ -75,9 +75,12 @@ class BenchmarkResult:
     mean_generations: float
 
 
-def onemax(x: np.ndarray) -> float:
+def onemax(x: np.ndarray) -> np.ndarray:
     """OneMax function - simple separable problem"""
-    return float(np.sum(x))
+    if x.ndim == 1:
+        return np.array([float(np.sum(x))])
+    else:
+        return np.sum(x, axis=1).astype(float)
 
 
 def create_nk_landscape(n: int, k: int, seed: int):
@@ -85,6 +88,24 @@ def create_nk_landscape(n: int, k: int, seed: int):
     from pateda.functions.discrete.nk_landscape import NKLandscape
     nk = NKLandscape(n, k, random_seed=seed)
     return nk.evaluate
+
+
+def wrap_deceptive3(x: np.ndarray) -> np.ndarray:
+    """Wrapper for deceptive3 function to handle populations correctly"""
+    if x.ndim == 1:
+        return np.array([deceptive3(x)])
+    else:
+        return np.array([deceptive3(ind) for ind in x])
+
+
+def wrap_trap_k(n_trap: int):
+    """Create wrapper for trap_n function to handle populations correctly"""
+    def wrapped_trap(x: np.ndarray) -> np.ndarray:
+        if x.ndim == 1:
+            return np.array([trap_k(x, n_trap=n_trap)])
+        else:
+            return np.array([trap_k(ind, n_trap=n_trap) for ind in x])
+    return wrapped_trap
 
 
 def get_algorithms(pop_size: int) -> List[AlgorithmConfig]:
@@ -237,7 +258,7 @@ def run_comprehensive_comparison():
         },
         {
             'name': 'Deceptive3-30',
-            'func': deceptive3,
+            'func': wrap_deceptive3,
             'n_vars': 30,
             'optimal': 10.0,  # 10 blocks × 1.0
             'pop_size': 300,
@@ -245,7 +266,7 @@ def run_comprehensive_comparison():
         },
         {
             'name': 'Trap5-25',
-            'func': lambda x: trap_k(x, k=5),
+            'func': wrap_trap_k(5),
             'n_vars': 25,
             'optimal': 30.0,  # 5 blocks × 6.0
             'pop_size': 300,
