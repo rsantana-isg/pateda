@@ -237,19 +237,18 @@ class MAPInference:
             # Find cliques containing this variable
             for clique, table in zip(self.cliques, self.tables):
                 if var in clique:
+                    # Get variable position in clique
+                    var_idx = np.where(clique == var)[0][0]
+
                     # Ensure table has correct shape for the clique
                     expected_shape = tuple(self.cardinalities[v] for v in clique)
                     if table.shape != expected_shape:
                         table = table.reshape(expected_shape)
 
-                    # Get variable position in clique
-                    var_idx = np.where(clique == var)[0][0]
-
                     # Max-marginalize over other variables
                     axes_to_max = [i for i in range(len(clique)) if i != var_idx]
                     if axes_to_max:
-                        # Use tuple of axes to marginalize all at once
-                        # This is more robust than iterating
+                        # Reduce over all axes at once to avoid dimension shifting issues
                         max_vals = np.max(table, axis=tuple(axes_to_max))
                     else:
                         max_vals = table
@@ -440,12 +439,13 @@ class MAPInference:
 
         for clique, table in zip(self.cliques, self.tables):
             # Extract configuration for this clique
-            clique_config = config[clique]
+            clique_int = clique.astype(int) if hasattr(clique, 'astype') else clique
+            clique_config = config[clique_int]
 
             # Get probability from table
             index = self._config_to_index(
                 clique_config,
-                [self.cardinalities[v] for v in clique]
+                [self.cardinalities[v] for v in clique_int]
             )
 
             prob = table.ravel()[index]

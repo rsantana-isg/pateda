@@ -442,6 +442,11 @@ class SampleTemplateMAP(SamplingMethod):
                 # Get conditional probability P(var | other vars in clique)
                 var_idx = np.where(clique == var)[0][0]
 
+                # Ensure table has correct shape for the clique
+                expected_shape = tuple(cardinality[v] for v in clique)
+                if table.shape != expected_shape:
+                    table = table.reshape(expected_shape)
+
                 # Build slice for current configuration
                 slices = [current_config[v] for v in clique]
 
