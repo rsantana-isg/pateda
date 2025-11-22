@@ -20,6 +20,18 @@ Supported EDAs (continuous optimization):
     - conditional_vae: Conditional Extended VAE (fitness-conditioned)
     - gan: Generative Adversarial Network EDA
     - backdrive: Backdrive Network Inversion EDA
+    - backdrive_adaptive: Adaptive Backdrive with multiple fitness targets
+    - dbd_cs: DbD Current-to-Selected (p0=current, p1=selected)
+    - dbd_cd: DbD Current-to-Distance-matched (p0=current, p1=nearest selected)
+    - dbd_uc: DbD Univariate-to-Current (p0=univariate, p1=current)
+    - dbd_us: DbD Univariate-to-Selected (p0=univariate, p1=selected)
+    - dendiff: Denoising Diffusion Probabilistic Model EDA
+    - dendiff_fast: Fast Denoising Diffusion (DDIM-style sampling)
+
+Experimental EDAs (designed for discrete/binary, discretized for continuous):
+    - dae: Denoising Autoencoder EDA (binary-based)
+    - dae_probabilistic: DAE with probabilistic sampling
+    - multilayer_dae: Multi-layer DAE
 
 Output:
     - CSV file with run statistics saved to results/ folder
@@ -46,23 +58,131 @@ sys.path.insert(0, str(PROJECT_ROOT / 'pateda'))
 from GNBG_class import GNBG
 from scipy.io import loadmat
 
+# Neural network utilities for default parameters
+from pateda.learning.nn_utils import (
+    compute_default_hidden_dims, compute_default_batch_size, compute_default_latent_dim
+)
+
 # Neural network learning functions
 from pateda.learning.vae import learn_vae, learn_extended_vae, learn_conditional_extended_vae
 from pateda.learning.gan import learn_gan
 from pateda.learning.backdrive import learn_backdrive
+from pateda.learning.dae import learn_dae, learn_multilayer_dae
+from pateda.learning.dbd import learn_dbd, find_closest_neighbors, sample_univariate_gaussian
+from pateda.learning.dendiff import learn_dendiff
 
 # Neural network sampling functions
 from pateda.sampling.vae import sample_vae, sample_extended_vae, sample_conditional_extended_vae
 from pateda.sampling.gan import sample_gan
-from pateda.sampling.backdrive import sample_backdrive
+from pateda.sampling.backdrive import sample_backdrive, sample_backdrive_adaptive
+from pateda.sampling.dae import sample_dae, sample_dae_probabilistic, sample_multilayer_dae
+from pateda.sampling.dbd import sample_dbd, sample_dbd_from_univariate
+from pateda.sampling.dendiff import sample_dendiff, sample_dendiff_fast
 
 # Default paths
 DEFAULT_INSTANCES_FOLDER = str(PROJECT_ROOT / 'pateda' / 'functions' / 'GNBG_Instances.Python-main')
 DEFAULT_OUTPUT_FOLDER = str(PROJECT_ROOT / 'benchmarks' / 'results')
 
+
+def _discretize_to_binary(population: np.ndarray, bounds: np.ndarray,
+                          n_bits_per_var: int) -> np.ndarray:
+    """
+    Discretize continuous population to binary representation.
+
+    Each continuous variable is encoded using n_bits_per_var bits.
+
+    Parameters
+    ----------
+    population : np.ndarray
+        Continuous population of shape (pop_size, n_vars)
+    bounds : np.ndarray
+        Variable bounds of shape (2, n_vars)
+    n_bits_per_var : int
+        Number of bits per variable
+
+    Returns
+    -------
+    binary_population : np.ndarray
+        Binary population of shape (pop_size, n_vars * n_bits_per_var)
+    """
+    pop_size, n_vars = population.shape
+    max_val = 2 ** n_bits_per_var - 1
+
+    # Normalize to [0, 1]
+    lower = bounds[0]
+    upper = bounds[1]
+    normalized = (population - lower) / (upper - lower + 1e-10)
+    normalized = np.clip(normalized, 0, 1)
+
+    # Convert to integer representation
+    int_vals = (normalized * max_val).astype(int)
+    int_vals = np.clip(int_vals, 0, max_val)
+
+    # Convert to binary
+    binary_population = np.zeros((pop_size, n_vars * n_bits_per_var), dtype=int)
+    for i in range(n_vars):
+        for b in range(n_bits_per_var):
+            binary_population[:, i * n_bits_per_var + b] = (int_vals[:, i] >> (n_bits_per_var - 1 - b)) & 1
+
+    return binary_population
+
+
+def _decode_binary_to_continuous(binary_population: np.ndarray, bounds: np.ndarray,
+                                  n_bits_per_var: int, n_vars: int) -> np.ndarray:
+    """
+    Decode binary population back to continuous representation.
+
+    Parameters
+    ----------
+    binary_population : np.ndarray
+        Binary population of shape (pop_size, n_vars * n_bits_per_var)
+    bounds : np.ndarray
+        Variable bounds of shape (2, n_vars)
+    n_bits_per_var : int
+        Number of bits per variable
+    n_vars : int
+        Number of original continuous variables
+
+    Returns
+    -------
+    population : np.ndarray
+        Continuous population of shape (pop_size, n_vars)
+    """
+    pop_size = binary_population.shape[0]
+    max_val = 2 ** n_bits_per_var - 1
+
+    # Convert binary to integer
+    int_vals = np.zeros((pop_size, n_vars), dtype=int)
+    for i in range(n_vars):
+        for b in range(n_bits_per_var):
+            int_vals[:, i] += binary_population[:, i * n_bits_per_var + b] << (n_bits_per_var - 1 - b)
+
+    # Normalize to [0, 1]
+    normalized = int_vals / max_val
+
+    # Scale to bounds
+    lower = bounds[0]
+    upper = bounds[1]
+    population = lower + normalized * (upper - lower)
+
+    return population
+
 # Supported EDAs for continuous optimization (GNBG)
 # Note: RBM with softmax is designed for discrete optimization and is not included here
-SUPPORTED_EDAS = ['vae', 'extended_vae', 'conditional_vae', 'gan', 'backdrive']
+# DAE variants are primarily for discrete/binary but included for experimentation
+# Note: GNBG is a MINIMIZATION problem (lower fitness is better)
+SUPPORTED_EDAS = [
+    # Continuous EDAs (native support)
+    'vae', 'extended_vae', 'conditional_vae', 'gan',
+    # Backdrive variants (DbD-EDA)
+    'backdrive', 'backdrive_adaptive',
+    # Diffusion-by-Deblending (DbD) variants
+    'dbd_cs', 'dbd_cd', 'dbd_uc', 'dbd_us',
+    # Denoising Diffusion (DenDiff) variants
+    'dendiff', 'dendiff_fast',
+    # DAE variants (discrete/binary - experimental for continuous)
+    'dae', 'dae_probabilistic', 'multilayer_dae'
+]
 
 
 def load_gnbg_instance(problem_index: int, instances_folder: str):
@@ -160,6 +280,13 @@ def get_default_params(eda_name: str, n_vars: int, pop_size: int) -> Dict[str, A
     """
     Get default parameters for the specified EDA.
 
+    Parameters are initialized according to nn_utils.py defaults:
+    - hidden_dims: [max(5, n_vars/10), max(10, pop_size/10)]
+    - batch_size: max(8, n_vars/50)
+    - latent_dim: max(2, n_vars/50)
+    - list_act_functs: ['relu'] * n_hidden
+    - list_init_functs: ['default'] * n_hidden
+
     Parameters
     ----------
     eda_name : str
@@ -174,48 +301,176 @@ def get_default_params(eda_name: str, n_vars: int, pop_size: int) -> Dict[str, A
     params : dict
         Default parameters for the EDA
     """
-    # Common parameters
-    latent_dim = max(2, n_vars // 4)
-    hidden_dims = [max(32, n_vars), max(16, n_vars // 2)]
+    # Use nn_utils defaults for common parameters
+    hidden_dims = compute_default_hidden_dims(n_vars, pop_size, n_layers=2)
+    batch_size = compute_default_batch_size(n_vars, pop_size)
+    latent_dim = compute_default_latent_dim(n_vars)
+
+    # Default activations and initializations per nn_utils
+    n_hidden = len(hidden_dims)
+    list_act_functs = ['relu'] * n_hidden
+    list_init_functs = ['default'] * n_hidden
 
     defaults = {
         'vae': {
             'latent_dim': latent_dim,
             'hidden_dims': hidden_dims,
+            'list_act_functs': list_act_functs,
+            'list_init_functs': list_init_functs,
             'epochs': 50,
-            'batch_size': min(32, pop_size // 2),
+            'batch_size': batch_size,
             'learning_rate': 0.001
         },
         'extended_vae': {
             'latent_dim': latent_dim,
             'hidden_dims': hidden_dims,
+            'list_act_functs': list_act_functs,
+            'list_init_functs': list_init_functs,
             'epochs': 50,
-            'batch_size': min(32, pop_size // 2),
+            'batch_size': batch_size,
             'learning_rate': 0.001
         },
         'conditional_vae': {
             'latent_dim': latent_dim,
             'hidden_dims': hidden_dims,
+            'list_act_functs': list_act_functs,
+            'list_init_functs': list_init_functs,
             'epochs': 50,
-            'batch_size': min(32, pop_size // 2),
+            'batch_size': batch_size,
             'learning_rate': 0.001
         },
         'gan': {
             'latent_dim': latent_dim,
             'hidden_dims_g': hidden_dims,
             'hidden_dims_d': list(reversed(hidden_dims)),
+            'list_act_functs_g': list_act_functs,
+            'list_init_functs_g': list_init_functs,
+            'list_act_functs_d': list_act_functs,
+            'list_init_functs_d': list_init_functs,
             'epochs': 100,
-            'batch_size': min(32, pop_size // 2),
+            'batch_size': batch_size,
             'learning_rate': 0.0002
         },
         'backdrive': {
-            'hidden_layers': [100, 100],
+            'hidden_layers': hidden_dims,
+            'list_act_functs': list_act_functs,
+            'list_init_functs': list_init_functs,
             'activation': 'tanh',
             'epochs': 50,
-            'batch_size': min(32, pop_size // 2),
+            'batch_size': batch_size,
             'learning_rate': 0.001,
             'backdrive_iterations': 100,
             'backdrive_lr': 0.1
+        },
+        'backdrive_adaptive': {
+            'hidden_layers': hidden_dims,
+            'list_act_functs': list_act_functs,
+            'list_init_functs': list_init_functs,
+            'activation': 'tanh',
+            'epochs': 50,
+            'batch_size': batch_size,
+            'learning_rate': 0.001,
+            'backdrive_iterations': 100,
+            'backdrive_lr': 0.1,
+            'n_fitness_levels': 5
+        },
+        # Diffusion-by-Deblending (DbD) variants
+        'dbd_cs': {  # Current to Selected
+            'hidden_dims': hidden_dims,
+            'list_act_functs': list_act_functs,
+            'list_init_functs': list_init_functs,
+            'num_alpha_samples': 10,
+            'epochs': 50,
+            'batch_size': batch_size,
+            'learning_rate': 0.001,
+            'num_iterations': 50
+        },
+        'dbd_cd': {  # Current to Distance-matched
+            'hidden_dims': hidden_dims,
+            'list_act_functs': list_act_functs,
+            'list_init_functs': list_init_functs,
+            'num_alpha_samples': 10,
+            'epochs': 50,
+            'batch_size': batch_size,
+            'learning_rate': 0.001,
+            'num_iterations': 50
+        },
+        'dbd_uc': {  # Univariate to Current
+            'hidden_dims': hidden_dims,
+            'list_act_functs': list_act_functs,
+            'list_init_functs': list_init_functs,
+            'num_alpha_samples': 10,
+            'epochs': 50,
+            'batch_size': batch_size,
+            'learning_rate': 0.001,
+            'num_iterations': 50
+        },
+        'dbd_us': {  # Univariate to Selected
+            'hidden_dims': hidden_dims,
+            'list_act_functs': list_act_functs,
+            'list_init_functs': list_init_functs,
+            'num_alpha_samples': 10,
+            'epochs': 50,
+            'batch_size': batch_size,
+            'learning_rate': 0.001,
+            'num_iterations': 50
+        },
+        # Denoising Diffusion (DenDiff) variants
+        'dendiff': {
+            'hidden_dims': hidden_dims,
+            'list_act_functs': list_act_functs,
+            'list_init_functs': list_init_functs,
+            'n_timesteps': 100,
+            'beta_schedule': 'linear',
+            'epochs': 50,
+            'batch_size': batch_size,
+            'learning_rate': 0.001
+        },
+        'dendiff_fast': {
+            'hidden_dims': hidden_dims,
+            'list_act_functs': list_act_functs,
+            'list_init_functs': list_init_functs,
+            'n_timesteps': 100,
+            'beta_schedule': 'linear',
+            'epochs': 50,
+            'batch_size': batch_size,
+            'learning_rate': 0.001,
+            'ddim_steps': 20,  # Fast sampling steps
+            'ddim_eta': 0.0   # Deterministic sampling
+        },
+        # DAE parameters (designed for binary, will discretize continuous)
+        'dae': {
+            'hidden_dims': hidden_dims,
+            'list_act_functs': list_act_functs,
+            'list_init_functs': list_init_functs,
+            'epochs': 50,
+            'batch_size': batch_size,
+            'learning_rate': 0.001,
+            'corruption_level': 0.3,
+            'n_refinement_steps': 10,
+            'n_bits_per_var': 8  # For discretization
+        },
+        'dae_probabilistic': {
+            'hidden_dims': hidden_dims,
+            'list_act_functs': list_act_functs,
+            'list_init_functs': list_init_functs,
+            'epochs': 50,
+            'batch_size': batch_size,
+            'learning_rate': 0.001,
+            'corruption_level': 0.3,
+            'n_refinement_steps': 10,
+            'n_bits_per_var': 8
+        },
+        'multilayer_dae': {
+            'hidden_dims': compute_default_hidden_dims(n_vars, pop_size, n_layers=3),
+            'list_act_functs': ['relu'] * 3,
+            'list_init_functs': ['default'] * 3,
+            'epochs': 50,
+            'batch_size': batch_size,
+            'learning_rate': 0.001,
+            'corruption_level': 0.3,
+            'n_refinement_steps': 10,
+            'n_bits_per_var': 8
         }
     }
 
@@ -272,6 +527,66 @@ def learn_model(eda_name: str, generation: int, n_vars: int, bounds: np.ndarray,
             bd_params['previous_model'] = previous_model
         return learn_backdrive(generation, n_vars, bounds, selected_population,
                               selected_fitness, params=bd_params)
+
+    elif eda_name == 'backdrive_adaptive':
+        # Same learning as backdrive, different sampling
+        bd_params = params.copy()
+        if previous_model is not None:
+            bd_params['previous_model'] = previous_model
+        return learn_backdrive(generation, n_vars, bounds, selected_population,
+                              selected_fitness, params=bd_params)
+
+    elif eda_name == 'dbd_cs':
+        # DbD Current-to-Selected: p0=current population, p1=selected population
+        # Need full current population, but we only have selected here
+        # Use selected as both (degenerate case) or sample from it
+        p0 = selected_population  # Use selected as current approximation
+        p1 = selected_population  # Target is selected
+        return learn_dbd(p0, p1, params=params)
+
+    elif eda_name == 'dbd_cd':
+        # DbD Current-to-Distance-matched: p0=current, p1=nearest selected neighbors
+        # Find closest neighbors in selected population for each individual
+        p0 = selected_population
+        p1 = find_closest_neighbors(selected_population, selected_population)
+        return learn_dbd(p0, p1, params=params)
+
+    elif eda_name == 'dbd_uc':
+        # DbD Univariate-to-Current: p0=univariate Gaussian, p1=current population
+        p0 = sample_univariate_gaussian(selected_population, len(selected_population))
+        p1 = selected_population  # Target is current (selected approximation)
+        return learn_dbd(p0, p1, params=params)
+
+    elif eda_name == 'dbd_us':
+        # DbD Univariate-to-Selected: p0=univariate Gaussian, p1=selected population
+        p0 = sample_univariate_gaussian(selected_population, len(selected_population))
+        p1 = selected_population  # Target is selected
+        return learn_dbd(p0, p1, params=params)
+
+    elif eda_name in ['dendiff', 'dendiff_fast']:
+        # Denoising Diffusion - same learning, different sampling
+        return learn_dendiff(selected_population, selected_fitness, params=params)
+
+    elif eda_name in ['dae', 'dae_probabilistic', 'multilayer_dae']:
+        # DAE variants - discretize continuous to binary
+        n_bits = params.get('n_bits_per_var', 8)
+        binary_population = _discretize_to_binary(selected_population, bounds, n_bits)
+
+        dae_params = params.copy()
+        dae_params['_bounds'] = bounds  # Store for later decoding
+        dae_params['_n_bits_per_var'] = n_bits
+        dae_params['_n_vars'] = n_vars
+
+        if eda_name == 'multilayer_dae':
+            model = learn_multilayer_dae(binary_population, selected_fitness, params=dae_params)
+        else:
+            model = learn_dae(binary_population, selected_fitness, params=dae_params)
+
+        # Store discretization info in model
+        model['_bounds'] = bounds
+        model['_n_bits_per_var'] = n_bits
+        model['_n_vars'] = n_vars
+        return model
 
     else:
         raise ValueError(f"Unknown EDA: {eda_name}")
@@ -332,6 +647,59 @@ def sample_model(eda_name: str, model, n_samples: int, n_vars: int, bounds: np.n
         bd_params['n_samples'] = n_samples
         return sample_backdrive(n_vars, model, bounds, selected_population,
                                selected_fitness, params=bd_params)
+
+    elif eda_name == 'backdrive_adaptive':
+        # Adaptive backdrive with multiple fitness targets
+        bd_params = params.copy() if params else {}
+        bd_params['n_samples'] = n_samples
+        return sample_backdrive_adaptive(n_vars, model, bounds, selected_population,
+                                         selected_fitness, params=bd_params)
+
+    elif eda_name == 'dbd_cs':
+        # DbD-CS: Sample starting from selected population
+        return sample_dbd(model, selected_population, n_samples,
+                          bounds=bounds, params=params)
+
+    elif eda_name == 'dbd_cd':
+        # DbD-CD: Sample starting from selected population
+        return sample_dbd(model, selected_population, n_samples,
+                          bounds=bounds, params=params)
+
+    elif eda_name == 'dbd_uc':
+        # DbD-UC: Sample starting from univariate approximation of selected
+        return sample_dbd_from_univariate(model, selected_population, n_samples,
+                                          bounds=bounds, params=params)
+
+    elif eda_name == 'dbd_us':
+        # DbD-US: Sample starting from univariate approximation of selected
+        return sample_dbd_from_univariate(model, selected_population, n_samples,
+                                          bounds=bounds, params=params)
+
+    elif eda_name == 'dendiff':
+        # Denoising Diffusion - standard sampling
+        return sample_dendiff(model, n_samples=n_samples, bounds=bounds, params=params)
+
+    elif eda_name == 'dendiff_fast':
+        # Denoising Diffusion - fast DDIM-style sampling
+        return sample_dendiff_fast(model, n_samples=n_samples, bounds=bounds, params=params)
+
+    elif eda_name in ['dae', 'dae_probabilistic', 'multilayer_dae']:
+        # DAE variants - sample binary and decode to continuous
+        n_bits = model.get('_n_bits_per_var', 8)
+        orig_n_vars = model.get('_n_vars', n_vars)
+        model_bounds = model.get('_bounds', bounds)
+
+        dae_params = params.copy() if params else {}
+
+        if eda_name == 'dae':
+            binary_samples = sample_dae(model, n_samples=n_samples, params=dae_params)
+        elif eda_name == 'dae_probabilistic':
+            binary_samples = sample_dae_probabilistic(model, n_samples=n_samples, params=dae_params)
+        else:  # multilayer_dae
+            binary_samples = sample_multilayer_dae(model, n_samples=n_samples, params=dae_params)
+
+        # Decode binary to continuous
+        return _decode_binary_to_continuous(binary_samples, model_bounds, n_bits, orig_n_vars)
 
     else:
         raise ValueError(f"Unknown EDA: {eda_name}")
@@ -507,6 +875,12 @@ def run_neural_eda(
 
         sampling_times.append(time.time() - sample_start)
 
+        # Elitism: preserve the best individual from current population
+        # Replace the last individual in new population with the best from current
+        elite_idx = np.argmin(fitness)  # GNBG is minimization
+        elite_solution = population[elite_idx].copy()
+        new_population[-1] = elite_solution
+
         # Update population
         population = new_population
         previous_model = model
@@ -642,11 +1016,23 @@ Examples:
     python run_neural_eda_gnbg.py --eda_name conditional_vae -f 5 -s 999 --pop_size 200
 
 Supported EDAs (continuous optimization):
-    vae             - Variational Autoencoder EDA
-    extended_vae    - Extended VAE with fitness predictor
-    conditional_vae - Conditional Extended VAE (fitness-conditioned)
-    gan             - Generative Adversarial Network EDA
-    backdrive       - Backdrive Network Inversion EDA
+    vae               - Variational Autoencoder EDA
+    extended_vae      - Extended VAE with fitness predictor
+    conditional_vae   - Conditional Extended VAE (fitness-conditioned)
+    gan               - Generative Adversarial Network EDA
+    backdrive         - Backdrive Network Inversion EDA
+    backdrive_adaptive - Adaptive Backdrive with multiple fitness targets
+    dbd_cs            - DbD Current-to-Selected
+    dbd_cd            - DbD Current-to-Distance-matched
+    dbd_uc            - DbD Univariate-to-Current
+    dbd_us            - DbD Univariate-to-Selected
+    dendiff           - Denoising Diffusion Probabilistic Model EDA
+    dendiff_fast      - Fast Denoising Diffusion (DDIM-style)
+
+Experimental EDAs (discrete/binary, discretized for continuous):
+    dae               - Denoising Autoencoder EDA
+    dae_probabilistic - DAE with probabilistic sampling
+    multilayer_dae    - Multi-layer DAE
         """
     )
 
