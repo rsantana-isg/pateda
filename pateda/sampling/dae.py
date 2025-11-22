@@ -3,6 +3,34 @@ DAE Model Sampling for Discrete EDAs
 
 This module provides sampling algorithms for Denoising Autoencoder (DAE) based
 probabilistic models used in combinatorial optimization.
+
+==============================================================================
+SAMPLING METHODS
+==============================================================================
+
+1. **Iterative Refinement Sampling** (sample_dae):
+   - Initialize random binary solutions
+   - Repeatedly corrupt and reconstruct
+   - Binarize using threshold
+   - Converges to learned distribution
+
+2. **Probabilistic Sampling** (sample_dae_probabilistic):
+   - Instead of thresholding, sample from Bernoulli
+   - More diverse samples
+   - Better exploration
+
+3. **Seed-based Sampling** (sample_dae_from_seeds):
+   - Start from existing solutions
+   - Refine using DAE
+   - Useful for local search
+
+==============================================================================
+CONFIGURABLE ARCHITECTURE
+==============================================================================
+
+This module uses the stored configuration from the model dictionary to
+recreate the DAE with the exact same architecture (hidden dimensions,
+activation functions, initialization methods) used during training.
 """
 
 import numpy as np
@@ -10,10 +38,7 @@ from typing import Dict, Any, Optional
 import torch
 
 # Import DAE classes from learning module
-import sys
-import os
-sys.path.insert(0, os.path.dirname(os.path.dirname(__file__)))
-from learning.dae import DenoisingAutoencoder, MultiLayerDAE, corrupt_binary
+from pateda.learning.dae import DenoisingAutoencoder, MultiLayerDAE, corrupt_binary
 
 
 def sample_dae(
@@ -30,7 +55,14 @@ def sample_dae(
     Parameters
     ----------
     model : dict
-        Model containing DAE state and parameters
+        Model containing DAE state and parameters including:
+        - 'dae_state': network state dict
+        - 'input_dim': input dimension
+        - 'hidden_dims': list of hidden dimensions (or 'hidden_dim' for backward compat)
+        - 'list_act_functs_enc': encoder activation functions (optional)
+        - 'list_act_functs_dec': decoder activation functions (optional)
+        - 'list_init_functs_enc': encoder initialization functions (optional)
+        - 'list_init_functs_dec': decoder initialization functions (optional)
     n_samples : int
         Number of samples to generate
     params : dict, optional
@@ -46,7 +78,18 @@ def sample_dae(
         Sampled population of shape (n_samples, n_vars)
     """
     input_dim = model['input_dim']
-    hidden_dim = model['hidden_dim']
+
+    # Support both 'hidden_dims' (new) and 'hidden_dim' (backward compat)
+    if 'hidden_dims' in model:
+        hidden_dims = model['hidden_dims']
+    else:
+        hidden_dims = [model['hidden_dim']]
+
+    # Extract activation and initialization functions from model
+    list_act_functs_enc = model.get('list_act_functs_enc', None)
+    list_act_functs_dec = model.get('list_act_functs_dec', None)
+    list_init_functs_enc = model.get('list_init_functs_enc', None)
+    list_init_functs_dec = model.get('list_init_functs_dec', None)
 
     if params is None:
         params = {}
@@ -56,8 +99,15 @@ def sample_dae(
     threshold = params.get('threshold', 0.5)
     init_strategy = params.get('init_strategy', 'random')
 
-    # Recreate DAE
-    dae = DenoisingAutoencoder(input_dim, hidden_dim)
+    # Recreate DAE with stored configuration
+    dae = DenoisingAutoencoder(
+        input_dim,
+        hidden_dims=hidden_dims,
+        list_act_functs_enc=list_act_functs_enc,
+        list_act_functs_dec=list_act_functs_dec,
+        list_init_functs_enc=list_init_functs_enc,
+        list_init_functs_dec=list_init_functs_dec
+    )
     dae.load_state_dict(model['dae_state'])
     dae.eval()
 
@@ -106,7 +156,14 @@ def sample_dae_probabilistic(
     Parameters
     ----------
     model : dict
-        Model containing DAE state and parameters
+        Model containing DAE state and parameters including:
+        - 'dae_state': network state dict
+        - 'input_dim': input dimension
+        - 'hidden_dims': list of hidden dimensions (or 'hidden_dim' for backward compat)
+        - 'list_act_functs_enc': encoder activation functions (optional)
+        - 'list_act_functs_dec': decoder activation functions (optional)
+        - 'list_init_functs_enc': encoder initialization functions (optional)
+        - 'list_init_functs_dec': decoder initialization functions (optional)
     n_samples : int
         Number of samples to generate
     params : dict, optional
@@ -121,7 +178,18 @@ def sample_dae_probabilistic(
         Sampled population of shape (n_samples, n_vars)
     """
     input_dim = model['input_dim']
-    hidden_dim = model['hidden_dim']
+
+    # Support both 'hidden_dims' (new) and 'hidden_dim' (backward compat)
+    if 'hidden_dims' in model:
+        hidden_dims = model['hidden_dims']
+    else:
+        hidden_dims = [model['hidden_dim']]
+
+    # Extract activation and initialization functions from model
+    list_act_functs_enc = model.get('list_act_functs_enc', None)
+    list_act_functs_dec = model.get('list_act_functs_dec', None)
+    list_init_functs_enc = model.get('list_init_functs_enc', None)
+    list_init_functs_dec = model.get('list_init_functs_dec', None)
 
     if params is None:
         params = {}
@@ -130,8 +198,15 @@ def sample_dae_probabilistic(
     corruption_level = params.get('corruption_level', 0.1)
     init_strategy = params.get('init_strategy', 'random')
 
-    # Recreate DAE
-    dae = DenoisingAutoencoder(input_dim, hidden_dim)
+    # Recreate DAE with stored configuration
+    dae = DenoisingAutoencoder(
+        input_dim,
+        hidden_dims=hidden_dims,
+        list_act_functs_enc=list_act_functs_enc,
+        list_act_functs_dec=list_act_functs_dec,
+        list_init_functs_enc=list_init_functs_enc,
+        list_init_functs_dec=list_init_functs_dec
+    )
     dae.load_state_dict(model['dae_state'])
     dae.eval()
 
@@ -173,7 +248,14 @@ def sample_multilayer_dae(
     Parameters
     ----------
     model : dict
-        Model containing multi-layer DAE state
+        Model containing multi-layer DAE state and parameters including:
+        - 'dae_state': network state dict
+        - 'input_dim': input dimension
+        - 'hidden_dims': list of hidden dimensions
+        - 'list_act_functs_enc': encoder activation functions (optional)
+        - 'list_act_functs_dec': decoder activation functions (optional)
+        - 'list_init_functs_enc': encoder initialization functions (optional)
+        - 'list_init_functs_dec': decoder initialization functions (optional)
     n_samples : int
         Number of samples to generate
     params : dict, optional
@@ -187,6 +269,12 @@ def sample_multilayer_dae(
     input_dim = model['input_dim']
     hidden_dims = model['hidden_dims']
 
+    # Extract activation and initialization functions from model
+    list_act_functs_enc = model.get('list_act_functs_enc', None)
+    list_act_functs_dec = model.get('list_act_functs_dec', None)
+    list_init_functs_enc = model.get('list_init_functs_enc', None)
+    list_init_functs_dec = model.get('list_init_functs_dec', None)
+
     if params is None:
         params = {}
 
@@ -195,8 +283,15 @@ def sample_multilayer_dae(
     threshold = params.get('threshold', 0.5)
     init_strategy = params.get('init_strategy', 'random')
 
-    # Recreate multi-layer DAE
-    dae = MultiLayerDAE(input_dim, hidden_dims)
+    # Recreate multi-layer DAE with stored configuration
+    dae = MultiLayerDAE(
+        input_dim,
+        hidden_dims=hidden_dims,
+        list_act_functs_enc=list_act_functs_enc,
+        list_act_functs_dec=list_act_functs_dec,
+        list_init_functs_enc=list_init_functs_enc,
+        list_init_functs_dec=list_init_functs_dec
+    )
     dae.load_state_dict(model['dae_state'])
     dae.eval()
 
@@ -242,7 +337,14 @@ def sample_dae_from_seeds(
     Parameters
     ----------
     model : dict
-        Model containing DAE state and parameters
+        Model containing DAE state and parameters including:
+        - 'dae_state': network state dict
+        - 'input_dim': input dimension
+        - 'hidden_dims': list of hidden dimensions (or 'hidden_dim' for backward compat)
+        - 'list_act_functs_enc': encoder activation functions (optional)
+        - 'list_act_functs_dec': decoder activation functions (optional)
+        - 'list_init_functs_enc': encoder initialization functions (optional)
+        - 'list_init_functs_dec': decoder initialization functions (optional)
     seeds : np.ndarray
         Seed solutions of shape (n_seeds, n_vars)
     params : dict, optional
@@ -257,7 +359,18 @@ def sample_dae_from_seeds(
         Refined population of shape (n_seeds, n_vars)
     """
     input_dim = model['input_dim']
-    hidden_dim = model['hidden_dim']
+
+    # Support both 'hidden_dims' (new) and 'hidden_dim' (backward compat)
+    if 'hidden_dims' in model:
+        hidden_dims = model['hidden_dims']
+    else:
+        hidden_dims = [model['hidden_dim']]
+
+    # Extract activation and initialization functions from model
+    list_act_functs_enc = model.get('list_act_functs_enc', None)
+    list_act_functs_dec = model.get('list_act_functs_dec', None)
+    list_init_functs_enc = model.get('list_init_functs_enc', None)
+    list_init_functs_dec = model.get('list_init_functs_dec', None)
 
     if params is None:
         params = {}
@@ -266,8 +379,15 @@ def sample_dae_from_seeds(
     corruption_level = params.get('corruption_level', 0.2)
     threshold = params.get('threshold', 0.5)
 
-    # Recreate DAE
-    dae = DenoisingAutoencoder(input_dim, hidden_dim)
+    # Recreate DAE with stored configuration
+    dae = DenoisingAutoencoder(
+        input_dim,
+        hidden_dims=hidden_dims,
+        list_act_functs_enc=list_act_functs_enc,
+        list_act_functs_dec=list_act_functs_dec,
+        list_init_functs_enc=list_init_functs_enc,
+        list_init_functs_dec=list_init_functs_dec
+    )
     dae.load_state_dict(model['dae_state'])
     dae.eval()
 
