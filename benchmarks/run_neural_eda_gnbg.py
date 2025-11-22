@@ -791,6 +791,15 @@ def run_neural_eda(
         print(f"Acceptance threshold: {problem_info['acceptance_threshold']:.6e}")
         print(f"{'='*80}\n")
 
+    # Compute precision for error display based on acceptance threshold
+    # If threshold is 1e-8, we need at least 8 decimal places
+    acceptance_threshold = problem_info['acceptance_threshold']
+    optimum_value = problem_info['optimum_value']
+    if acceptance_threshold > 0:
+        error_precision = max(1, int(-np.floor(np.log10(acceptance_threshold))) + 1)
+    else:
+        error_precision = 10  # Default for zero threshold
+
     # Initialize population
     population = np.random.uniform(bounds[0], bounds[1], (pop_size, n_vars))
 
@@ -829,9 +838,13 @@ def run_neural_eda(
             generation_found = gen
 
         if verbose and (gen % 10 == 0 or gen == max_gen - 1):
+            # Compute error from optimum for display
+            current_error = abs(best_fitness_overall - optimum_value)
+            # Format error with precision based on acceptance threshold
+            error_str = f"{current_error:.{error_precision}e}"
+            threshold_status = "< threshold" if current_error < acceptance_threshold else ">= threshold"
             print(f"Gen {gen+1:4d}: Best = {gen_best_fitness:.6e}, "
-                  f"Mean = {gen_mean_fitness:.6e}, "
-                  f"Overall = {best_fitness_overall:.6e}")
+                  f"Error = {error_str} ({threshold_status})")
 
         # Check if max evaluations reached
         if n_evaluations >= max_evals:
@@ -944,8 +957,12 @@ def run_neural_eda(
         print(f"{'='*80}")
         print(f"Best fitness (GNBG): {best_fitness_gnbg:.6e}")
         print(f"Best fitness (EDA):  {best_fitness_overall:.6e}")
-        print(f"Error from optimum:  {error_from_optimum:.6e}")
-        print(f"Success: {'YES' if success else 'NO'}")
+        print(f"Optimum value:       {optimum_value:.6e}")
+        # Display error with precision matching acceptance threshold significance
+        error_str = f"{error_from_optimum:.{error_precision}e}"
+        print(f"Error from optimum:  {error_str}")
+        print(f"Acceptance threshold: {acceptance_threshold:.{error_precision}e}")
+        print(f"Success: {'YES' if success else 'NO'} (error {'<' if success else '>='} threshold)")
         if not np.isinf(acceptance_reach_point):
             print(f"Acceptance reached at FE: {acceptance_reach_point}")
         print(f"Total function evaluations: {n_evaluations}")
@@ -1098,9 +1115,16 @@ Experimental EDAs (discrete/binary, discretized for continuous):
         print(f"Results saved to: {output_path}")
 
     # Print summary line for cluster job logs
+    # Compute error precision based on acceptance threshold
+    threshold = results['acceptance_threshold']
+    if threshold > 0:
+        err_prec = max(1, int(-np.floor(np.log10(threshold))) + 1)
+    else:
+        err_prec = 10
     status = "SUCCESS" if results['success'] else "FAILURE"
+    error_val = results['error_from_optimum']
     print(f"[{status}] {args.eda_name} f{args.function_index} seed={args.seed}: "
-          f"error={results['error_from_optimum']:.6e}, "
+          f"error={error_val:.{err_prec}e} (threshold={threshold:.{err_prec}e}), "
           f"FE={results['function_evaluations']}, "
           f"time={results['runtime_seconds']:.2f}s")
 
