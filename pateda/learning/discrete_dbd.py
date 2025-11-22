@@ -100,11 +100,21 @@ REFERENCES
 """
 
 import numpy as np
-from typing import Dict, Any, Optional, Tuple
+from typing import Dict, Any, Optional, Tuple, List
 import torch
 import torch.nn as nn
 import torch.nn.functional as F
 import torch.optim as optim
+
+from pateda.learning.nn_utils import (
+    get_activation,
+    apply_weight_init,
+    compute_default_hidden_dims,
+    compute_default_batch_size,
+    validate_list_params,
+    SUPPORTED_ACTIVATIONS,
+    SUPPORTED_INITIALIZATIONS,
+)
 
 
 def sample_gumbel(shape, eps=1e-20):
@@ -365,9 +375,12 @@ def learn_binary_dbd(
         p0: Source distribution samples [n_samples, n_vars] (binary)
         p1: Target distribution samples [n_samples, n_vars] (binary)
         params: Training parameters:
-            - 'hidden_dims': hidden layer dimensions (default: [128, 64])
+            - 'hidden_dims': hidden layer dimensions
+              (default: computed from n_vars and n_samples)
+            - 'list_act_functs': list of activation functions for hidden layers
+            - 'list_init_functs': list of initialization functions for hidden layers
             - 'epochs': training epochs (default: 100)
-            - 'batch_size': batch size (default: 32)
+            - 'batch_size': batch size (default: max(8, n_vars/50))
             - 'learning_rate': learning rate (default: 0.001)
             - 'num_alpha_samples': alpha samples per pair (default: 10)
 
@@ -377,14 +390,23 @@ def learn_binary_dbd(
     if params is None:
         params = {}
 
+    n_samples = p1.shape[0]
     n_vars = p0.shape[1]
 
-    # Extract parameters
-    hidden_dims = params.get('hidden_dims', [128, 64])
+    # Compute defaults based on input dimensions
+    default_hidden_dims = compute_default_hidden_dims(n_vars, n_samples)
+    default_batch_size = compute_default_batch_size(n_vars, n_samples)
+
+    # Extract parameters with new defaults
+    hidden_dims = params.get('hidden_dims', default_hidden_dims)
     epochs = params.get('epochs', 100)
-    batch_size = params.get('batch_size', 32)
+    batch_size = params.get('batch_size', default_batch_size)
     learning_rate = params.get('learning_rate', 0.001)
     num_alpha_samples = params.get('num_alpha_samples', 10)
+
+    # Extract activation and initialization function lists
+    list_act_functs = params.get('list_act_functs', None)
+    list_init_functs = params.get('list_init_functs', None)
 
     # Create training dataset
     alpha, x_blended, x1_target = create_blended_binary_samples(

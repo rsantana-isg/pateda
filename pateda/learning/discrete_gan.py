@@ -84,11 +84,21 @@ REFERENCES
 """
 
 import numpy as np
-from typing import Dict, Any, Optional
+from typing import Dict, Any, Optional, List
 import torch
 import torch.nn as nn
 import torch.nn.functional as F
 import torch.optim as optim
+
+from pateda.learning.nn_utils import (
+    get_activation,
+    apply_weight_init,
+    compute_default_hidden_dims,
+    compute_default_batch_size,
+    validate_list_params,
+    SUPPORTED_ACTIVATIONS,
+    SUPPORTED_INITIALIZATIONS,
+)
 
 
 def sample_gumbel(shape, eps=1e-20):
@@ -126,21 +136,55 @@ class BinaryGANGenerator(nn.Module):
     Generator for Binary GAN
 
     Maps random noise to binary probabilities
+
+    Parameters
+    ----------
+    latent_dim : int
+        Dimension of the latent space.
+    output_dim : int
+        Dimension of the output (number of binary variables).
+    hidden_dims : list, optional
+        List of hidden layer dimensions.
+    list_act_functs : list, optional
+        List of activation functions, one per hidden layer.
+    list_init_functs : list, optional
+        List of initialization functions, one per hidden layer.
     """
 
-    def __init__(self, latent_dim: int, output_dim: int, hidden_dims: list = None):
+    def __init__(
+        self,
+        latent_dim: int,
+        output_dim: int,
+        hidden_dims: List[int] = None,
+        list_act_functs: List[str] = None,
+        list_init_functs: List[str] = None
+    ):
         super(BinaryGANGenerator, self).__init__()
 
         if hidden_dims is None:
             hidden_dims = [128, 256]
 
+        n_hidden = len(hidden_dims)
+
+        # Validate and set defaults
+        if list_act_functs is None:
+            list_act_functs = ['relu'] * n_hidden
+        if list_init_functs is None:
+            list_init_functs = ['default'] * n_hidden
+
+        list_act_functs, list_init_functs = validate_list_params(
+            hidden_dims, list_act_functs, list_init_functs
+        )
+
         layers = []
         prev_dim = latent_dim
 
-        for hidden_dim in hidden_dims:
-            layers.append(nn.Linear(prev_dim, hidden_dim))
+        for i, hidden_dim in enumerate(hidden_dims):
+            linear = nn.Linear(prev_dim, hidden_dim)
+            apply_weight_init(linear, list_init_functs[i])
+            layers.append(linear)
             layers.append(nn.BatchNorm1d(hidden_dim))
-            layers.append(nn.ReLU())
+            layers.append(get_activation(list_act_functs[i], in_features=hidden_dim))
             prev_dim = hidden_dim
 
         layers.append(nn.Linear(prev_dim, output_dim))
@@ -176,20 +220,51 @@ class BinaryGANDiscriminator(nn.Module):
     Discriminator for Binary GAN
 
     Classifies inputs as real or fake
+
+    Parameters
+    ----------
+    input_dim : int
+        Dimension of the input (number of binary variables).
+    hidden_dims : list, optional
+        List of hidden layer dimensions.
+    list_act_functs : list, optional
+        List of activation functions, one per hidden layer.
+    list_init_functs : list, optional
+        List of initialization functions, one per hidden layer.
     """
 
-    def __init__(self, input_dim: int, hidden_dims: list = None):
+    def __init__(
+        self,
+        input_dim: int,
+        hidden_dims: List[int] = None,
+        list_act_functs: List[str] = None,
+        list_init_functs: List[str] = None
+    ):
         super(BinaryGANDiscriminator, self).__init__()
 
         if hidden_dims is None:
             hidden_dims = [256, 128]
 
+        n_hidden = len(hidden_dims)
+
+        # Validate and set defaults
+        if list_act_functs is None:
+            list_act_functs = ['leaky_relu'] * n_hidden
+        if list_init_functs is None:
+            list_init_functs = ['default'] * n_hidden
+
+        list_act_functs, list_init_functs = validate_list_params(
+            hidden_dims, list_act_functs, list_init_functs
+        )
+
         layers = []
         prev_dim = input_dim
 
-        for hidden_dim in hidden_dims:
-            layers.append(nn.Linear(prev_dim, hidden_dim))
-            layers.append(nn.LeakyReLU(0.2))
+        for i, hidden_dim in enumerate(hidden_dims):
+            linear = nn.Linear(prev_dim, hidden_dim)
+            apply_weight_init(linear, list_init_functs[i])
+            layers.append(linear)
+            layers.append(get_activation(list_act_functs[i], in_features=hidden_dim))
             layers.append(nn.Dropout(0.3))
             prev_dim = hidden_dim
 
@@ -205,10 +280,32 @@ class BinaryGANDiscriminator(nn.Module):
 class CategoricalGANGenerator(nn.Module):
     """
     Generator for Categorical GAN using Gumbel-Softmax
+
+    Parameters
+    ----------
+    latent_dim : int
+        Dimension of the latent space.
+    n_vars : int
+        Number of categorical variables.
+    cardinality : np.ndarray
+        Cardinality of each variable.
+    hidden_dims : list, optional
+        List of hidden layer dimensions.
+    list_act_functs : list, optional
+        List of activation functions, one per hidden layer.
+    list_init_functs : list, optional
+        List of initialization functions, one per hidden layer.
     """
 
-    def __init__(self, latent_dim: int, n_vars: int, cardinality: np.ndarray,
-                 hidden_dims: list = None):
+    def __init__(
+        self,
+        latent_dim: int,
+        n_vars: int,
+        cardinality: np.ndarray,
+        hidden_dims: List[int] = None,
+        list_act_functs: List[str] = None,
+        list_init_functs: List[str] = None
+    ):
         super(CategoricalGANGenerator, self).__init__()
 
         self.n_vars = n_vars
@@ -218,13 +315,27 @@ class CategoricalGANGenerator(nn.Module):
         if hidden_dims is None:
             hidden_dims = [128, 256]
 
+        n_hidden = len(hidden_dims)
+
+        # Validate and set defaults
+        if list_act_functs is None:
+            list_act_functs = ['relu'] * n_hidden
+        if list_init_functs is None:
+            list_init_functs = ['default'] * n_hidden
+
+        list_act_functs, list_init_functs = validate_list_params(
+            hidden_dims, list_act_functs, list_init_functs
+        )
+
         layers = []
         prev_dim = latent_dim
 
-        for hidden_dim in hidden_dims:
-            layers.append(nn.Linear(prev_dim, hidden_dim))
+        for i, hidden_dim in enumerate(hidden_dims):
+            linear = nn.Linear(prev_dim, hidden_dim)
+            apply_weight_init(linear, list_init_functs[i])
+            layers.append(linear)
             layers.append(nn.BatchNorm1d(hidden_dim))
-            layers.append(nn.ReLU())
+            layers.append(get_activation(list_act_functs[i], in_features=hidden_dim))
             prev_dim = hidden_dim
 
         layers.append(nn.Linear(prev_dim, self.total_categories))
@@ -263,20 +374,51 @@ class CategoricalGANGenerator(nn.Module):
 class CategoricalGANDiscriminator(nn.Module):
     """
     Discriminator for Categorical GAN
+
+    Parameters
+    ----------
+    total_categories : int
+        Total number of categories across all variables.
+    hidden_dims : list, optional
+        List of hidden layer dimensions.
+    list_act_functs : list, optional
+        List of activation functions, one per hidden layer.
+    list_init_functs : list, optional
+        List of initialization functions, one per hidden layer.
     """
 
-    def __init__(self, total_categories: int, hidden_dims: list = None):
+    def __init__(
+        self,
+        total_categories: int,
+        hidden_dims: List[int] = None,
+        list_act_functs: List[str] = None,
+        list_init_functs: List[str] = None
+    ):
         super(CategoricalGANDiscriminator, self).__init__()
 
         if hidden_dims is None:
             hidden_dims = [256, 128]
 
+        n_hidden = len(hidden_dims)
+
+        # Validate and set defaults
+        if list_act_functs is None:
+            list_act_functs = ['leaky_relu'] * n_hidden
+        if list_init_functs is None:
+            list_init_functs = ['default'] * n_hidden
+
+        list_act_functs, list_init_functs = validate_list_params(
+            hidden_dims, list_act_functs, list_init_functs
+        )
+
         layers = []
         prev_dim = total_categories
 
-        for hidden_dim in hidden_dims:
-            layers.append(nn.Linear(prev_dim, hidden_dim))
-            layers.append(nn.LeakyReLU(0.2))
+        for i, hidden_dim in enumerate(hidden_dims):
+            linear = nn.Linear(prev_dim, hidden_dim)
+            apply_weight_init(linear, list_init_functs[i])
+            layers.append(linear)
+            layers.append(get_activation(list_act_functs[i], in_features=hidden_dim))
             layers.append(nn.Dropout(0.3))
             prev_dim = hidden_dim
 
@@ -306,10 +448,16 @@ def learn_binary_gan(
     params : dict, optional
         Training parameters:
         - 'latent_dim': latent space dimension (default: max(10, n_vars // 2))
-        - 'hidden_dims_g': generator hidden dims (default: [128, 256])
-        - 'hidden_dims_d': discriminator hidden dims (default: [256, 128])
+        - 'hidden_dims_g': generator hidden dims
+          (default: computed from n_vars and pop_size)
+        - 'hidden_dims_d': discriminator hidden dims
+          (default: computed from n_vars and pop_size, reversed)
+        - 'list_act_functs_g': list of activation functions for generator
+        - 'list_act_functs_d': list of activation functions for discriminator
+        - 'list_init_functs_g': list of initialization functions for generator
+        - 'list_init_functs_d': list of initialization functions for discriminator
         - 'epochs': training epochs (default: 200)
-        - 'batch_size': batch size (default: 32)
+        - 'batch_size': batch size (default: max(8, n_vars/50))
         - 'learning_rate_g': generator learning rate (default: 0.0002)
         - 'learning_rate_d': discriminator learning rate (default: 0.0002)
         - 'beta1': Adam beta1 (default: 0.5)
@@ -323,25 +471,44 @@ def learn_binary_gan(
     if params is None:
         params = {}
 
+    pop_size = population.shape[0]
     n_vars = population.shape[1]
 
-    # Extract parameters
+    # Compute defaults based on input dimensions
+    default_hidden_dims = compute_default_hidden_dims(n_vars, pop_size)
+    default_batch_size = compute_default_batch_size(n_vars, pop_size)
+
+    # Extract parameters with new defaults
     latent_dim = params.get('latent_dim', max(10, n_vars // 2))
-    hidden_dims_g = params.get('hidden_dims_g', [128, 256])
-    hidden_dims_d = params.get('hidden_dims_d', [256, 128])
+    hidden_dims_g = params.get('hidden_dims_g', default_hidden_dims)
+    hidden_dims_d = params.get('hidden_dims_d', list(reversed(default_hidden_dims)))
     epochs = params.get('epochs', 200)
-    batch_size = params.get('batch_size', min(32, len(population) // 2))
+    batch_size = params.get('batch_size', default_batch_size)
     learning_rate_g = params.get('learning_rate_g', 0.0002)
     learning_rate_d = params.get('learning_rate_d', 0.0002)
     beta1 = params.get('beta1', 0.5)
     k_discriminator = params.get('k_discriminator', 1)
 
+    # Extract activation and initialization function lists
+    list_act_functs_g = params.get('list_act_functs_g', None)
+    list_act_functs_d = params.get('list_act_functs_d', None)
+    list_init_functs_g = params.get('list_init_functs_g', None)
+    list_init_functs_d = params.get('list_init_functs_d', None)
+
     # Convert to tensors (float for gradients)
     real_data = torch.FloatTensor(population)
 
-    # Create networks
-    generator = BinaryGANGenerator(latent_dim, n_vars, hidden_dims_g)
-    discriminator = BinaryGANDiscriminator(n_vars, hidden_dims_d)
+    # Create networks with configurable activations and initializations
+    generator = BinaryGANGenerator(
+        latent_dim, n_vars, hidden_dims_g,
+        list_act_functs=list_act_functs_g,
+        list_init_functs=list_init_functs_g
+    )
+    discriminator = BinaryGANDiscriminator(
+        n_vars, hidden_dims_d,
+        list_act_functs=list_act_functs_d,
+        list_init_functs=list_init_functs_d
+    )
 
     # Loss and optimizers
     criterion = nn.BCELoss()
@@ -414,7 +581,7 @@ def learn_binary_gan(
             print(f"Epoch {epoch+1}/{epochs}: "
                   f"D_loss={avg_loss_d:.4f}, G_loss={avg_loss_g:.4f}")
 
-    # Return model
+    # Return model with all configuration
     model = {
         'generator_state': generator.state_dict(),
         'discriminator_state': discriminator.state_dict(),
@@ -422,6 +589,10 @@ def learn_binary_gan(
         'n_vars': n_vars,
         'hidden_dims_g': hidden_dims_g,
         'hidden_dims_d': hidden_dims_d,
+        'list_act_functs_g': list_act_functs_g if list_act_functs_g else ['relu'] * len(hidden_dims_g),
+        'list_act_functs_d': list_act_functs_d if list_act_functs_d else ['leaky_relu'] * len(hidden_dims_d),
+        'list_init_functs_g': list_init_functs_g if list_init_functs_g else ['default'] * len(hidden_dims_g),
+        'list_init_functs_d': list_init_functs_d if list_init_functs_d else ['default'] * len(hidden_dims_d),
         'type': 'binary_gan'
     }
 
@@ -446,7 +617,14 @@ def learn_categorical_gan(
     cardinality : np.ndarray
         Cardinality of each variable
     params : dict, optional
-        Training parameters (same as binary_gan, plus):
+        Training parameters:
+        - 'latent_dim': latent space dimension
+        - 'hidden_dims_g': generator hidden dims
+        - 'hidden_dims_d': discriminator hidden dims
+        - 'list_act_functs_g': list of activation functions for generator
+        - 'list_act_functs_d': list of activation functions for discriminator
+        - 'list_init_functs_g': list of initialization functions for generator
+        - 'list_init_functs_d': list of initialization functions for discriminator
         - 'temperature': Gumbel-Softmax temperature (default: 1.0)
         - 'temperature_decay': decay rate (default: 0.99)
         - 'min_temperature': minimum temperature (default: 0.5)
@@ -459,15 +637,20 @@ def learn_categorical_gan(
     if params is None:
         params = {}
 
+    pop_size = population.shape[0]
     n_vars = population.shape[1]
     total_categories = int(np.sum(cardinality))
 
-    # Extract parameters
+    # Compute defaults based on input dimensions
+    default_hidden_dims = compute_default_hidden_dims(n_vars, pop_size)
+    default_batch_size = compute_default_batch_size(n_vars, pop_size)
+
+    # Extract parameters with new defaults
     latent_dim = params.get('latent_dim', max(10, n_vars // 2))
-    hidden_dims_g = params.get('hidden_dims_g', [128, 256])
-    hidden_dims_d = params.get('hidden_dims_d', [256, 128])
+    hidden_dims_g = params.get('hidden_dims_g', default_hidden_dims)
+    hidden_dims_d = params.get('hidden_dims_d', list(reversed(default_hidden_dims)))
     epochs = params.get('epochs', 200)
-    batch_size = params.get('batch_size', min(32, len(population) // 2))
+    batch_size = params.get('batch_size', default_batch_size)
     learning_rate_g = params.get('learning_rate_g', 0.0002)
     learning_rate_d = params.get('learning_rate_d', 0.0002)
     beta1 = params.get('beta1', 0.5)
@@ -475,6 +658,12 @@ def learn_categorical_gan(
     temperature = params.get('temperature', 1.0)
     temperature_decay = params.get('temperature_decay', 0.99)
     min_temperature = params.get('min_temperature', 0.5)
+
+    # Extract activation and initialization function lists
+    list_act_functs_g = params.get('list_act_functs_g', None)
+    list_act_functs_d = params.get('list_act_functs_d', None)
+    list_init_functs_g = params.get('list_init_functs_g', None)
+    list_init_functs_d = params.get('list_init_functs_d', None)
 
     # Convert population to one-hot encoding
     cum_card = np.concatenate([[0], np.cumsum(cardinality)]).astype(int)
@@ -486,9 +675,17 @@ def learn_categorical_gan(
 
     real_data = torch.FloatTensor(one_hot)
 
-    # Create networks
-    generator = CategoricalGANGenerator(latent_dim, n_vars, cardinality, hidden_dims_g)
-    discriminator = CategoricalGANDiscriminator(total_categories, hidden_dims_d)
+    # Create networks with configurable activations and initializations
+    generator = CategoricalGANGenerator(
+        latent_dim, n_vars, cardinality, hidden_dims_g,
+        list_act_functs=list_act_functs_g,
+        list_init_functs=list_init_functs_g
+    )
+    discriminator = CategoricalGANDiscriminator(
+        total_categories, hidden_dims_d,
+        list_act_functs=list_act_functs_d,
+        list_init_functs=list_init_functs_d
+    )
 
     # Loss and optimizers
     criterion = nn.BCELoss()
@@ -564,7 +761,7 @@ def learn_categorical_gan(
             print(f"Epoch {epoch+1}/{epochs}: "
                   f"D_loss={avg_loss_d:.4f}, G_loss={avg_loss_g:.4f}, Temp={current_temp:.4f}")
 
-    # Return model
+    # Return model with all configuration
     model = {
         'generator_state': generator.state_dict(),
         'discriminator_state': discriminator.state_dict(),
@@ -573,6 +770,10 @@ def learn_categorical_gan(
         'cardinality': cardinality,
         'hidden_dims_g': hidden_dims_g,
         'hidden_dims_d': hidden_dims_d,
+        'list_act_functs_g': list_act_functs_g if list_act_functs_g else ['relu'] * len(hidden_dims_g),
+        'list_act_functs_d': list_act_functs_d if list_act_functs_d else ['leaky_relu'] * len(hidden_dims_d),
+        'list_init_functs_g': list_init_functs_g if list_init_functs_g else ['default'] * len(hidden_dims_g),
+        'list_init_functs_d': list_init_functs_d if list_init_functs_d else ['default'] * len(hidden_dims_d),
         'temperature': current_temp,
         'type': 'categorical_gan'
     }

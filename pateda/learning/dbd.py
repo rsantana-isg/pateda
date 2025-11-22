@@ -11,10 +11,20 @@ over continuous solution vectors in EDAs using PyTorch.
 """
 
 import numpy as np
-from typing import Dict, Any, Optional, Tuple
+from typing import Dict, Any, Optional, Tuple, List
 import torch
 import torch.nn as nn
 import torch.nn.functional as F
+
+from pateda.learning.nn_utils import (
+    get_activation,
+    apply_weight_init,
+    compute_default_hidden_dims,
+    compute_default_batch_size,
+    validate_list_params,
+    SUPPORTED_ACTIVATIONS,
+    SUPPORTED_INITIALIZATIONS,
+)
 
 
 class AlphaDeblendingMLP(nn.Module):
@@ -23,23 +33,26 @@ class AlphaDeblendingMLP(nn.Module):
 
     This network takes a blended sample x_alpha and blending parameter alpha as input,
     and predicts the difference vector (x1 - x0) that was used to create the blend.
+
+    Parameters
+    ----------
+    input_dim : int
+        Dimension of the input data.
+    hidden_dims : list, optional
+        List of hidden layer dimensions.
+    list_act_functs : list, optional
+        List of activation functions, one per hidden layer.
+    list_init_functs : list, optional
+        List of initialization functions, one per hidden layer.
     """
 
     def __init__(
         self,
         input_dim: int,
-        hidden_dims: list = None
+        hidden_dims: List[int] = None,
+        list_act_functs: List[str] = None,
+        list_init_functs: List[str] = None
     ):
-        """
-        Initialize alpha-deblending MLP.
-
-        Parameters
-        ----------
-        input_dim : int
-            Dimension of the input data
-        hidden_dims : list, optional
-            List of hidden layer dimensions (default: [64, 64])
-        """
         super(AlphaDeblendingMLP, self).__init__()
 
         if hidden_dims is None:
@@ -48,14 +61,28 @@ class AlphaDeblendingMLP(nn.Module):
         self.input_dim = input_dim
         self.hidden_dims = hidden_dims
 
+        n_hidden = len(hidden_dims)
+
+        # Validate and set defaults
+        if list_act_functs is None:
+            list_act_functs = ['relu'] * n_hidden
+        if list_init_functs is None:
+            list_init_functs = ['default'] * n_hidden
+
+        list_act_functs, list_init_functs = validate_list_params(
+            hidden_dims, list_act_functs, list_init_functs
+        )
+
         # MLP layers
         # Input is x_alpha (input_dim) concatenated with alpha (1)
         layers = []
         prev_dim = input_dim + 1
 
-        for hidden_dim in hidden_dims:
-            layers.append(nn.Linear(prev_dim, hidden_dim))
-            layers.append(nn.ReLU())
+        for i, hidden_dim in enumerate(hidden_dims):
+            linear = nn.Linear(prev_dim, hidden_dim)
+            apply_weight_init(linear, list_init_functs[i])
+            layers.append(linear)
+            layers.append(get_activation(list_act_functs[i], in_features=hidden_dim))
             prev_dim = hidden_dim
 
         # Output layer (predicts difference x1 - x0)
@@ -164,9 +191,12 @@ def learn_dbd(
     params : dict, optional
         Training parameters containing:
         - 'num_alpha_samples': number of alpha samples per pair (default: 10)
-        - 'hidden_dims': list of hidden layer dimensions (default: [64, 64])
+        - 'hidden_dims': list of hidden layer dimensions
+          (default: computed from n_dims and n_samples)
+        - 'list_act_functs': list of activation functions for hidden layers
+        - 'list_init_functs': list of initialization functions for hidden layers
         - 'epochs': number of training epochs (default: 50)
-        - 'batch_size': batch size for training (default: 32)
+        - 'batch_size': batch size for training (default: max(8, n_dims/50))
         - 'learning_rate': learning rate (default: 1e-3)
         - 'normalize': whether to normalize data (default: True)
 
@@ -177,19 +207,33 @@ def learn_dbd(
         - 'model_state': network state dict
         - 'input_dim': input dimension
         - 'hidden_dims': hidden layer dimensions
+        - 'list_act_functs': activation functions used
+        - 'list_init_functs': initialization functions used
         - 'ranges': data normalization ranges (if normalized)
         - 'type': 'dbd'
     """
     if params is None:
         params = {}
 
-    # Extract parameters
+    # Extract dimensions
+    n_samples = p1.shape[0]
+    input_dim = p0.shape[1]
+
+    # Compute defaults based on input dimensions
+    default_hidden_dims = compute_default_hidden_dims(input_dim, n_samples)
+    default_batch_size = compute_default_batch_size(input_dim, n_samples)
+
+    # Extract parameters with new defaults
     num_alpha_samples = params.get('num_alpha_samples', 10)
-    hidden_dims = params.get('hidden_dims', [64, 64])
+    hidden_dims = params.get('hidden_dims', default_hidden_dims)
     epochs = params.get('epochs', 50)
-    batch_size = params.get('batch_size', 32)
+    batch_size = params.get('batch_size', default_batch_size)
     learning_rate = params.get('learning_rate', 1e-3)
     normalize = params.get('normalize', True)
+
+    # Extract activation and initialization function lists
+    list_act_functs = params.get('list_act_functs', None)
+    list_init_functs = params.get('list_init_functs', None)
 
     # Normalize data if requested
     if normalize:
@@ -205,13 +249,15 @@ def learn_dbd(
         p1_norm = p1.copy()
         ranges = None
 
-    input_dim = p0.shape[1]
-
     # Create training dataset
     alpha, x_alpha, true_diff = create_training_dataset(p0_norm, p1_norm, num_alpha_samples)
 
-    # Create model
-    model = AlphaDeblendingMLP(input_dim, hidden_dims)
+    # Create model with configurable activations and initializations
+    model = AlphaDeblendingMLP(
+        input_dim, hidden_dims,
+        list_act_functs=list_act_functs,
+        list_init_functs=list_init_functs
+    )
 
     # Optimizer
     optimizer = torch.optim.Adam(model.parameters(), lr=learning_rate)
@@ -240,11 +286,13 @@ def learn_dbd(
             epoch_loss += loss.item()
             n_batches += 1
 
-    # Return model
+    # Return model with all configuration
     return {
         'model_state': model.state_dict(),
         'input_dim': input_dim,
         'hidden_dims': hidden_dims,
+        'list_act_functs': list_act_functs if list_act_functs else ['relu'] * len(hidden_dims),
+        'list_init_functs': list_init_functs if list_init_functs else ['default'] * len(hidden_dims),
         'ranges': ranges,
         'type': 'dbd'
     }

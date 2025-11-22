@@ -12,11 +12,21 @@ for learning distributions over continuous solution vectors in EDAs.
 """
 
 import numpy as np
-from typing import Dict, Any, Optional
+from typing import Dict, Any, Optional, List
 import torch
 import torch.nn as nn
 import torch.nn.functional as F
 import math
+
+from pateda.learning.nn_utils import (
+    get_activation,
+    apply_weight_init,
+    compute_default_hidden_dims,
+    compute_default_batch_size,
+    validate_list_params,
+    SUPPORTED_ACTIVATIONS,
+    SUPPORTED_INITIALIZATIONS,
+)
 
 
 class TimeEmbedding(nn.Module):
@@ -72,26 +82,29 @@ class DenoisingMLP(nn.Module):
 
     This network takes noisy data x_t and timestep t as input, and predicts
     the noise ε that was added to create x_t from the clean data x_0.
+
+    Parameters
+    ----------
+    input_dim : int
+        Dimension of the input data.
+    time_emb_dim : int
+        Dimension of time step embedding (default: 32).
+    hidden_dims : list, optional
+        List of hidden layer dimensions.
+    list_act_functs : list, optional
+        List of activation functions, one per hidden layer.
+    list_init_functs : list, optional
+        List of initialization functions, one per hidden layer.
     """
 
     def __init__(
         self,
         input_dim: int,
         time_emb_dim: int = 32,
-        hidden_dims: list = None
+        hidden_dims: List[int] = None,
+        list_act_functs: List[str] = None,
+        list_init_functs: List[str] = None
     ):
-        """
-        Initialize denoising MLP.
-
-        Parameters
-        ----------
-        input_dim : int
-            Dimension of the input data
-        time_emb_dim : int
-            Dimension of time step embedding (default: 32)
-        hidden_dims : list, optional
-            List of hidden layer dimensions (default: [128, 64])
-        """
         super(DenoisingMLP, self).__init__()
 
         if hidden_dims is None:
@@ -101,6 +114,18 @@ class DenoisingMLP(nn.Module):
         self.time_emb_dim = time_emb_dim
         self.hidden_dims = hidden_dims
 
+        n_hidden = len(hidden_dims)
+
+        # Validate and set defaults
+        if list_act_functs is None:
+            list_act_functs = ['silu'] * n_hidden  # Default to SiLU/Swish
+        if list_init_functs is None:
+            list_init_functs = ['default'] * n_hidden
+
+        list_act_functs, list_init_functs = validate_list_params(
+            hidden_dims, list_act_functs, list_init_functs
+        )
+
         # Time embedding
         self.time_embed = TimeEmbedding(time_emb_dim)
 
@@ -108,9 +133,11 @@ class DenoisingMLP(nn.Module):
         layers = []
         prev_dim = input_dim + time_emb_dim
 
-        for hidden_dim in hidden_dims:
-            layers.append(nn.Linear(prev_dim, hidden_dim))
-            layers.append(nn.SiLU())  # Swish activation (x * sigmoid(x))
+        for i, hidden_dim in enumerate(hidden_dims):
+            linear = nn.Linear(prev_dim, hidden_dim)
+            apply_weight_init(linear, list_init_functs[i])
+            layers.append(linear)
+            layers.append(get_activation(list_act_functs[i], in_features=hidden_dim))
             prev_dim = hidden_dim
 
         # Output layer (predicts noise)
@@ -308,10 +335,13 @@ def learn_dendiff(
         - 'beta_schedule': 'linear' or 'cosine' (default: 'linear')
         - 'beta_start': starting beta (default: 1e-4)
         - 'beta_end': ending beta (default: 0.02)
-        - 'hidden_dims': list of hidden layer dimensions (default: [128, 64])
+        - 'hidden_dims': list of hidden layer dimensions
+          (default: computed from n_vars and pop_size)
+        - 'list_act_functs': list of activation functions for hidden layers
+        - 'list_init_functs': list of initialization functions for hidden layers
         - 'time_emb_dim': time embedding dimension (default: 32)
         - 'epochs': number of training epochs (default: 50)
-        - 'batch_size': batch size for training (default: 32)
+        - 'batch_size': batch size for training (default: max(8, n_vars/50))
         - 'learning_rate': learning rate (default: 1e-3)
 
     Returns
@@ -323,6 +353,8 @@ def learn_dendiff(
         - 'n_timesteps': number of diffusion timesteps
         - 'diffusion_params': precomputed diffusion parameters
         - 'hidden_dims': hidden layer dimensions
+        - 'list_act_functs': activation functions used
+        - 'list_init_functs': initialization functions used
         - 'time_emb_dim': time embedding dimension
         - 'ranges': data normalization ranges
         - 'type': 'dendiff'
@@ -330,16 +362,28 @@ def learn_dendiff(
     if params is None:
         params = {}
 
-    # Extract parameters
+    # Extract dimensions
+    pop_size = population.shape[0]
+    input_dim = population.shape[1]
+
+    # Compute defaults based on input dimensions
+    default_hidden_dims = compute_default_hidden_dims(input_dim, pop_size)
+    default_batch_size = compute_default_batch_size(input_dim, pop_size)
+
+    # Extract parameters with new defaults
     n_timesteps = params.get('n_timesteps', 1000)
     beta_schedule = params.get('beta_schedule', 'linear')
     beta_start = params.get('beta_start', 1e-4)
     beta_end = params.get('beta_end', 0.02)
-    hidden_dims = params.get('hidden_dims', [128, 64])
+    hidden_dims = params.get('hidden_dims', default_hidden_dims)
     time_emb_dim = params.get('time_emb_dim', 32)
     epochs = params.get('epochs', 50)
-    batch_size = params.get('batch_size', min(32, len(population) // 2))
+    batch_size = params.get('batch_size', default_batch_size)
     learning_rate = params.get('learning_rate', 1e-3)
+
+    # Extract activation and initialization function lists
+    list_act_functs = params.get('list_act_functs', None)
+    list_init_functs = params.get('list_init_functs', None)
 
     # Normalize data to [0, 1]
     ranges = np.vstack([np.min(population, axis=0), np.max(population, axis=0)])
@@ -361,8 +405,12 @@ def learn_dendiff(
     sqrt_alphas_cumprod = torch.FloatTensor(diffusion_params['sqrt_alphas_cumprod'])
     sqrt_one_minus_alphas_cumprod = torch.FloatTensor(diffusion_params['sqrt_one_minus_alphas_cumprod'])
 
-    # Create denoising network
-    model = DenoisingMLP(input_dim, time_emb_dim, hidden_dims)
+    # Create denoising network with configurable activations and initializations
+    model = DenoisingMLP(
+        input_dim, time_emb_dim, hidden_dims,
+        list_act_functs=list_act_functs,
+        list_init_functs=list_init_functs
+    )
 
     # Optimizer
     optimizer = torch.optim.Adam(model.parameters(), lr=learning_rate)
@@ -405,7 +453,7 @@ def learn_dendiff(
             epoch_loss += loss.item()
             n_batches += 1
 
-    # Return model
+    # Return model with all configuration
     return {
         'model_state': model.state_dict(),
         'input_dim': input_dim,
@@ -413,6 +461,8 @@ def learn_dendiff(
         'diffusion_params': {k: v.tolist() if isinstance(v, np.ndarray) else v
                             for k, v in diffusion_params.items()},
         'hidden_dims': hidden_dims,
+        'list_act_functs': list_act_functs if list_act_functs else ['silu'] * len(hidden_dims),
+        'list_init_functs': list_init_functs if list_init_functs else ['default'] * len(hidden_dims),
         'time_emb_dim': time_emb_dim,
         'ranges': ranges,
         'type': 'dendiff'

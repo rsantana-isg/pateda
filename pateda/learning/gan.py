@@ -132,10 +132,20 @@ Traditional alternatives:
 """
 
 import numpy as np
-from typing import Dict, Any, Optional
+from typing import Dict, Any, Optional, List
 import torch
 import torch.nn as nn
 import torch.optim as optim
+
+from pateda.learning.nn_utils import (
+    get_activation,
+    apply_weight_init,
+    compute_default_hidden_dims,
+    compute_default_batch_size,
+    validate_list_params,
+    SUPPORTED_ACTIVATIONS,
+    SUPPORTED_INITIALIZATIONS,
+)
 
 
 class GANGenerator(nn.Module):
@@ -143,24 +153,59 @@ class GANGenerator(nn.Module):
     Generator network for GAN.
 
     Maps random noise z from latent space to data samples.
+
+    Parameters
+    ----------
+    latent_dim : int
+        Dimension of the latent space input.
+    output_dim : int
+        Dimension of the output (number of variables).
+    hidden_dims : list, optional
+        List of hidden layer dimensions.
+    list_act_functs : list, optional
+        List of activation functions, one per hidden layer.
+    list_init_functs : list, optional
+        List of initialization functions, one per hidden layer.
     """
 
-    def __init__(self, latent_dim: int, output_dim: int, hidden_dims: list = None):
+    def __init__(
+        self,
+        latent_dim: int,
+        output_dim: int,
+        hidden_dims: List[int] = None,
+        list_act_functs: List[str] = None,
+        list_init_functs: List[str] = None
+    ):
         super(GANGenerator, self).__init__()
 
         if hidden_dims is None:
             hidden_dims = [32, 64]
 
+        n_hidden = len(hidden_dims)
+
+        # Validate and set defaults for activation/initialization functions
+        if list_act_functs is None:
+            list_act_functs = ['relu'] * n_hidden
+        if list_init_functs is None:
+            list_init_functs = ['default'] * n_hidden
+
+        list_act_functs, list_init_functs = validate_list_params(
+            hidden_dims, list_act_functs, list_init_functs
+        )
+
         layers = []
         prev_dim = latent_dim
 
-        for hidden_dim in hidden_dims:
-            layers.append(nn.Linear(prev_dim, hidden_dim))
-            layers.append(nn.ReLU())
+        for i, hidden_dim in enumerate(hidden_dims):
+            linear = nn.Linear(prev_dim, hidden_dim)
+            apply_weight_init(linear, list_init_functs[i])
+            layers.append(linear)
+            layers.append(get_activation(list_act_functs[i], in_features=hidden_dim))
             prev_dim = hidden_dim
 
         # Output layer with sigmoid activation for normalized data
-        layers.append(nn.Linear(prev_dim, output_dim))
+        output_layer = nn.Linear(prev_dim, output_dim)
+        layers.append(output_layer)
         layers.append(nn.Sigmoid())
 
         self.generator = nn.Sequential(*layers)
@@ -175,24 +220,56 @@ class GANDiscriminator(nn.Module):
 
     Classifies input samples as real (from data) or fake (from generator).
     Outputs probability that input is real.
+
+    Parameters
+    ----------
+    input_dim : int
+        Dimension of the input (number of variables).
+    hidden_dims : list, optional
+        List of hidden layer dimensions.
+    list_act_functs : list, optional
+        List of activation functions, one per hidden layer.
+    list_init_functs : list, optional
+        List of initialization functions, one per hidden layer.
     """
 
-    def __init__(self, input_dim: int, hidden_dims: list = None):
+    def __init__(
+        self,
+        input_dim: int,
+        hidden_dims: List[int] = None,
+        list_act_functs: List[str] = None,
+        list_init_functs: List[str] = None
+    ):
         super(GANDiscriminator, self).__init__()
 
         if hidden_dims is None:
             hidden_dims = [64, 32]
 
+        n_hidden = len(hidden_dims)
+
+        # Validate and set defaults for activation/initialization functions
+        if list_act_functs is None:
+            list_act_functs = ['relu'] * n_hidden
+        if list_init_functs is None:
+            list_init_functs = ['default'] * n_hidden
+
+        list_act_functs, list_init_functs = validate_list_params(
+            hidden_dims, list_act_functs, list_init_functs
+        )
+
         layers = []
         prev_dim = input_dim
 
-        for hidden_dim in hidden_dims:
-            layers.append(nn.Linear(prev_dim, hidden_dim))
-            layers.append(nn.ReLU())
+        for i, hidden_dim in enumerate(hidden_dims):
+            linear = nn.Linear(prev_dim, hidden_dim)
+            apply_weight_init(linear, list_init_functs[i])
+            layers.append(linear)
+            layers.append(get_activation(list_act_functs[i], in_features=hidden_dim))
             prev_dim = hidden_dim
 
         # Output layer: probability that input is real
-        layers.append(nn.Linear(prev_dim, 1))
+        output_layer = nn.Linear(prev_dim, 1)
+        layers.append(output_layer)
         layers.append(nn.Sigmoid())
 
         self.discriminator = nn.Sequential(*layers)
@@ -222,10 +299,16 @@ def learn_gan(
     params : dict, optional
         Training parameters containing:
         - 'latent_dim': dimension of latent space (default: max(2, n_vars // 2))
-        - 'hidden_dims_g': list of hidden layer dimensions for generator (default: [32, 64])
-        - 'hidden_dims_d': list of hidden layer dimensions for discriminator (default: [64, 32])
+        - 'hidden_dims_g': list of hidden layer dimensions for generator
+          (default: computed from n_vars and pop_size)
+        - 'hidden_dims_d': list of hidden layer dimensions for discriminator
+          (default: computed from n_vars and pop_size, reversed)
+        - 'list_act_functs_g': list of activation functions for generator hidden layers
+        - 'list_act_functs_d': list of activation functions for discriminator hidden layers
+        - 'list_init_functs_g': list of initialization functions for generator hidden layers
+        - 'list_init_functs_d': list of initialization functions for discriminator hidden layers
         - 'epochs': number of training epochs (default: 100)
-        - 'batch_size': batch size for training (default: 32)
+        - 'batch_size': batch size for training (default: max(8, n_vars/50))
         - 'learning_rate': learning rate for both networks (default: 0.0002)
         - 'beta1': Adam optimizer beta1 parameter (default: 0.5)
         - 'k_discriminator': number of discriminator updates per generator update (default: 1)
@@ -238,22 +321,42 @@ def learn_gan(
         - 'discriminator_state': discriminator network state dict (for potential retraining)
         - 'latent_dim': latent dimension
         - 'input_dim': input dimension
+        - 'hidden_dims_g': generator hidden dimensions
+        - 'hidden_dims_d': discriminator hidden dimensions
+        - 'list_act_functs_g': generator activation functions
+        - 'list_act_functs_d': discriminator activation functions
+        - 'list_init_functs_g': generator initialization functions
+        - 'list_init_functs_d': discriminator initialization functions
         - 'ranges': data normalization ranges
         - 'type': 'gan'
     """
     if params is None:
         params = {}
 
-    # Extract parameters
+    # Extract dimensions
+    pop_size = population.shape[0]
     input_dim = population.shape[1]
+
+    # Compute default hidden dimensions based on input size and population size
+    # First layer: max(5, n/10), Second layer: max(10, psize/10)
+    default_hidden_dims = compute_default_hidden_dims(input_dim, pop_size)
+    default_batch_size = compute_default_batch_size(input_dim, pop_size)
+
+    # Extract parameters with new defaults
     latent_dim = params.get('latent_dim', max(2, input_dim // 2))
-    hidden_dims_g = params.get('hidden_dims_g', [32, 64])
-    hidden_dims_d = params.get('hidden_dims_d', [64, 32])
+    hidden_dims_g = params.get('hidden_dims_g', default_hidden_dims)
+    hidden_dims_d = params.get('hidden_dims_d', list(reversed(default_hidden_dims)))
     epochs = params.get('epochs', 100)
-    batch_size = params.get('batch_size', min(32, len(population) // 2))
+    batch_size = params.get('batch_size', default_batch_size)
     learning_rate = params.get('learning_rate', 0.0002)
     beta1 = params.get('beta1', 0.5)
     k_discriminator = params.get('k_discriminator', 1)
+
+    # Extract activation and initialization function lists
+    list_act_functs_g = params.get('list_act_functs_g', None)
+    list_act_functs_d = params.get('list_act_functs_d', None)
+    list_init_functs_g = params.get('list_init_functs_g', None)
+    list_init_functs_d = params.get('list_init_functs_d', None)
 
     # Normalize data to [0, 1]
     ranges = np.vstack([np.min(population, axis=0), np.max(population, axis=0)])
@@ -266,9 +369,17 @@ def learn_gan(
     # Convert to tensors
     real_data = torch.FloatTensor(norm_pop)
 
-    # Create networks
-    generator = GANGenerator(latent_dim, input_dim, hidden_dims_g)
-    discriminator = GANDiscriminator(input_dim, hidden_dims_d)
+    # Create networks with configurable activations and initializations
+    generator = GANGenerator(
+        latent_dim, input_dim, hidden_dims_g,
+        list_act_functs=list_act_functs_g,
+        list_init_functs=list_init_functs_g
+    )
+    discriminator = GANDiscriminator(
+        input_dim, hidden_dims_d,
+        list_act_functs=list_act_functs_d,
+        list_init_functs=list_init_functs_d
+    )
 
     # Loss function
     criterion = nn.BCELoss()
@@ -343,7 +454,7 @@ def learn_gan(
             epoch_loss_g += loss_g.item()
             n_batches += 1
 
-    # Return model
+    # Return model with all configuration
     return {
         'generator_state': generator.state_dict(),
         'discriminator_state': discriminator.state_dict(),
@@ -351,6 +462,10 @@ def learn_gan(
         'input_dim': input_dim,
         'hidden_dims_g': hidden_dims_g,
         'hidden_dims_d': hidden_dims_d,
+        'list_act_functs_g': list_act_functs_g if list_act_functs_g else ['relu'] * len(hidden_dims_g),
+        'list_act_functs_d': list_act_functs_d if list_act_functs_d else ['relu'] * len(hidden_dims_d),
+        'list_init_functs_g': list_init_functs_g if list_init_functs_g else ['default'] * len(hidden_dims_g),
+        'list_init_functs_d': list_init_functs_d if list_init_functs_d else ['default'] * len(hidden_dims_d),
         'ranges': ranges,
         'type': 'gan'
     }
