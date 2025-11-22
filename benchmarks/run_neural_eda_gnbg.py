@@ -21,7 +21,10 @@ Supported EDAs (continuous optimization):
     - gan: Generative Adversarial Network EDA
     - backdrive: Backdrive Network Inversion EDA
     - backdrive_adaptive: Adaptive Backdrive with multiple fitness targets
-    - dbd: Design by Diffusion (alpha-deblending diffusion)
+    - dbd_cs: DbD Current-to-Selected (p0=current, p1=selected)
+    - dbd_cd: DbD Current-to-Distance-matched (p0=current, p1=nearest selected)
+    - dbd_uc: DbD Univariate-to-Current (p0=univariate, p1=current)
+    - dbd_us: DbD Univariate-to-Selected (p0=univariate, p1=selected)
     - dendiff: Denoising Diffusion Probabilistic Model EDA
     - dendiff_fast: Fast Denoising Diffusion (DDIM-style sampling)
 
@@ -65,7 +68,7 @@ from pateda.learning.vae import learn_vae, learn_extended_vae, learn_conditional
 from pateda.learning.gan import learn_gan
 from pateda.learning.backdrive import learn_backdrive
 from pateda.learning.dae import learn_dae, learn_multilayer_dae
-from pateda.learning.dbd import learn_dbd
+from pateda.learning.dbd import learn_dbd, find_closest_neighbors, sample_univariate_gaussian
 from pateda.learning.dendiff import learn_dendiff
 
 # Neural network sampling functions
@@ -173,8 +176,10 @@ SUPPORTED_EDAS = [
     'vae', 'extended_vae', 'conditional_vae', 'gan',
     # Backdrive variants (DbD-EDA)
     'backdrive', 'backdrive_adaptive',
-    # Diffusion-based EDAs
-    'dbd', 'dendiff', 'dendiff_fast',
+    # Diffusion-by-Deblending (DbD) variants
+    'dbd_cs', 'dbd_cd', 'dbd_uc', 'dbd_us',
+    # Denoising Diffusion (DenDiff) variants
+    'dendiff', 'dendiff_fast',
     # DAE variants (discrete/binary - experimental for continuous)
     'dae', 'dae_probabilistic', 'multilayer_dae'
 ]
@@ -369,8 +374,8 @@ def get_default_params(eda_name: str, n_vars: int, pop_size: int) -> Dict[str, A
             'backdrive_lr': 0.1,
             'n_fitness_levels': 5
         },
-        # Diffusion-based EDAs
-        'dbd': {
+        # Diffusion-by-Deblending (DbD) variants
+        'dbd_cs': {  # Current to Selected
             'hidden_dims': hidden_dims,
             'list_act_functs': list_act_functs,
             'list_init_functs': list_init_functs,
@@ -378,8 +383,39 @@ def get_default_params(eda_name: str, n_vars: int, pop_size: int) -> Dict[str, A
             'epochs': 50,
             'batch_size': batch_size,
             'learning_rate': 0.001,
-            'num_iterations': 50  # Sampling iterations
+            'num_iterations': 50
         },
+        'dbd_cd': {  # Current to Distance-matched
+            'hidden_dims': hidden_dims,
+            'list_act_functs': list_act_functs,
+            'list_init_functs': list_init_functs,
+            'num_alpha_samples': 10,
+            'epochs': 50,
+            'batch_size': batch_size,
+            'learning_rate': 0.001,
+            'num_iterations': 50
+        },
+        'dbd_uc': {  # Univariate to Current
+            'hidden_dims': hidden_dims,
+            'list_act_functs': list_act_functs,
+            'list_init_functs': list_init_functs,
+            'num_alpha_samples': 10,
+            'epochs': 50,
+            'batch_size': batch_size,
+            'learning_rate': 0.001,
+            'num_iterations': 50
+        },
+        'dbd_us': {  # Univariate to Selected
+            'hidden_dims': hidden_dims,
+            'list_act_functs': list_act_functs,
+            'list_init_functs': list_init_functs,
+            'num_alpha_samples': 10,
+            'epochs': 50,
+            'batch_size': batch_size,
+            'learning_rate': 0.001,
+            'num_iterations': 50
+        },
+        # Denoising Diffusion (DenDiff) variants
         'dendiff': {
             'hidden_dims': hidden_dims,
             'list_act_functs': list_act_functs,
@@ -500,14 +536,32 @@ def learn_model(eda_name: str, generation: int, n_vars: int, bounds: np.ndarray,
         return learn_backdrive(generation, n_vars, bounds, selected_population,
                               selected_fitness, params=bd_params)
 
-    elif eda_name == 'dbd':
-        # Design by Diffusion (alpha-deblending)
-        # Requires source distribution p0 - use univariate Gaussian approximation
-        # p0: random/noise samples, p1: target (selected population)
-        mean = np.mean(selected_population, axis=0)
-        std = np.std(selected_population, axis=0) + 1e-6
-        p0 = np.random.randn(len(selected_population), n_vars) * std + mean
-        return learn_dbd(p0, selected_population, params=params)
+    elif eda_name == 'dbd_cs':
+        # DbD Current-to-Selected: p0=current population, p1=selected population
+        # Need full current population, but we only have selected here
+        # Use selected as both (degenerate case) or sample from it
+        p0 = selected_population  # Use selected as current approximation
+        p1 = selected_population  # Target is selected
+        return learn_dbd(p0, p1, params=params)
+
+    elif eda_name == 'dbd_cd':
+        # DbD Current-to-Distance-matched: p0=current, p1=nearest selected neighbors
+        # Find closest neighbors in selected population for each individual
+        p0 = selected_population
+        p1 = find_closest_neighbors(selected_population, selected_population)
+        return learn_dbd(p0, p1, params=params)
+
+    elif eda_name == 'dbd_uc':
+        # DbD Univariate-to-Current: p0=univariate Gaussian, p1=current population
+        p0 = sample_univariate_gaussian(selected_population, len(selected_population))
+        p1 = selected_population  # Target is current (selected approximation)
+        return learn_dbd(p0, p1, params=params)
+
+    elif eda_name == 'dbd_us':
+        # DbD Univariate-to-Selected: p0=univariate Gaussian, p1=selected population
+        p0 = sample_univariate_gaussian(selected_population, len(selected_population))
+        p1 = selected_population  # Target is selected
+        return learn_dbd(p0, p1, params=params)
 
     elif eda_name in ['dendiff', 'dendiff_fast']:
         # Denoising Diffusion - same learning, different sampling
@@ -601,8 +655,23 @@ def sample_model(eda_name: str, model, n_samples: int, n_vars: int, bounds: np.n
         return sample_backdrive_adaptive(n_vars, model, bounds, selected_population,
                                          selected_fitness, params=bd_params)
 
-    elif eda_name == 'dbd':
-        # Design by Diffusion - sample using univariate Gaussian approximation
+    elif eda_name == 'dbd_cs':
+        # DbD-CS: Sample starting from selected population
+        return sample_dbd(model, selected_population, n_samples,
+                          bounds=bounds, params=params)
+
+    elif eda_name == 'dbd_cd':
+        # DbD-CD: Sample starting from selected population
+        return sample_dbd(model, selected_population, n_samples,
+                          bounds=bounds, params=params)
+
+    elif eda_name == 'dbd_uc':
+        # DbD-UC: Sample starting from univariate approximation of selected
+        return sample_dbd_from_univariate(model, selected_population, n_samples,
+                                          bounds=bounds, params=params)
+
+    elif eda_name == 'dbd_us':
+        # DbD-US: Sample starting from univariate approximation of selected
         return sample_dbd_from_univariate(model, selected_population, n_samples,
                                           bounds=bounds, params=params)
 
@@ -951,9 +1020,12 @@ Supported EDAs (continuous optimization):
     extended_vae      - Extended VAE with fitness predictor
     conditional_vae   - Conditional Extended VAE (fitness-conditioned)
     gan               - Generative Adversarial Network EDA
-    backdrive         - Backdrive Network Inversion EDA (DbD-EDA)
+    backdrive         - Backdrive Network Inversion EDA
     backdrive_adaptive - Adaptive Backdrive with multiple fitness targets
-    dbd               - Design by Diffusion (alpha-deblending)
+    dbd_cs            - DbD Current-to-Selected
+    dbd_cd            - DbD Current-to-Distance-matched
+    dbd_uc            - DbD Univariate-to-Current
+    dbd_us            - DbD Univariate-to-Selected
     dendiff           - Denoising Diffusion Probabilistic Model EDA
     dendiff_fast      - Fast Denoising Diffusion (DDIM-style)
 
