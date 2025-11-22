@@ -20,6 +20,12 @@ Supported EDAs (continuous optimization):
     - conditional_vae: Conditional Extended VAE (fitness-conditioned)
     - gan: Generative Adversarial Network EDA
     - backdrive: Backdrive Network Inversion EDA
+    - backdrive_adaptive: Adaptive Backdrive with multiple fitness targets
+
+Experimental EDAs (designed for discrete/binary, discretized for continuous):
+    - dae: Denoising Autoencoder EDA (binary-based)
+    - dae_probabilistic: DAE with probabilistic sampling
+    - multilayer_dae: Multi-layer DAE
 
 Output:
     - CSV file with run statistics saved to results/ folder
@@ -50,19 +56,113 @@ from scipy.io import loadmat
 from pateda.learning.vae import learn_vae, learn_extended_vae, learn_conditional_extended_vae
 from pateda.learning.gan import learn_gan
 from pateda.learning.backdrive import learn_backdrive
+from pateda.learning.dae import learn_dae, learn_multilayer_dae
 
 # Neural network sampling functions
 from pateda.sampling.vae import sample_vae, sample_extended_vae, sample_conditional_extended_vae
 from pateda.sampling.gan import sample_gan
-from pateda.sampling.backdrive import sample_backdrive
+from pateda.sampling.backdrive import sample_backdrive, sample_backdrive_adaptive
+from pateda.sampling.dae import sample_dae, sample_dae_probabilistic, sample_multilayer_dae
 
 # Default paths
 DEFAULT_INSTANCES_FOLDER = str(PROJECT_ROOT / 'pateda' / 'functions' / 'GNBG_Instances.Python-main')
 DEFAULT_OUTPUT_FOLDER = str(PROJECT_ROOT / 'benchmarks' / 'results')
 
+
+def _discretize_to_binary(population: np.ndarray, bounds: np.ndarray,
+                          n_bits_per_var: int) -> np.ndarray:
+    """
+    Discretize continuous population to binary representation.
+
+    Each continuous variable is encoded using n_bits_per_var bits.
+
+    Parameters
+    ----------
+    population : np.ndarray
+        Continuous population of shape (pop_size, n_vars)
+    bounds : np.ndarray
+        Variable bounds of shape (2, n_vars)
+    n_bits_per_var : int
+        Number of bits per variable
+
+    Returns
+    -------
+    binary_population : np.ndarray
+        Binary population of shape (pop_size, n_vars * n_bits_per_var)
+    """
+    pop_size, n_vars = population.shape
+    max_val = 2 ** n_bits_per_var - 1
+
+    # Normalize to [0, 1]
+    lower = bounds[0]
+    upper = bounds[1]
+    normalized = (population - lower) / (upper - lower + 1e-10)
+    normalized = np.clip(normalized, 0, 1)
+
+    # Convert to integer representation
+    int_vals = (normalized * max_val).astype(int)
+    int_vals = np.clip(int_vals, 0, max_val)
+
+    # Convert to binary
+    binary_population = np.zeros((pop_size, n_vars * n_bits_per_var), dtype=int)
+    for i in range(n_vars):
+        for b in range(n_bits_per_var):
+            binary_population[:, i * n_bits_per_var + b] = (int_vals[:, i] >> (n_bits_per_var - 1 - b)) & 1
+
+    return binary_population
+
+
+def _decode_binary_to_continuous(binary_population: np.ndarray, bounds: np.ndarray,
+                                  n_bits_per_var: int, n_vars: int) -> np.ndarray:
+    """
+    Decode binary population back to continuous representation.
+
+    Parameters
+    ----------
+    binary_population : np.ndarray
+        Binary population of shape (pop_size, n_vars * n_bits_per_var)
+    bounds : np.ndarray
+        Variable bounds of shape (2, n_vars)
+    n_bits_per_var : int
+        Number of bits per variable
+    n_vars : int
+        Number of original continuous variables
+
+    Returns
+    -------
+    population : np.ndarray
+        Continuous population of shape (pop_size, n_vars)
+    """
+    pop_size = binary_population.shape[0]
+    max_val = 2 ** n_bits_per_var - 1
+
+    # Convert binary to integer
+    int_vals = np.zeros((pop_size, n_vars), dtype=int)
+    for i in range(n_vars):
+        for b in range(n_bits_per_var):
+            int_vals[:, i] += binary_population[:, i * n_bits_per_var + b] << (n_bits_per_var - 1 - b)
+
+    # Normalize to [0, 1]
+    normalized = int_vals / max_val
+
+    # Scale to bounds
+    lower = bounds[0]
+    upper = bounds[1]
+    population = lower + normalized * (upper - lower)
+
+    return population
+
 # Supported EDAs for continuous optimization (GNBG)
 # Note: RBM with softmax is designed for discrete optimization and is not included here
-SUPPORTED_EDAS = ['vae', 'extended_vae', 'conditional_vae', 'gan', 'backdrive']
+# DAE variants are primarily for discrete/binary but included for experimentation
+SUPPORTED_EDAS = [
+    # Continuous EDAs (native support)
+    'vae', 'extended_vae', 'conditional_vae', 'gan',
+    # Backdrive variants (DbD-EDA)
+    'backdrive', 'backdrive_adaptive',
+    # DAE variants (discrete/binary - experimental for continuous)
+    'dae', 'dae_probabilistic', 'multilayer_dae'
+]
 
 
 def load_gnbg_instance(problem_index: int, instances_folder: str):
@@ -216,6 +316,44 @@ def get_default_params(eda_name: str, n_vars: int, pop_size: int) -> Dict[str, A
             'learning_rate': 0.001,
             'backdrive_iterations': 100,
             'backdrive_lr': 0.1
+        },
+        'backdrive_adaptive': {
+            'hidden_layers': [100, 100],
+            'activation': 'tanh',
+            'epochs': 50,
+            'batch_size': min(32, pop_size // 2),
+            'learning_rate': 0.001,
+            'backdrive_iterations': 100,
+            'backdrive_lr': 0.1,
+            'n_fitness_levels': 5
+        },
+        # DAE parameters (designed for binary, will discretize continuous)
+        'dae': {
+            'hidden_dims': hidden_dims,
+            'epochs': 50,
+            'batch_size': min(32, pop_size // 2),
+            'learning_rate': 0.001,
+            'corruption_level': 0.3,
+            'n_refinement_steps': 10,
+            'n_bits_per_var': 8  # For discretization
+        },
+        'dae_probabilistic': {
+            'hidden_dims': hidden_dims,
+            'epochs': 50,
+            'batch_size': min(32, pop_size // 2),
+            'learning_rate': 0.001,
+            'corruption_level': 0.3,
+            'n_refinement_steps': 10,
+            'n_bits_per_var': 8
+        },
+        'multilayer_dae': {
+            'hidden_dims': [max(64, n_vars * 2), max(32, n_vars)],
+            'epochs': 50,
+            'batch_size': min(32, pop_size // 2),
+            'learning_rate': 0.001,
+            'corruption_level': 0.3,
+            'n_refinement_steps': 10,
+            'n_bits_per_var': 8
         }
     }
 
@@ -272,6 +410,35 @@ def learn_model(eda_name: str, generation: int, n_vars: int, bounds: np.ndarray,
             bd_params['previous_model'] = previous_model
         return learn_backdrive(generation, n_vars, bounds, selected_population,
                               selected_fitness, params=bd_params)
+
+    elif eda_name == 'backdrive_adaptive':
+        # Same learning as backdrive, different sampling
+        bd_params = params.copy()
+        if previous_model is not None:
+            bd_params['previous_model'] = previous_model
+        return learn_backdrive(generation, n_vars, bounds, selected_population,
+                              selected_fitness, params=bd_params)
+
+    elif eda_name in ['dae', 'dae_probabilistic', 'multilayer_dae']:
+        # DAE variants - discretize continuous to binary
+        n_bits = params.get('n_bits_per_var', 8)
+        binary_population = _discretize_to_binary(selected_population, bounds, n_bits)
+
+        dae_params = params.copy()
+        dae_params['_bounds'] = bounds  # Store for later decoding
+        dae_params['_n_bits_per_var'] = n_bits
+        dae_params['_n_vars'] = n_vars
+
+        if eda_name == 'multilayer_dae':
+            model = learn_multilayer_dae(binary_population, selected_fitness, params=dae_params)
+        else:
+            model = learn_dae(binary_population, selected_fitness, params=dae_params)
+
+        # Store discretization info in model
+        model['_bounds'] = bounds
+        model['_n_bits_per_var'] = n_bits
+        model['_n_vars'] = n_vars
+        return model
 
     else:
         raise ValueError(f"Unknown EDA: {eda_name}")
@@ -332,6 +499,31 @@ def sample_model(eda_name: str, model, n_samples: int, n_vars: int, bounds: np.n
         bd_params['n_samples'] = n_samples
         return sample_backdrive(n_vars, model, bounds, selected_population,
                                selected_fitness, params=bd_params)
+
+    elif eda_name == 'backdrive_adaptive':
+        # Adaptive backdrive with multiple fitness targets
+        bd_params = params.copy() if params else {}
+        bd_params['n_samples'] = n_samples
+        return sample_backdrive_adaptive(n_vars, model, bounds, selected_population,
+                                         selected_fitness, params=bd_params)
+
+    elif eda_name in ['dae', 'dae_probabilistic', 'multilayer_dae']:
+        # DAE variants - sample binary and decode to continuous
+        n_bits = model.get('_n_bits_per_var', 8)
+        orig_n_vars = model.get('_n_vars', n_vars)
+        model_bounds = model.get('_bounds', bounds)
+
+        dae_params = params.copy() if params else {}
+
+        if eda_name == 'dae':
+            binary_samples = sample_dae(model, n_samples=n_samples, params=dae_params)
+        elif eda_name == 'dae_probabilistic':
+            binary_samples = sample_dae_probabilistic(model, n_samples=n_samples, params=dae_params)
+        else:  # multilayer_dae
+            binary_samples = sample_multilayer_dae(model, n_samples=n_samples, params=dae_params)
+
+        # Decode binary to continuous
+        return _decode_binary_to_continuous(binary_samples, model_bounds, n_bits, orig_n_vars)
 
     else:
         raise ValueError(f"Unknown EDA: {eda_name}")
@@ -642,11 +834,17 @@ Examples:
     python run_neural_eda_gnbg.py --eda_name conditional_vae -f 5 -s 999 --pop_size 200
 
 Supported EDAs (continuous optimization):
-    vae             - Variational Autoencoder EDA
-    extended_vae    - Extended VAE with fitness predictor
-    conditional_vae - Conditional Extended VAE (fitness-conditioned)
-    gan             - Generative Adversarial Network EDA
-    backdrive       - Backdrive Network Inversion EDA
+    vae               - Variational Autoencoder EDA
+    extended_vae      - Extended VAE with fitness predictor
+    conditional_vae   - Conditional Extended VAE (fitness-conditioned)
+    gan               - Generative Adversarial Network EDA
+    backdrive         - Backdrive Network Inversion EDA (DbD-EDA)
+    backdrive_adaptive - Adaptive Backdrive with multiple fitness targets
+
+Experimental EDAs (discrete/binary, discretized for continuous):
+    dae               - Denoising Autoencoder EDA
+    dae_probabilistic - DAE with probabilistic sampling
+    multilayer_dae    - Multi-layer DAE
         """
     )
 
