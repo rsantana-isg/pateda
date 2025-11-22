@@ -86,11 +86,22 @@ REFERENCES
 """
 
 import numpy as np
-from typing import Dict, Any, Optional
+from typing import Dict, Any, Optional, List
 import torch
 import torch.nn as nn
 import torch.nn.functional as F
 import torch.optim as optim
+
+from pateda.learning.nn_utils import (
+    get_activation,
+    apply_weight_init,
+    compute_default_hidden_dims,
+    compute_default_batch_size,
+    compute_default_latent_dim,
+    validate_list_params,
+    SUPPORTED_ACTIVATIONS,
+    SUPPORTED_INITIALIZATIONS,
+)
 
 
 def sample_gumbel(shape, eps=1e-20):
@@ -137,20 +148,54 @@ class BinaryVAEEncoder(nn.Module):
     Encoder for binary VAE
 
     Takes binary input and outputs latent distribution parameters
+
+    Parameters
+    ----------
+    input_dim : int
+        Dimension of the input.
+    latent_dim : int
+        Dimension of the latent space.
+    hidden_dims : list, optional
+        List of hidden layer dimensions.
+    list_act_functs : list, optional
+        List of activation functions, one per hidden layer.
+    list_init_functs : list, optional
+        List of initialization functions, one per hidden layer.
     """
 
-    def __init__(self, input_dim: int, latent_dim: int, hidden_dims: list = None):
+    def __init__(
+        self,
+        input_dim: int,
+        latent_dim: int,
+        hidden_dims: List[int] = None,
+        list_act_functs: List[str] = None,
+        list_init_functs: List[str] = None
+    ):
         super(BinaryVAEEncoder, self).__init__()
 
         if hidden_dims is None:
             hidden_dims = [128, 64]
 
+        n_hidden = len(hidden_dims)
+
+        # Validate and set defaults
+        if list_act_functs is None:
+            list_act_functs = ['relu'] * n_hidden
+        if list_init_functs is None:
+            list_init_functs = ['default'] * n_hidden
+
+        list_act_functs, list_init_functs = validate_list_params(
+            hidden_dims, list_act_functs, list_init_functs
+        )
+
         layers = []
         prev_dim = input_dim
 
-        for hidden_dim in hidden_dims:
-            layers.append(nn.Linear(prev_dim, hidden_dim))
-            layers.append(nn.ReLU())
+        for i, hidden_dim in enumerate(hidden_dims):
+            linear = nn.Linear(prev_dim, hidden_dim)
+            apply_weight_init(linear, list_init_functs[i])
+            layers.append(linear)
+            layers.append(get_activation(list_act_functs[i], in_features=hidden_dim))
             layers.append(nn.Dropout(0.2))
             prev_dim = hidden_dim
 
@@ -308,11 +353,17 @@ def learn_binary_vae(
         Fitness values of shape (pop_size,) or (pop_size, n_objectives)
     params : dict, optional
         Training parameters:
-        - 'latent_dim': latent space dimension (default: max(2, n_vars // 4))
-        - 'hidden_dims_enc': encoder hidden dims (default: [128, 64])
-        - 'hidden_dims_dec': decoder hidden dims (default: [64, 128])
+        - 'latent_dim': latent space dimension (default: max(2, n_vars/50))
+        - 'hidden_dims_enc': encoder hidden dims
+          (default: computed from n_vars and pop_size)
+        - 'hidden_dims_dec': decoder hidden dims
+          (default: computed from n_vars and pop_size, reversed)
+        - 'list_act_functs_enc': list of activation functions for encoder
+        - 'list_act_functs_dec': list of activation functions for decoder
+        - 'list_init_functs_enc': list of initialization functions for encoder
+        - 'list_init_functs_dec': list of initialization functions for decoder
         - 'epochs': training epochs (default: 100)
-        - 'batch_size': batch size (default: 32)
+        - 'batch_size': batch size (default: max(8, n_vars/50))
         - 'learning_rate': learning rate (default: 0.001)
         - 'beta': KL divergence weight (default: 1.0)
         - 'use_extended': use fitness predictor (E-VAE) (default: False)
@@ -321,29 +372,35 @@ def learn_binary_vae(
     Returns
     -------
     model : dict
-        Dictionary containing:
-        - 'encoder_state': encoder network state
-        - 'decoder_state': decoder network state
-        - 'fitness_predictor_state': (if use_extended=True)
-        - 'latent_dim': latent dimension
-        - 'n_vars': number of variables
-        - 'type': 'binary_vae' or 'binary_evae'
+        Dictionary containing model state and parameters
     """
     if params is None:
         params = {}
 
+    pop_size = population.shape[0]
     n_vars = population.shape[1]
 
-    # Extract parameters
-    latent_dim = params.get('latent_dim', max(2, n_vars // 4))
-    hidden_dims_enc = params.get('hidden_dims_enc', [128, 64])
-    hidden_dims_dec = params.get('hidden_dims_dec', [64, 128])
+    # Compute defaults based on input dimensions
+    default_hidden_dims = compute_default_hidden_dims(n_vars, pop_size)
+    default_batch_size = compute_default_batch_size(n_vars, pop_size)
+    default_latent_dim = compute_default_latent_dim(n_vars)
+
+    # Extract parameters with new defaults
+    latent_dim = params.get('latent_dim', default_latent_dim)
+    hidden_dims_enc = params.get('hidden_dims_enc', default_hidden_dims)
+    hidden_dims_dec = params.get('hidden_dims_dec', list(reversed(default_hidden_dims)))
     epochs = params.get('epochs', 100)
-    batch_size = params.get('batch_size', min(32, len(population) // 2))
+    batch_size = params.get('batch_size', default_batch_size)
     learning_rate = params.get('learning_rate', 0.001)
     beta = params.get('beta', 1.0)
     use_extended = params.get('use_extended', False)
     fitness_weight = params.get('fitness_weight', 0.1)
+
+    # Extract activation and initialization function lists
+    list_act_functs_enc = params.get('list_act_functs_enc', None)
+    list_act_functs_dec = params.get('list_act_functs_dec', None)
+    list_init_functs_enc = params.get('list_init_functs_enc', None)
+    list_init_functs_dec = params.get('list_init_functs_dec', None)
 
     # Convert to tensors
     data = torch.FloatTensor(population)

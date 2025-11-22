@@ -12,10 +12,19 @@ References:
 """
 
 import numpy as np
-from typing import Dict, Any, Optional
+from typing import Dict, Any, Optional, List
 import warnings
 
 from pateda.core.models import NeuralNetworkModel
+from pateda.learning.nn_utils import (
+    get_activation,
+    apply_weight_init,
+    compute_default_hidden_dims,
+    compute_default_batch_size,
+    validate_list_params,
+    SUPPORTED_ACTIVATIONS,
+    SUPPORTED_INITIALIZATIONS,
+)
 
 
 def learn_backdrive(
@@ -47,10 +56,13 @@ def learn_backdrive(
         Fitness values for selected individuals, shape (n_selected, 1) or (n_selected,)
     params : dict, optional
         Learning parameters:
-        - 'hidden_layers': list of hidden layer sizes, default [100, 100]
-        - 'activation': activation function, default 'tanh'
+        - 'hidden_layers': list of hidden layer sizes
+          (default: computed from n_vars and pop_size)
+        - 'list_act_functs': list of activation functions, one per hidden layer
+        - 'list_init_functs': list of initialization functions, one per hidden layer
+        - 'activation': single activation function for all layers (for backward compatibility)
         - 'epochs': number of training epochs, default 50
-        - 'batch_size': batch size for training, default 32
+        - 'batch_size': batch size for training (default: max(8, n_vars/50))
         - 'learning_rate': learning rate for optimizer, default 0.001
         - 'optimizer': optimizer name, default 'adam'
         - 'validation_split': fraction for validation, default 0.2
@@ -94,12 +106,19 @@ def learn_backdrive(
             "Install it with: pip install torch"
         )
 
+    # Compute defaults based on input dimensions
+    pop_size = selected_population.shape[0]
+    default_hidden_dims = compute_default_hidden_dims(n_vars, pop_size)
+    default_batch_size = compute_default_batch_size(n_vars, pop_size)
+
     # Set default parameters
     default_params = {
-        'hidden_layers': [100, 100],
-        'activation': 'tanh',
+        'hidden_layers': default_hidden_dims,
+        'list_act_functs': None,  # Will be set based on activation if not provided
+        'list_init_functs': None,
+        'activation': 'tanh',  # For backward compatibility
         'epochs': 50,
-        'batch_size': 32,
+        'batch_size': default_batch_size,
         'learning_rate': 0.001,
         'optimizer': 'adam',
         'validation_split': 0.2,
@@ -112,6 +131,12 @@ def learn_backdrive(
     if params is not None:
         default_params.update(params)
     params = default_params
+
+    # Handle backward compatibility: if list_act_functs not provided, use activation
+    if params['list_act_functs'] is None:
+        params['list_act_functs'] = [params['activation']] * len(params['hidden_layers'])
+    if params['list_init_functs'] is None:
+        params['list_init_functs'] = ['default'] * len(params['hidden_layers'])
 
     # Normalize data
     # Store ranges for denormalization during sampling
@@ -158,28 +183,24 @@ def learn_backdrive(
         X_train, y_train = X, y
         X_val, y_val = None, None
 
-    # Create MLP architecture
+    # Create MLP architecture with configurable activations and initializations
     class BackdriveMLP(nn.Module):
-        def __init__(self, input_dim, hidden_layers, activation='tanh'):
+        def __init__(self, input_dim, hidden_layers, list_act_functs, list_init_functs):
             super(BackdriveMLP, self).__init__()
+
+            # Validate parameters
+            list_act_functs, list_init_functs = validate_list_params(
+                hidden_layers, list_act_functs, list_init_functs
+            )
 
             layers = []
             prev_size = input_dim
 
-            for hidden_size in hidden_layers:
-                layers.append(nn.Linear(prev_size, hidden_size))
-
-                if activation == 'tanh':
-                    layers.append(nn.Tanh())
-                elif activation == 'relu':
-                    layers.append(nn.ReLU())
-                elif activation == 'leaky_relu':
-                    layers.append(nn.LeakyReLU())
-                elif activation == 'sigmoid':
-                    layers.append(nn.Sigmoid())
-                else:
-                    raise ValueError(f"Unknown activation: {activation}")
-
+            for i, hidden_size in enumerate(hidden_layers):
+                linear = nn.Linear(prev_size, hidden_size)
+                apply_weight_init(linear, list_init_functs[i])
+                layers.append(linear)
+                layers.append(get_activation(list_act_functs[i], in_features=hidden_size))
                 prev_size = hidden_size
 
             # Output layer (fitness prediction)
@@ -191,8 +212,13 @@ def learn_backdrive(
         def forward(self, x):
             return self.network(x)
 
-    # Create model
-    model = BackdriveMLP(n_vars, params['hidden_layers'], params['activation'])
+    # Create model with configurable activations and initializations
+    model = BackdriveMLP(
+        n_vars,
+        params['hidden_layers'],
+        params['list_act_functs'],
+        params['list_init_functs']
+    )
 
     # Transfer weights from previous generation if requested
     if params['transfer_weights'] and params['previous_model'] is not None:
@@ -271,7 +297,9 @@ def learn_backdrive(
     structure = {
         'input_dim': n_vars,
         'hidden_layers': params['hidden_layers'],
-        'activation': params['activation'],
+        'list_act_functs': params['list_act_functs'],
+        'list_init_functs': params['list_init_functs'],
+        'activation': params['activation'],  # For backward compatibility
         'output_dim': 1,
     }
 

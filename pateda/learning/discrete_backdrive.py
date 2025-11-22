@@ -82,12 +82,22 @@ REFERENCES
 """
 
 import numpy as np
-from typing import Dict, Any, Optional
+from typing import Dict, Any, Optional, List
 import torch
 import torch.nn as nn
 import torch.nn.functional as F
 import torch.optim as optim
 import warnings
+
+from pateda.learning.nn_utils import (
+    get_activation,
+    apply_weight_init,
+    compute_default_hidden_dims,
+    compute_default_batch_size,
+    validate_list_params,
+    SUPPORTED_ACTIVATIONS,
+    SUPPORTED_INITIALIZATIONS,
+)
 
 
 class DiscreteBackdriveNet(nn.Module):
@@ -205,11 +215,14 @@ def learn_discrete_backdrive(
         Cardinality of each variable [n_vars]
     params : dict, optional
         Training parameters:
-        - 'hidden_layers': list of hidden layer sizes (default: [128, 64])
+        - 'hidden_layers': list of hidden layer sizes
+          (default: computed from n_vars and pop_size)
+        - 'list_act_functs': list of activation functions for hidden layers
+        - 'list_init_functs': list of initialization functions for hidden layers
         - 'use_embeddings': use embedding layers (default: True if max(card)>2)
         - 'embedding_dim': embedding dimension (default: 8)
         - 'epochs': number of training epochs (default: 100)
-        - 'batch_size': batch size (default: 32)
+        - 'batch_size': batch size (default: max(8, n_vars/50))
         - 'learning_rate': learning rate (default: 0.001)
         - 'weight_decay': L2 regularization (default: 1e-5)
         - 'validation_split': validation fraction (default: 0.2)
@@ -219,32 +232,33 @@ def learn_discrete_backdrive(
     Returns
     -------
     model : dict
-        Dictionary containing:
-        - 'network_state': trained network state dict
-        - 'n_vars': number of variables
-        - 'cardinality': variable cardinalities
-        - 'hidden_layers': hidden layer configuration
-        - 'use_embeddings': whether embeddings are used
-        - 'embedding_dim': embedding dimension (if used)
-        - 'fitness_stats': (mean, std) for normalization
-        - 'type': 'discrete_backdrive'
+        Dictionary containing model state and parameters
     """
     if params is None:
         params = {}
 
+    pop_size = population.shape[0]
     n_vars = population.shape[1]
 
-    # Extract parameters
-    hidden_layers = params.get('hidden_layers', [128, 64])
+    # Compute defaults based on input dimensions
+    default_hidden_dims = compute_default_hidden_dims(n_vars, pop_size)
+    default_batch_size = compute_default_batch_size(n_vars, pop_size)
+
+    # Extract parameters with new defaults
+    hidden_layers = params.get('hidden_layers', default_hidden_dims)
     use_embeddings = params.get('use_embeddings', np.max(cardinality) > 2)
     embedding_dim = params.get('embedding_dim', 8)
     epochs = params.get('epochs', 100)
-    batch_size = params.get('batch_size', min(32, len(population) // 2))
+    batch_size = params.get('batch_size', default_batch_size)
     learning_rate = params.get('learning_rate', 0.001)
     weight_decay = params.get('weight_decay', 1e-5)
     validation_split = params.get('validation_split', 0.2)
     early_stopping = params.get('early_stopping', True)
     patience = params.get('patience', 10)
+
+    # Extract activation and initialization function lists
+    list_act_functs = params.get('list_act_functs', None)
+    list_init_functs = params.get('list_init_functs', None)
 
     # Normalize fitness
     fitness_1d = fitness.flatten()

@@ -179,10 +179,21 @@ Traditional alternatives:
 """
 
 import numpy as np
-from typing import Dict, Any, Optional
+from typing import Dict, Any, Optional, List
 import torch
 import torch.nn as nn
 import torch.optim as optim
+
+from pateda.learning.nn_utils import (
+    get_activation,
+    apply_weight_init,
+    compute_default_hidden_dims,
+    compute_default_batch_size,
+    compute_default_latent_dim,
+    validate_list_params,
+    SUPPORTED_ACTIVATIONS,
+    SUPPORTED_INITIALIZATIONS,
+)
 
 
 class VAEEncoder(nn.Module):
@@ -190,20 +201,54 @@ class VAEEncoder(nn.Module):
     Encoder network for VAE.
 
     Maps input x to latent distribution parameters (mean and log variance).
+
+    Parameters
+    ----------
+    input_dim : int
+        Dimension of the input.
+    latent_dim : int
+        Dimension of the latent space.
+    hidden_dims : list, optional
+        List of hidden layer dimensions.
+    list_act_functs : list, optional
+        List of activation functions, one per hidden layer.
+    list_init_functs : list, optional
+        List of initialization functions, one per hidden layer.
     """
 
-    def __init__(self, input_dim: int, latent_dim: int, hidden_dims: list = None):
+    def __init__(
+        self,
+        input_dim: int,
+        latent_dim: int,
+        hidden_dims: List[int] = None,
+        list_act_functs: List[str] = None,
+        list_init_functs: List[str] = None
+    ):
         super(VAEEncoder, self).__init__()
 
         if hidden_dims is None:
             hidden_dims = [32, 16]
 
+        n_hidden = len(hidden_dims)
+
+        # Validate and set defaults
+        if list_act_functs is None:
+            list_act_functs = ['tanh'] * n_hidden
+        if list_init_functs is None:
+            list_init_functs = ['default'] * n_hidden
+
+        list_act_functs, list_init_functs = validate_list_params(
+            hidden_dims, list_act_functs, list_init_functs
+        )
+
         layers = []
         prev_dim = input_dim
 
-        for hidden_dim in hidden_dims:
-            layers.append(nn.Linear(prev_dim, hidden_dim))
-            layers.append(nn.Tanh())
+        for i, hidden_dim in enumerate(hidden_dims):
+            linear = nn.Linear(prev_dim, hidden_dim)
+            apply_weight_init(linear, list_init_functs[i])
+            layers.append(linear)
+            layers.append(get_activation(list_act_functs[i], in_features=hidden_dim))
             prev_dim = hidden_dim
 
         self.encoder = nn.Sequential(*layers)
@@ -222,20 +267,54 @@ class VAEDecoder(nn.Module):
     Decoder network for VAE.
 
     Maps latent variable z back to data space.
+
+    Parameters
+    ----------
+    latent_dim : int
+        Dimension of the latent space.
+    output_dim : int
+        Dimension of the output.
+    hidden_dims : list, optional
+        List of hidden layer dimensions.
+    list_act_functs : list, optional
+        List of activation functions, one per hidden layer.
+    list_init_functs : list, optional
+        List of initialization functions, one per hidden layer.
     """
 
-    def __init__(self, latent_dim: int, output_dim: int, hidden_dims: list = None):
+    def __init__(
+        self,
+        latent_dim: int,
+        output_dim: int,
+        hidden_dims: List[int] = None,
+        list_act_functs: List[str] = None,
+        list_init_functs: List[str] = None
+    ):
         super(VAEDecoder, self).__init__()
 
         if hidden_dims is None:
             hidden_dims = [16, 32]
 
+        n_hidden = len(hidden_dims)
+
+        # Validate and set defaults
+        if list_act_functs is None:
+            list_act_functs = ['relu'] * n_hidden
+        if list_init_functs is None:
+            list_init_functs = ['default'] * n_hidden
+
+        list_act_functs, list_init_functs = validate_list_params(
+            hidden_dims, list_act_functs, list_init_functs
+        )
+
         layers = []
         prev_dim = latent_dim
 
-        for hidden_dim in hidden_dims:
-            layers.append(nn.Linear(prev_dim, hidden_dim))
-            layers.append(nn.ReLU())
+        for i, hidden_dim in enumerate(hidden_dims):
+            linear = nn.Linear(prev_dim, hidden_dim)
+            apply_weight_init(linear, list_init_functs[i])
+            layers.append(linear)
+            layers.append(get_activation(list_act_functs[i], in_features=hidden_dim))
             prev_dim = hidden_dim
 
         layers.append(nn.Linear(prev_dim, output_dim))
@@ -272,20 +351,57 @@ class ConditionalDecoder(nn.Module):
     Conditional decoder for CE-VAE.
 
     Takes concatenated [z, fitness] as input and reconstructs x.
+
+    Parameters
+    ----------
+    latent_dim : int
+        Dimension of the latent space.
+    n_objectives : int
+        Number of fitness objectives.
+    output_dim : int
+        Dimension of the output.
+    hidden_dims : list, optional
+        List of hidden layer dimensions.
+    list_act_functs : list, optional
+        List of activation functions, one per hidden layer.
+    list_init_functs : list, optional
+        List of initialization functions, one per hidden layer.
     """
 
-    def __init__(self, latent_dim: int, n_objectives: int, output_dim: int, hidden_dims: list = None):
+    def __init__(
+        self,
+        latent_dim: int,
+        n_objectives: int,
+        output_dim: int,
+        hidden_dims: List[int] = None,
+        list_act_functs: List[str] = None,
+        list_init_functs: List[str] = None
+    ):
         super(ConditionalDecoder, self).__init__()
 
         if hidden_dims is None:
             hidden_dims = [16, 32]
 
+        n_hidden = len(hidden_dims)
+
+        # Validate and set defaults
+        if list_act_functs is None:
+            list_act_functs = ['relu'] * n_hidden
+        if list_init_functs is None:
+            list_init_functs = ['default'] * n_hidden
+
+        list_act_functs, list_init_functs = validate_list_params(
+            hidden_dims, list_act_functs, list_init_functs
+        )
+
         layers = []
         prev_dim = latent_dim + n_objectives
 
-        for hidden_dim in hidden_dims:
-            layers.append(nn.Linear(prev_dim, hidden_dim))
-            layers.append(nn.ReLU())
+        for i, hidden_dim in enumerate(hidden_dims):
+            linear = nn.Linear(prev_dim, hidden_dim)
+            apply_weight_init(linear, list_init_functs[i])
+            layers.append(linear)
+            layers.append(get_activation(list_act_functs[i], in_features=hidden_dim))
             prev_dim = hidden_dim
 
         layers.append(nn.Linear(prev_dim, output_dim))
@@ -364,10 +480,15 @@ def learn_vae(
         Fitness values (not used in basic VAE)
     params : dict, optional
         Training parameters containing:
-        - 'latent_dim': dimension of latent space (default: 5)
-        - 'hidden_dims': list of hidden layer dimensions (default: [32, 16])
+        - 'latent_dim': dimension of latent space (default: max(2, n_vars/50))
+        - 'hidden_dims': list of hidden layer dimensions
+          (default: computed from n_vars and pop_size)
+        - 'list_act_functs_enc': list of activation functions for encoder
+        - 'list_act_functs_dec': list of activation functions for decoder
+        - 'list_init_functs_enc': list of initialization functions for encoder
+        - 'list_init_functs_dec': list of initialization functions for decoder
         - 'epochs': number of training epochs (default: 50)
-        - 'batch_size': batch size for training (default: 32)
+        - 'batch_size': batch size for training (default: max(8, n_vars/50))
         - 'learning_rate': learning rate (default: 0.001)
 
     Returns
@@ -378,18 +499,38 @@ def learn_vae(
         - 'decoder_state': decoder network state dict
         - 'latent_dim': latent dimension
         - 'input_dim': input dimension
+        - 'hidden_dims': hidden layer dimensions
+        - 'list_act_functs_enc': encoder activation functions
+        - 'list_act_functs_dec': decoder activation functions
+        - 'list_init_functs_enc': encoder initialization functions
+        - 'list_init_functs_dec': decoder initialization functions
         - 'ranges': data normalization ranges
         - 'type': 'vae'
     """
     if params is None:
         params = {}
 
-    # Extract parameters
-    latent_dim = params.get('latent_dim', 5)
-    hidden_dims = params.get('hidden_dims', [32, 16])
+    # Extract dimensions
+    pop_size = population.shape[0]
+    input_dim = population.shape[1]
+
+    # Compute defaults based on input dimensions
+    default_hidden_dims = compute_default_hidden_dims(input_dim, pop_size)
+    default_batch_size = compute_default_batch_size(input_dim, pop_size)
+    default_latent_dim = compute_default_latent_dim(input_dim)
+
+    # Extract parameters with new defaults
+    latent_dim = params.get('latent_dim', default_latent_dim)
+    hidden_dims = params.get('hidden_dims', default_hidden_dims)
     epochs = params.get('epochs', 50)
-    batch_size = params.get('batch_size', min(32, len(population) // 2))
+    batch_size = params.get('batch_size', default_batch_size)
     learning_rate = params.get('learning_rate', 0.001)
+
+    # Extract activation and initialization function lists
+    list_act_functs_enc = params.get('list_act_functs_enc', None)
+    list_act_functs_dec = params.get('list_act_functs_dec', None)
+    list_init_functs_enc = params.get('list_init_functs_enc', None)
+    list_init_functs_dec = params.get('list_init_functs_dec', None)
 
     # Normalize data
     ranges = np.vstack([np.min(population, axis=0), np.max(population, axis=0)])
@@ -401,11 +542,18 @@ def learn_vae(
 
     # Convert to tensors
     data = torch.FloatTensor(norm_pop)
-    input_dim = population.shape[1]
 
-    # Create networks
-    encoder = VAEEncoder(input_dim, latent_dim, hidden_dims)
-    decoder = VAEDecoder(latent_dim, input_dim, list(reversed(hidden_dims)))
+    # Create networks with configurable activations and initializations
+    encoder = VAEEncoder(
+        input_dim, latent_dim, hidden_dims,
+        list_act_functs=list_act_functs_enc,
+        list_init_functs=list_init_functs_enc
+    )
+    decoder = VAEDecoder(
+        latent_dim, input_dim, list(reversed(hidden_dims)),
+        list_act_functs=list_act_functs_dec,
+        list_init_functs=list_init_functs_dec
+    )
 
     # Optimizer
     parameters = list(encoder.parameters()) + list(decoder.parameters())
@@ -442,13 +590,17 @@ def learn_vae(
             epoch_loss += loss.item()
             n_batches += 1
 
-    # Return model
+    # Return model with all configuration
     return {
         'encoder_state': encoder.state_dict(),
         'decoder_state': decoder.state_dict(),
         'latent_dim': latent_dim,
         'input_dim': input_dim,
         'hidden_dims': hidden_dims,
+        'list_act_functs_enc': list_act_functs_enc if list_act_functs_enc else ['tanh'] * len(hidden_dims),
+        'list_act_functs_dec': list_act_functs_dec if list_act_functs_dec else ['relu'] * len(hidden_dims),
+        'list_init_functs_enc': list_init_functs_enc if list_init_functs_enc else ['default'] * len(hidden_dims),
+        'list_init_functs_dec': list_init_functs_dec if list_init_functs_dec else ['default'] * len(hidden_dims),
         'ranges': ranges,
         'type': 'vae'
     }
