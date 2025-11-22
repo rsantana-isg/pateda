@@ -14,13 +14,12 @@ Example:
     python run_neural_eda_gnbg.py --eda_name vae --function_index 1 --seed 42
     python run_neural_eda_gnbg.py --eda_name gan --function_index 15 --seed 123
 
-Supported EDAs:
+Supported EDAs (continuous optimization):
     - vae: Variational Autoencoder EDA
     - extended_vae: Extended VAE with fitness predictor
     - conditional_vae: Conditional Extended VAE (fitness-conditioned)
     - gan: Generative Adversarial Network EDA
     - backdrive: Backdrive Network Inversion EDA
-    - rbm: Restricted Boltzmann Machine EDA
 
 Output:
     - CSV file with run statistics saved to results/ folder
@@ -51,20 +50,19 @@ from scipy.io import loadmat
 from pateda.learning.vae import learn_vae, learn_extended_vae, learn_conditional_extended_vae
 from pateda.learning.gan import learn_gan
 from pateda.learning.backdrive import learn_backdrive
-from pateda.learning.rbm import learn_rbm
 
 # Neural network sampling functions
 from pateda.sampling.vae import sample_vae, sample_extended_vae, sample_conditional_extended_vae
 from pateda.sampling.gan import sample_gan
 from pateda.sampling.backdrive import sample_backdrive
-from pateda.sampling.rbm import sample_rbm
 
 # Default paths
 DEFAULT_INSTANCES_FOLDER = str(PROJECT_ROOT / 'pateda' / 'functions' / 'GNBG_Instances.Python-main')
 DEFAULT_OUTPUT_FOLDER = str(PROJECT_ROOT / 'benchmarks' / 'results')
 
-# Supported EDAs
-SUPPORTED_EDAS = ['vae', 'extended_vae', 'conditional_vae', 'gan', 'backdrive', 'rbm']
+# Supported EDAs for continuous optimization (GNBG)
+# Note: RBM with softmax is designed for discrete optimization and is not included here
+SUPPORTED_EDAS = ['vae', 'extended_vae', 'conditional_vae', 'gan', 'backdrive']
 
 
 def load_gnbg_instance(problem_index: int, instances_folder: str):
@@ -218,13 +216,6 @@ def get_default_params(eda_name: str, n_vars: int, pop_size: int) -> Dict[str, A
             'learning_rate': 0.001,
             'backdrive_iterations': 100,
             'backdrive_lr': 0.1
-        },
-        'rbm': {
-            'n_hidden': max(50, n_vars),
-            'epochs': 30,
-            'batch_size': min(16, pop_size // 2),
-            'learning_rate': 0.01,
-            'k_gibbs': 1
         }
     }
 
@@ -271,26 +262,24 @@ def learn_model(eda_name: str, generation: int, n_vars: int, bounds: np.ndarray,
         return learn_conditional_extended_vae(selected_population, selected_fitness, params=params)
 
     elif eda_name == 'gan':
-        return learn_gan(generation, n_vars, bounds, selected_population,
-                        selected_fitness, params=params)
+        # GAN uses simpler signature: population, fitness, params
+        return learn_gan(selected_population, selected_fitness, params=params)
 
     elif eda_name == 'backdrive':
+        # Backdrive uses: generation, n_vars, cardinality, population, fitness, params
         bd_params = params.copy()
         if previous_model is not None:
             bd_params['previous_model'] = previous_model
         return learn_backdrive(generation, n_vars, bounds, selected_population,
                               selected_fitness, params=bd_params)
 
-    elif eda_name == 'rbm':
-        return learn_rbm(generation, n_vars, bounds, selected_population,
-                        selected_fitness, params=params)
-
     else:
         raise ValueError(f"Unknown EDA: {eda_name}")
 
 
-def sample_model(eda_name: str, model, n_samples: int, bounds: np.ndarray,
-                 selected_fitness: np.ndarray, params: Dict[str, Any] = None) -> np.ndarray:
+def sample_model(eda_name: str, model, n_samples: int, n_vars: int, bounds: np.ndarray,
+                 selected_population: np.ndarray, selected_fitness: np.ndarray,
+                 params: Dict[str, Any] = None) -> np.ndarray:
     """
     Sample from a model using the specified EDA.
 
@@ -302,8 +291,12 @@ def sample_model(eda_name: str, model, n_samples: int, bounds: np.ndarray,
         Learned model
     n_samples : int
         Number of samples to generate
+    n_vars : int
+        Number of variables
     bounds : np.ndarray
         Variable bounds
+    selected_population : np.ndarray
+        Selected population (needed for backdrive)
     selected_fitness : np.ndarray
         Fitness of selected population (for conditional sampling)
     params : dict, optional
@@ -334,12 +327,11 @@ def sample_model(eda_name: str, model, n_samples: int, bounds: np.ndarray,
         return sample_gan(model, n_samples=n_samples, bounds=bounds, params=params)
 
     elif eda_name == 'backdrive':
-        target_fitness = np.min(selected_fitness)
-        return sample_backdrive(model, n_samples=n_samples, bounds=bounds,
-                               params={'target_fitness': target_fitness})
-
-    elif eda_name == 'rbm':
-        return sample_rbm(model, n_samples=n_samples, bounds=bounds)
+        # Backdrive uses: n_vars, model, cardinality, current_population, current_fitness, params
+        bd_params = params.copy() if params else {}
+        bd_params['n_samples'] = n_samples
+        return sample_backdrive(n_vars, model, bounds, selected_population,
+                               selected_fitness, params=bd_params)
 
     else:
         raise ValueError(f"Unknown EDA: {eda_name}")
@@ -503,7 +495,8 @@ def run_neural_eda(
         sample_start = time.time()
         try:
             new_population = sample_model(
-                eda_name, model, pop_size, bounds, selected_fitness
+                eda_name, model, pop_size, n_vars, bounds,
+                selected_population, selected_fitness
             )
         except Exception as e:
             if verbose:
@@ -648,13 +641,12 @@ Examples:
     python run_neural_eda_gnbg.py --eda_name gan --function_index 15 --seed 123
     python run_neural_eda_gnbg.py --eda_name conditional_vae -f 5 -s 999 --pop_size 200
 
-Supported EDAs:
+Supported EDAs (continuous optimization):
     vae             - Variational Autoencoder EDA
     extended_vae    - Extended VAE with fitness predictor
     conditional_vae - Conditional Extended VAE (fitness-conditioned)
     gan             - Generative Adversarial Network EDA
     backdrive       - Backdrive Network Inversion EDA
-    rbm             - Restricted Boltzmann Machine EDA
         """
     )
 
