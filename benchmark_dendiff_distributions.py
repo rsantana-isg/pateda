@@ -24,6 +24,291 @@ from pateda.sampling.dendiff import sample_dendiff
 
 
 # ============================================================================
+# Objective Functions for Fitness-Based Distributions
+# ============================================================================
+
+def sphere_function(x: np.ndarray) -> np.ndarray:
+    """
+    Sphere function (minimization).
+    Global minimum: f(0, ..., 0) = 0
+
+    Parameters
+    ----------
+    x : np.ndarray
+        Solutions of shape (n_samples, n_vars)
+
+    Returns
+    -------
+    fitness : np.ndarray
+        Fitness values (lower is better)
+    """
+    return np.sum(x**2, axis=1)
+
+
+def rastrigin_function(x: np.ndarray) -> np.ndarray:
+    """
+    Rastrigin function (minimization).
+    Global minimum: f(0, ..., 0) = 0
+    Highly multimodal with many local optima.
+
+    Parameters
+    ----------
+    x : np.ndarray
+        Solutions of shape (n_samples, n_vars)
+
+    Returns
+    -------
+    fitness : np.ndarray
+        Fitness values (lower is better)
+    """
+    n_vars = x.shape[1]
+    return 10 * n_vars + np.sum(x**2 - 10 * np.cos(2 * np.pi * x), axis=1)
+
+
+def rosenbrock_function(x: np.ndarray) -> np.ndarray:
+    """
+    Rosenbrock function (minimization).
+    Global minimum: f(1, ..., 1) = 0
+    Valley-shaped, difficult to optimize.
+
+    Parameters
+    ----------
+    x : np.ndarray
+        Solutions of shape (n_samples, n_vars)
+
+    Returns
+    -------
+    fitness : np.ndarray
+        Fitness values (lower is better)
+    """
+    return np.sum(100 * (x[:, 1:] - x[:, :-1]**2)**2 + (1 - x[:, :-1])**2, axis=1)
+
+
+def ackley_function(x: np.ndarray) -> np.ndarray:
+    """
+    Ackley function (minimization).
+    Global minimum: f(0, ..., 0) = 0
+    Highly multimodal with nearly flat outer region.
+
+    Parameters
+    ----------
+    x : np.ndarray
+        Solutions of shape (n_samples, n_vars)
+
+    Returns
+    -------
+    fitness : np.ndarray
+        Fitness values (lower is better)
+    """
+    n_vars = x.shape[1]
+    sum_sq = np.sum(x**2, axis=1)
+    sum_cos = np.sum(np.cos(2 * np.pi * x), axis=1)
+
+    term1 = -20 * np.exp(-0.2 * np.sqrt(sum_sq / n_vars))
+    term2 = -np.exp(sum_cos / n_vars)
+
+    return term1 + term2 + 20 + np.e
+
+
+def griewank_function(x: np.ndarray) -> np.ndarray:
+    """
+    Griewank function (minimization).
+    Global minimum: f(0, ..., 0) = 0
+    Many local optima with strong interactions between variables.
+
+    Parameters
+    ----------
+    x : np.ndarray
+        Solutions of shape (n_samples, n_vars)
+
+    Returns
+    -------
+    fitness : np.ndarray
+        Fitness values (lower is better)
+    """
+    n_vars = x.shape[1]
+    sum_sq = np.sum(x**2, axis=1)
+
+    prod_term = np.ones(x.shape[0])
+    for i in range(n_vars):
+        prod_term *= np.cos(x[:, i] / np.sqrt(i + 1))
+
+    return sum_sq / 4000 - prod_term + 1
+
+
+def schwefel_function(x: np.ndarray) -> np.ndarray:
+    """
+    Schwefel function (minimization).
+    Global minimum: f(420.9687, ..., 420.9687) = 0
+    Deceptive with many local optima far from global optimum.
+
+    Parameters
+    ----------
+    x : np.ndarray
+        Solutions of shape (n_samples, n_vars)
+
+    Returns
+    -------
+    fitness : np.ndarray
+        Fitness values (lower is better)
+    """
+    n_vars = x.shape[1]
+    return 418.9829 * n_vars - np.sum(x * np.sin(np.sqrt(np.abs(x))), axis=1)
+
+
+def ellipsoid_function(x: np.ndarray) -> np.ndarray:
+    """
+    Ellipsoid function (minimization).
+    Global minimum: f(0, ..., 0) = 0
+    Unimodal, axis-parallel, with different sensitivities along axes.
+
+    Parameters
+    ----------
+    x : np.ndarray
+        Solutions of shape (n_samples, n_vars)
+
+    Returns
+    -------
+    fitness : np.ndarray
+        Fitness values (lower is better)
+    """
+    n_vars = x.shape[1]
+    weights = np.arange(1, n_vars + 1)
+    return np.sum(weights * x**2, axis=1)
+
+
+# Dictionary of objective functions with their bounds
+OBJECTIVE_FUNCTIONS = {
+    'sphere': {
+        'function': sphere_function,
+        'bounds': (-5.12, 5.12),
+        'optimum': 0.0,
+        'description': 'Unimodal, smooth, separable'
+    },
+    'rastrigin': {
+        'function': rastrigin_function,
+        'bounds': (-5.12, 5.12),
+        'optimum': 0.0,
+        'description': 'Highly multimodal, many local optima'
+    },
+    'rosenbrock': {
+        'function': rosenbrock_function,
+        'bounds': (-2.048, 2.048),
+        'optimum': 0.0,
+        'description': 'Valley-shaped, non-separable'
+    },
+    'ackley': {
+        'function': ackley_function,
+        'bounds': (-32.768, 32.768),
+        'optimum': 0.0,
+        'description': 'Multimodal with nearly flat outer region'
+    },
+    'griewank': {
+        'function': griewank_function,
+        'bounds': (-600, 600),
+        'optimum': 0.0,
+        'description': 'Many local optima, product term creates interaction'
+    },
+    'schwefel': {
+        'function': schwefel_function,
+        'bounds': (-500, 500),
+        'optimum': 0.0,
+        'description': 'Deceptive, many local optima'
+    },
+    'ellipsoid': {
+        'function': ellipsoid_function,
+        'bounds': (-5.12, 5.12),
+        'optimum': 0.0,
+        'description': 'Unimodal, axis-parallel, ill-conditioned'
+    }
+}
+
+
+# ============================================================================
+# Empirical Fitness Distribution Generators
+# ============================================================================
+
+def generate_empirical_fitness_distribution(
+    objective_name: str,
+    n_initial: int = 1000,
+    n_selected: int = 500,
+    n_vars: int = 10,
+    seed: int = 42
+) -> Tuple[np.ndarray, np.ndarray, Dict[str, Any]]:
+    """
+    Generate empirical fitness distribution by sampling and selecting top solutions.
+
+    This simulates the selection step in an EDA where we:
+    1. Generate n_initial random solutions
+    2. Evaluate them using the objective function
+    3. Select the top n_selected solutions with best fitness
+
+    Parameters
+    ----------
+    objective_name : str
+        Name of the objective function (e.g., 'sphere', 'rastrigin')
+    n_initial : int
+        Number of initial random solutions to generate
+    n_selected : int
+        Number of top solutions to select
+    n_vars : int
+        Number of variables
+    seed : int
+        Random seed
+
+    Returns
+    -------
+    selected_samples : np.ndarray
+        Selected solutions of shape (n_selected, n_vars)
+    selected_fitness : np.ndarray
+        Fitness values of selected solutions
+    metadata : dict
+        Distribution metadata
+    """
+    if objective_name not in OBJECTIVE_FUNCTIONS:
+        raise ValueError(f"Unknown objective function: {objective_name}")
+
+    np.random.seed(seed)
+
+    obj_info = OBJECTIVE_FUNCTIONS[objective_name]
+    obj_function = obj_info['function']
+    bounds = obj_info['bounds']
+
+    # Generate initial random population within bounds
+    initial_population = np.random.uniform(
+        bounds[0], bounds[1],
+        (n_initial, n_vars)
+    )
+
+    # Evaluate fitness
+    fitness = obj_function(initial_population)
+
+    # Select top n_selected solutions (lower fitness is better)
+    sorted_indices = np.argsort(fitness)
+    selected_indices = sorted_indices[:n_selected]
+
+    selected_samples = initial_population[selected_indices]
+    selected_fitness = fitness[selected_indices]
+
+    metadata = {
+        'type': f'Empirical Fitness ({objective_name})',
+        'objective_name': objective_name,
+        'objective_description': obj_info['description'],
+        'n_initial': n_initial,
+        'n_selected': n_selected,
+        'selection_ratio': n_selected / n_initial,
+        'bounds': bounds,
+        'optimum': obj_info['optimum'],
+        'best_fitness': selected_fitness[0],
+        'worst_fitness': selected_fitness[-1],
+        'mean_fitness': np.mean(selected_fitness),
+        'std_fitness': np.std(selected_fitness)
+    }
+
+    return selected_samples, selected_fitness, metadata
+
+
+# ============================================================================
 # Distribution Generators
 # ============================================================================
 
@@ -352,6 +637,153 @@ def evaluate_dendiff_on_distribution(
     return results
 
 
+def evaluate_dendiff_on_fitness_distribution(
+    objective_name: str,
+    n_initial: int = 1000,
+    n_selected: int = 500,
+    n_vars: int = 10,
+    n_samples_test: int = 500,
+    params: Dict[str, Any] = None,
+    seed: int = 42,
+    verbose: bool = True
+) -> Dict[str, Any]:
+    """
+    Evaluate dendiff model on empirical fitness distribution.
+
+    This follows the complete workflow:
+    1. Generate MAT: Sample n_initial solutions, select top n_selected (empirical fitness dist)
+    2. Learn dendiff model on MAT
+    3. Sample from learned model
+    4. Generate MAT_ANOTHER: Independent sample from same empirical fitness dist
+    5. Compare sampled distribution with MAT_ANOTHER
+
+    Parameters
+    ----------
+    objective_name : str
+        Name of objective function ('sphere', 'rastrigin', etc.)
+    n_initial : int
+        Number of initial random solutions to generate
+    n_selected : int
+        Number of top solutions to select
+    n_vars : int
+        Number of variables
+    n_samples_test : int
+        Number of samples to generate from learned model
+    params : dict
+        Parameters for learn_dendiff
+    seed : int
+        Random seed for MAT generation
+    verbose : bool
+        Print progress information
+
+    Returns
+    -------
+    results : dict
+        Evaluation results including metrics and fitness statistics
+    """
+    if verbose:
+        print(f"  Generating MAT: {n_initial} solutions, selecting top {n_selected}...")
+
+    # Step 1: Generate MAT (empirical fitness distribution)
+    MAT, MAT_fitness, metadata = generate_empirical_fitness_distribution(
+        objective_name, n_initial, n_selected, n_vars, seed
+    )
+
+    if verbose:
+        print(f"    Best fitness in MAT: {metadata['best_fitness']:.6f}")
+        print(f"    Worst fitness in MAT: {metadata['worst_fitness']:.6f}")
+        print(f"    Mean fitness in MAT: {metadata['mean_fitness']:.6f}")
+
+    # Set default params if not provided
+    if params is None:
+        params = {}
+
+    if verbose:
+        print(f"  Learning dendiff model on MAT...")
+
+    # Step 2: Learn dendiff model
+    model = learn_dendiff(MAT, MAT_fitness, params=params)
+
+    if verbose:
+        print(f"  Sampling {n_samples_test} solutions from learned model...")
+
+    # Step 3: Sample from learned model
+    bounds_info = OBJECTIVE_FUNCTIONS[objective_name]
+    bounds = np.array([
+        [bounds_info['bounds'][0]] * n_vars,
+        [bounds_info['bounds'][1]] * n_vars
+    ])
+
+    Sampled_MAT = sample_dendiff(
+        model,
+        n_samples=n_samples_test,
+        bounds=bounds,
+        params=params
+    )
+
+    # Evaluate fitness of sampled solutions
+    obj_function = bounds_info['function']
+    Sampled_MAT_fitness = obj_function(Sampled_MAT)
+
+    if verbose:
+        print(f"  Generating MAT_ANOTHER: independent sample from same fitness distribution...")
+
+    # Step 4: Generate MAT_ANOTHER (another independent sample)
+    # Use different seed to get independent sample
+    MAT_ANOTHER, MAT_ANOTHER_fitness, metadata_another = generate_empirical_fitness_distribution(
+        objective_name, n_initial, n_selected, n_vars, seed + 1000
+    )
+
+    if verbose:
+        print(f"  Computing distribution comparison metrics...")
+
+    # Step 5: Compare distributions
+    # Compare Sampled_MAT with MAT_ANOTHER (both should represent the fitness distribution)
+    kl_div = compute_kl_divergence_kde(MAT_ANOTHER, Sampled_MAT)
+    js_div = compute_js_divergence(MAT_ANOTHER, Sampled_MAT)
+    stat_distances = compute_statistical_distance(MAT_ANOTHER, Sampled_MAT)
+
+    # Also compare with original MAT for reference
+    kl_div_vs_mat = compute_kl_divergence_kde(MAT, Sampled_MAT)
+    js_div_vs_mat = compute_js_divergence(MAT, Sampled_MAT)
+
+    if verbose:
+        print(f"  Computing fitness statistics...")
+
+    # Fitness statistics comparison
+    fitness_stats = {
+        'mat_best_fitness': metadata['best_fitness'],
+        'mat_mean_fitness': metadata['mean_fitness'],
+        'mat_std_fitness': metadata['std_fitness'],
+        'sampled_best_fitness': np.min(Sampled_MAT_fitness),
+        'sampled_mean_fitness': np.mean(Sampled_MAT_fitness),
+        'sampled_std_fitness': np.std(Sampled_MAT_fitness),
+        'mat_another_best_fitness': metadata_another['best_fitness'],
+        'mat_another_mean_fitness': metadata_another['mean_fitness'],
+        'mat_another_std_fitness': metadata_another['std_fitness'],
+        'fitness_mean_diff': abs(np.mean(Sampled_MAT_fitness) - metadata_another['mean_fitness']),
+        'fitness_std_diff': abs(np.std(Sampled_MAT_fitness) - metadata_another['std_fitness']),
+    }
+
+    results = {
+        'distribution_type': metadata['type'],
+        'objective_name': objective_name,
+        'objective_description': metadata['objective_description'],
+        'n_vars': n_vars,
+        'n_initial': n_initial,
+        'n_selected': n_selected,
+        'selection_ratio': metadata['selection_ratio'],
+        'kl_divergence': kl_div,
+        'js_divergence': js_div,
+        'kl_divergence_vs_mat': kl_div_vs_mat,
+        'js_divergence_vs_mat': js_div_vs_mat,
+        **stat_distances,
+        **fitness_stats
+    }
+
+    return results
+
+
 # ============================================================================
 # Main Benchmark Execution
 # ============================================================================
@@ -575,6 +1007,221 @@ def test_parameter_variations():
               f"{results['kl_divergence']:<15.4f}")
 
 
+def run_fitness_benchmark():
+    """Run comprehensive benchmark on empirical fitness distributions."""
+
+    print("\n\n" + "=" * 80)
+    print("EMPIRICAL FITNESS DISTRIBUTION BENCHMARK")
+    print("=" * 80)
+    print()
+    print("This benchmark evaluates dendiff on distributions obtained from")
+    print("selecting top solutions based on objective function fitness.")
+    print()
+
+    # Configuration
+    n_vars = 10
+    n_initial = 1000
+    n_selected = 500
+    n_samples_test = 500
+
+    # Test configurations: (objective_name, params)
+    test_configs = [
+        (
+            "sphere",
+            {'epochs': 100, 'n_timesteps': 500, 'hidden_dims': [128, 64]}
+        ),
+        (
+            "ellipsoid",
+            {'epochs': 100, 'n_timesteps': 500, 'hidden_dims': [128, 64]}
+        ),
+        (
+            "rastrigin",
+            {'epochs': 150, 'n_timesteps': 800, 'hidden_dims': [256, 128]}
+        ),
+        (
+            "rosenbrock",
+            {'epochs': 150, 'n_timesteps': 800, 'hidden_dims': [256, 128]}
+        ),
+        (
+            "ackley",
+            {'epochs': 150, 'n_timesteps': 800, 'hidden_dims': [256, 128]}
+        ),
+    ]
+
+    all_results = []
+
+    for objective_name, params in test_configs:
+        obj_info = OBJECTIVE_FUNCTIONS[objective_name]
+        print(f"\n{objective_name.upper()} Function")
+        print("-" * 80)
+        print(f"Description: {obj_info['description']}")
+        print(f"Bounds: {obj_info['bounds']}")
+        print(f"Optimum: {obj_info['optimum']}")
+        print()
+
+        try:
+            results = evaluate_dendiff_on_fitness_distribution(
+                objective_name,
+                n_initial=n_initial,
+                n_selected=n_selected,
+                n_vars=n_vars,
+                n_samples_test=n_samples_test,
+                params=params,
+                seed=42,
+                verbose=True
+            )
+
+            all_results.append((objective_name, results))
+
+            print(f"\n  Distribution Comparison Results:")
+            print(f"    JS Divergence (vs MAT_ANOTHER):  {results['js_divergence']:.6f}")
+            print(f"    KL Divergence (vs MAT_ANOTHER):  {results['kl_divergence']:.6f}")
+            print(f"    JS Divergence (vs MAT):          {results['js_divergence_vs_mat']:.6f}")
+            print(f"    Mean Wasserstein Dist:           {results['mean_wasserstein']:.6f}")
+            print(f"    Relative Mean Diff:              {results['mean_diff_relative']:.4f}")
+            print(f"    Relative Std Diff:               {results['std_diff_relative']:.4f}")
+
+            print(f"\n  Fitness Statistics Comparison:")
+            print(f"    MAT Mean Fitness:                {results['mat_mean_fitness']:.6f}")
+            print(f"    Sampled Mean Fitness:            {results['sampled_mean_fitness']:.6f}")
+            print(f"    MAT_ANOTHER Mean Fitness:        {results['mat_another_mean_fitness']:.6f}")
+            print(f"    Fitness Mean Difference:         {results['fitness_mean_diff']:.6f}")
+            print(f"    Fitness Std Difference:          {results['fitness_std_diff']:.6f}")
+
+            print(f"\n  Best Fitness Values:")
+            print(f"    MAT Best:                        {results['mat_best_fitness']:.6f}")
+            print(f"    Sampled Best:                    {results['sampled_best_fitness']:.6f}")
+            print(f"    MAT_ANOTHER Best:                {results['mat_another_best_fitness']:.6f}")
+
+        except Exception as e:
+            print(f"  ERROR: {str(e)}")
+            import traceback
+            traceback.print_exc()
+
+    # Print summary
+    print("\n" + "=" * 80)
+    print("EMPIRICAL FITNESS DISTRIBUTION SUMMARY")
+    print("=" * 80)
+    print()
+    print(f"{'Objective':<15} {'JS Div':<12} {'Fitness Diff':<15} {'Best Fit (MAT)':<18} {'Best Fit (Sampled)':<18}")
+    print("-" * 80)
+
+    for objective_name, results in all_results:
+        print(f"{objective_name:<15} {results['js_divergence']:>10.4f}  "
+              f"{results['fitness_mean_diff']:>13.6f}  "
+              f"{results['mat_best_fitness']:>16.6f}  "
+              f"{results['sampled_best_fitness']:>16.6f}")
+
+    print("\n" + "=" * 80)
+    print("INTERPRETATION FOR FITNESS-BASED DISTRIBUTIONS")
+    print("=" * 80)
+    print("""
+Key Metrics:
+
+1. JS Divergence (vs MAT_ANOTHER):
+   - Compares sampled distribution with independent sample from same fitness distribution
+   - This measures how well dendiff captured the empirical fitness distribution
+   - Lower is better: < 0.3 = good, < 0.5 = acceptable
+
+2. Fitness Mean Difference:
+   - Difference in mean fitness between sampled and MAT_ANOTHER
+   - Should be small if dendiff captured the fitness landscape well
+   - Lower is better
+
+3. Best Fitness Comparison:
+   - MAT Best: Best solution in original selected set
+   - Sampled Best: Best solution from dendiff sampling
+   - If dendiff is good, sampled best should be similar to or better than MAT best
+
+Expected Behavior:
+  - Unimodal functions (sphere, ellipsoid): Should have low JS divergence (< 0.4)
+  - Multimodal functions (rastrigin, ackley): May have higher JS divergence (< 0.6)
+  - Non-separable functions (rosenbrock): May be more challenging
+
+Quality Indicators:
+  ✓ JS divergence < 0.5
+  ✓ Fitness mean difference < 10% of MAT mean fitness
+  ✓ Sampled best fitness similar to or better than MAT best
+  ✓ Similar fitness distributions between sampled and MAT_ANOTHER
+""")
+
+    return all_results
+
+
+def test_fitness_parameter_variations():
+    """Test parameter variations on fitness-based distributions."""
+
+    print("\n\n" + "=" * 80)
+    print("FITNESS DISTRIBUTION PARAMETER VARIATION TESTS")
+    print("=" * 80)
+
+    # Test on sphere function with different parameters
+    objective_name = "sphere"
+    n_vars = 10
+    n_initial = 1000
+    n_selected = 500
+
+    # Test 1: Varying selection ratio
+    print("\n\nTest 1: Effect of Selection Ratio on Sphere Function")
+    print("-" * 80)
+    print(f"{'Selection Ratio':<20} {'n_selected':<15} {'JS Divergence':<15} {'Fitness Diff':<15}")
+    print("-" * 80)
+
+    for ratio in [0.3, 0.5, 0.7]:
+        n_sel = int(n_initial * ratio)
+        results = evaluate_dendiff_on_fitness_distribution(
+            objective_name,
+            n_initial=n_initial,
+            n_selected=n_sel,
+            n_vars=n_vars,
+            n_samples_test=n_sel,
+            params={'epochs': 80, 'n_timesteps': 500, 'hidden_dims': [128, 64]},
+            seed=42,
+            verbose=False
+        )
+        print(f"{ratio:<20.2f} {n_sel:<15} {results['js_divergence']:<15.4f} {results['fitness_mean_diff']:<15.6f}")
+
+    # Test 2: Varying timesteps on multimodal function
+    print("\n\nTest 2: Effect of Timesteps on Rastrigin Function")
+    print("-" * 80)
+    print(f"{'Timesteps':<15} {'JS Divergence':<15} {'Fitness Diff':<15}")
+    print("-" * 80)
+
+    for n_timesteps in [300, 500, 800, 1000]:
+        results = evaluate_dendiff_on_fitness_distribution(
+            "rastrigin",
+            n_initial=1000,
+            n_selected=500,
+            n_vars=10,
+            n_samples_test=500,
+            params={'epochs': 100, 'n_timesteps': n_timesteps, 'hidden_dims': [128, 64]},
+            seed=42,
+            verbose=False
+        )
+        print(f"{n_timesteps:<15} {results['js_divergence']:<15.4f} {results['fitness_mean_diff']:<15.6f}")
+
+    # Test 3: Compare different objective functions with same parameters
+    print("\n\nTest 3: Comparison Across Different Objective Functions")
+    print("-" * 80)
+    print(f"{'Objective':<15} {'Type':<30} {'JS Div':<12} {'Fitness Diff':<15}")
+    print("-" * 80)
+
+    objectives_to_test = ['sphere', 'ellipsoid', 'rastrigin', 'rosenbrock', 'ackley']
+    for obj_name in objectives_to_test:
+        results = evaluate_dendiff_on_fitness_distribution(
+            obj_name,
+            n_initial=1000,
+            n_selected=500,
+            n_vars=10,
+            n_samples_test=500,
+            params={'epochs': 100, 'n_timesteps': 500, 'hidden_dims': [128, 64]},
+            seed=42,
+            verbose=False
+        )
+        obj_desc = OBJECTIVE_FUNCTIONS[obj_name]['description']
+        print(f"{obj_name:<15} {obj_desc:<30} {results['js_divergence']:>10.4f}  {results['fitness_mean_diff']:>13.6f}")
+
+
 # ============================================================================
 # Entry Point
 # ============================================================================
@@ -584,14 +1231,41 @@ if __name__ == '__main__':
 
     start_time = time.time()
 
-    # Run comprehensive benchmark
+    print("=" * 80)
+    print("DENDIFF COMPREHENSIVE BENCHMARK SUITE")
+    print("=" * 80)
+    print()
+    print("This suite includes:")
+    print("  1. Standard probability distributions (Gaussian, Cauchy, mixtures, etc.)")
+    print("  2. Empirical fitness distributions (from optimization objectives)")
+    print("  3. Parameter variation experiments")
+    print()
+
+    # Run comprehensive benchmark on standard distributions
+    print("\n" + "=" * 80)
+    print("PART 1: STANDARD PROBABILITY DISTRIBUTIONS")
+    print("=" * 80)
     results = run_comprehensive_benchmark()
 
-    # Run parameter variation tests
+    # Run parameter variation tests on standard distributions
     test_parameter_variations()
+
+    # Run fitness-based distribution benchmarks
+    print("\n" + "=" * 80)
+    print("PART 2: EMPIRICAL FITNESS DISTRIBUTIONS")
+    print("=" * 80)
+    fitness_results = run_fitness_benchmark()
+
+    # Run parameter variation tests on fitness distributions
+    test_fitness_parameter_variations()
 
     elapsed_time = time.time() - start_time
 
     print("\n\n" + "=" * 80)
-    print(f"Benchmark completed in {elapsed_time:.2f} seconds")
+    print("COMPLETE BENCHMARK SUMMARY")
+    print("=" * 80)
+    print(f"\nTotal benchmark time: {elapsed_time:.2f} seconds")
+    print(f"\nStandard distributions tested: {len(results)}")
+    print(f"Fitness distributions tested: {len(fitness_results)}")
+    print("\nAll benchmarks completed successfully!")
     print("=" * 80)
