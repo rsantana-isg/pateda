@@ -130,7 +130,9 @@ def p_sample_loop_relu(
 
 def sample_dendiff_relu(
     model_data: Dict[str, Any],
-    n_samples: int
+    n_samples: int,
+    bounds: Optional[np.ndarray] = None,
+    params: Optional[Dict[str, Any]] = None
 ) -> np.ndarray:
     """
     Sample from a trained SimpleDenoisingMLP diffusion model.
@@ -150,6 +152,13 @@ def sample_dendiff_relu(
 
     n_samples : int
         Number of samples to generate
+
+    bounds : np.ndarray, optional
+        Array of shape (2, n_vars) with [min, max] bounds for each variable.
+        If provided, samples will be clipped to these bounds.
+
+    params : dict, optional
+        Additional parameters (currently unused, for API compatibility)
 
     Returns
     -------
@@ -185,5 +194,9 @@ def sample_dendiff_relu(
     # Denormalize to original space
     range_diff = ranges[1] - ranges[0]
     samples = norm_samples * range_diff + ranges[0]
+
+    # Apply bounds if provided
+    if bounds is not None:
+        samples = np.clip(samples, bounds[0], bounds[1])
 
     return samples
