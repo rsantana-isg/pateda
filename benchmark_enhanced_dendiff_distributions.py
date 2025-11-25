@@ -23,7 +23,9 @@ import os
 sys.path.insert(0, os.path.dirname(os.path.abspath(__file__)))
 
 from pateda.learning.dendiff import learn_dendiff
+from pateda.learning.dendiff_relu import learn_dendiff_relu
 from pateda.sampling.dendiff import sample_dendiff
+from pateda.sampling.dendiff_relu import sample_dendiff_relu
 from benchmark_dendiff_distributions import (
     OBJECTIVE_FUNCTIONS,
     generate_empirical_fitness_distribution,
@@ -45,7 +47,8 @@ def evaluate_dendiff_on_enhanced_distribution(
     n_samples_test: int = 500,
     dendiff_params: Dict[str, Any] = None,
     seed: int = 42,
-    verbose: bool = True
+    verbose: bool = True,
+    model_type: str = 'dendiff'
 ) -> Dict[str, Any]:
     """
     Evaluate dendiff model on enhanced fitness distribution.
@@ -67,6 +70,8 @@ def evaluate_dendiff_on_enhanced_distribution(
         Random seed
     verbose : bool
         Print progress information
+    model_type : str
+        Type of model to use: 'dendiff' or 'dendiff_relu'
 
     Returns
     -------
@@ -92,10 +97,13 @@ def evaluate_dendiff_on_enhanced_distribution(
         dendiff_params = {}
 
     if verbose:
-        print(f"  Learning dendiff model on MAT...")
+        print(f"  Learning {model_type} model on MAT...")
 
     # Step 2: Learn dendiff model
-    model = learn_dendiff(MAT, MAT_fitness, params=dendiff_params)
+    if model_type == 'dendiff_relu':
+        model = learn_dendiff_relu(MAT, MAT_fitness, params=dendiff_params)
+    else:
+        model = learn_dendiff(MAT, MAT_fitness, params=dendiff_params)
 
     if verbose:
         print(f"  Sampling {n_samples_test} solutions from learned model...")
@@ -108,12 +116,20 @@ def evaluate_dendiff_on_enhanced_distribution(
         [bounds_info['bounds'][1]] * generator_params['n_vars']
     ])
 
-    Sampled_MAT = sample_dendiff(
-        model,
-        n_samples=n_samples_test,
-        bounds=bounds,
-        params=dendiff_params
-    )
+    if model_type == 'dendiff_relu':
+        Sampled_MAT = sample_dendiff_relu(
+            model,
+            n_samples=n_samples_test,
+            bounds=bounds,
+            params=dendiff_params
+        )
+    else:
+        Sampled_MAT = sample_dendiff(
+            model,
+            n_samples=n_samples_test,
+            bounds=bounds,
+            params=dendiff_params
+        )
 
     # Evaluate fitness of sampled solutions
     obj_function = bounds_info['function']
