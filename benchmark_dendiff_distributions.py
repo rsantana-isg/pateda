@@ -27,79 +27,95 @@ from pateda.sampling.dendiff import sample_dendiff
 # Objective Functions for Fitness-Based Distributions
 # ============================================================================
 
-def sphere_function(x: np.ndarray) -> np.ndarray:
+def sphere_function(x: np.ndarray, shift: np.ndarray = None) -> np.ndarray:
     """
     Sphere function (minimization).
-    Global minimum: f(0, ..., 0) = 0
+    Global minimum: f(shift, ..., shift) = 0
 
     Parameters
     ----------
     x : np.ndarray
         Solutions of shape (n_samples, n_vars)
+    shift : np.ndarray, optional
+        Translation vector to shift the optimum away from origin
 
     Returns
     -------
     fitness : np.ndarray
         Fitness values (lower is better)
     """
+    if shift is not None:
+        x = x - shift
     return np.sum(x**2, axis=1)
 
 
-def rastrigin_function(x: np.ndarray) -> np.ndarray:
+def rastrigin_function(x: np.ndarray, shift: np.ndarray = None) -> np.ndarray:
     """
     Rastrigin function (minimization).
-    Global minimum: f(0, ..., 0) = 0
+    Global minimum: f(shift, ..., shift) = 0
     Highly multimodal with many local optima.
 
     Parameters
     ----------
     x : np.ndarray
         Solutions of shape (n_samples, n_vars)
+    shift : np.ndarray, optional
+        Translation vector to shift the optimum away from origin
 
     Returns
     -------
     fitness : np.ndarray
         Fitness values (lower is better)
     """
+    if shift is not None:
+        x = x - shift
     n_vars = x.shape[1]
     return 10 * n_vars + np.sum(x**2 - 10 * np.cos(2 * np.pi * x), axis=1)
 
 
-def rosenbrock_function(x: np.ndarray) -> np.ndarray:
+def rosenbrock_function(x: np.ndarray, shift: np.ndarray = None) -> np.ndarray:
     """
     Rosenbrock function (minimization).
-    Global minimum: f(1, ..., 1) = 0
+    Global minimum: f(1+shift, ..., 1+shift) = 0
     Valley-shaped, difficult to optimize.
 
     Parameters
     ----------
     x : np.ndarray
         Solutions of shape (n_samples, n_vars)
+    shift : np.ndarray, optional
+        Translation vector to shift the optimum away from (1, ..., 1)
 
     Returns
     -------
     fitness : np.ndarray
         Fitness values (lower is better)
     """
+    if shift is not None:
+        x = x - shift
     return np.sum(100 * (x[:, 1:] - x[:, :-1]**2)**2 + (1 - x[:, :-1])**2, axis=1)
 
 
-def ackley_function(x: np.ndarray) -> np.ndarray:
+def ackley_function(x: np.ndarray, shift: np.ndarray = None) -> np.ndarray:
     """
     Ackley function (minimization).
-    Global minimum: f(0, ..., 0) = 0
+    Global minimum: f(shift, ..., shift) = 0
     Highly multimodal with nearly flat outer region.
 
     Parameters
     ----------
     x : np.ndarray
         Solutions of shape (n_samples, n_vars)
+    shift : np.ndarray, optional
+        Translation vector to shift the optimum away from origin
 
     Returns
     -------
     fitness : np.ndarray
         Fitness values (lower is better)
     """
+    if shift is not None:
+        x = x - shift
     n_vars = x.shape[1]
     sum_sq = np.sum(x**2, axis=1)
     sum_cos = np.sum(np.cos(2 * np.pi * x), axis=1)
@@ -110,22 +126,26 @@ def ackley_function(x: np.ndarray) -> np.ndarray:
     return term1 + term2 + 20 + np.e
 
 
-def griewank_function(x: np.ndarray) -> np.ndarray:
+def griewank_function(x: np.ndarray, shift: np.ndarray = None) -> np.ndarray:
     """
     Griewank function (minimization).
-    Global minimum: f(0, ..., 0) = 0
+    Global minimum: f(shift, ..., shift) = 0
     Many local optima with strong interactions between variables.
 
     Parameters
     ----------
     x : np.ndarray
         Solutions of shape (n_samples, n_vars)
+    shift : np.ndarray, optional
+        Translation vector to shift the optimum away from origin
 
     Returns
     -------
     fitness : np.ndarray
         Fitness values (lower is better)
     """
+    if shift is not None:
+        x = x - shift
     n_vars = x.shape[1]
     sum_sq = np.sum(x**2, axis=1)
 
@@ -136,42 +156,50 @@ def griewank_function(x: np.ndarray) -> np.ndarray:
     return sum_sq / 4000 - prod_term + 1
 
 
-def schwefel_function(x: np.ndarray) -> np.ndarray:
+def schwefel_function(x: np.ndarray, shift: np.ndarray = None) -> np.ndarray:
     """
     Schwefel function (minimization).
-    Global minimum: f(420.9687, ..., 420.9687) = 0
+    Global minimum: f(420.9687+shift, ..., 420.9687+shift) = 0
     Deceptive with many local optima far from global optimum.
 
     Parameters
     ----------
     x : np.ndarray
         Solutions of shape (n_samples, n_vars)
+    shift : np.ndarray, optional
+        Translation vector to shift the optimum away from (420.9687, ...)
 
     Returns
     -------
     fitness : np.ndarray
         Fitness values (lower is better)
     """
+    if shift is not None:
+        x = x - shift
     n_vars = x.shape[1]
     return 418.9829 * n_vars - np.sum(x * np.sin(np.sqrt(np.abs(x))), axis=1)
 
 
-def ellipsoid_function(x: np.ndarray) -> np.ndarray:
+def ellipsoid_function(x: np.ndarray, shift: np.ndarray = None) -> np.ndarray:
     """
     Ellipsoid function (minimization).
-    Global minimum: f(0, ..., 0) = 0
+    Global minimum: f(shift, ..., shift) = 0
     Unimodal, axis-parallel, with different sensitivities along axes.
 
     Parameters
     ----------
     x : np.ndarray
         Solutions of shape (n_samples, n_vars)
+    shift : np.ndarray, optional
+        Translation vector to shift the optimum away from origin
 
     Returns
     -------
     fitness : np.ndarray
         Fitness values (lower is better)
     """
+    if shift is not None:
+        x = x - shift
     n_vars = x.shape[1]
     weights = np.arange(1, n_vars + 1)
     return np.sum(weights * x**2, axis=1)
@@ -183,43 +211,50 @@ OBJECTIVE_FUNCTIONS = {
         'function': sphere_function,
         'bounds': (-5.12, 5.12),
         'optimum': 0.0,
-        'description': 'Unimodal, smooth, separable'
+        'description': 'Unimodal, smooth, separable',
+        'shift_range': (-2.0, 2.0)  # Range for random shift
     },
     'rastrigin': {
         'function': rastrigin_function,
         'bounds': (-5.12, 5.12),
         'optimum': 0.0,
-        'description': 'Highly multimodal, many local optima'
+        'description': 'Highly multimodal, many local optima',
+        'shift_range': (-2.0, 2.0)
     },
     'rosenbrock': {
         'function': rosenbrock_function,
         'bounds': (-2.048, 2.048),
         'optimum': 0.0,
-        'description': 'Valley-shaped, non-separable'
+        'description': 'Valley-shaped, non-separable',
+        'shift_range': (-1.0, 1.0)
     },
     'ackley': {
         'function': ackley_function,
         'bounds': (-32.768, 32.768),
         'optimum': 0.0,
-        'description': 'Multimodal with nearly flat outer region'
+        'description': 'Multimodal with nearly flat outer region',
+        'shift_range': (-10.0, 10.0)
     },
     'griewank': {
         'function': griewank_function,
         'bounds': (-600, 600),
         'optimum': 0.0,
-        'description': 'Many local optima, product term creates interaction'
+        'description': 'Many local optima, product term creates interaction',
+        'shift_range': (-200.0, 200.0)
     },
     'schwefel': {
         'function': schwefel_function,
         'bounds': (-500, 500),
         'optimum': 0.0,
-        'description': 'Deceptive, many local optima'
+        'description': 'Deceptive, many local optima',
+        'shift_range': (-100.0, 100.0)
     },
     'ellipsoid': {
         'function': ellipsoid_function,
         'bounds': (-5.12, 5.12),
         'optimum': 0.0,
-        'description': 'Unimodal, axis-parallel, ill-conditioned'
+        'description': 'Unimodal, axis-parallel, ill-conditioned',
+        'shift_range': (-2.0, 2.0)
     }
 }
 
@@ -233,14 +268,15 @@ def generate_empirical_fitness_distribution(
     n_initial: int = 1000,
     n_selected: int = 500,
     n_vars: int = 10,
-    seed: int = 42
+    seed: int = 42,
+    use_shift: bool = True
 ) -> Tuple[np.ndarray, np.ndarray, Dict[str, Any]]:
     """
     Generate empirical fitness distribution by sampling and selecting top solutions.
 
     This simulates the selection step in an EDA where we:
     1. Generate n_initial random solutions
-    2. Evaluate them using the objective function
+    2. Evaluate them using the objective function (with optional shift)
     3. Select the top n_selected solutions with best fitness
 
     Parameters
@@ -255,6 +291,102 @@ def generate_empirical_fitness_distribution(
         Number of variables
     seed : int
         Random seed
+    use_shift : bool
+        Whether to shift the optimum away from origin (default: True)
+
+    Returns
+    -------
+    selected_samples : np.ndarray
+        Selected solutions of shape (n_selected, n_vars)
+    selected_fitness : np.ndarray
+        Fitness values of selected solutions
+    metadata : dict
+        Distribution metadata including shift information
+    """
+    if objective_name not in OBJECTIVE_FUNCTIONS:
+        raise ValueError(f"Unknown objective function: {objective_name}")
+
+    np.random.seed(seed)
+
+    obj_info = OBJECTIVE_FUNCTIONS[objective_name]
+    obj_function = obj_info['function']
+    bounds = obj_info['bounds']
+
+    # Generate random shift if requested
+    shift = None
+    if use_shift and 'shift_range' in obj_info:
+        shift_range = obj_info['shift_range']
+        shift = np.random.uniform(shift_range[0], shift_range[1], n_vars)
+
+    # Generate initial random population within bounds
+    initial_population = np.random.uniform(
+        bounds[0], bounds[1],
+        (n_initial, n_vars)
+    )
+
+    # Evaluate fitness (with shift if applicable)
+    fitness = obj_function(initial_population, shift=shift)
+
+    # Select top n_selected solutions (lower fitness is better)
+    sorted_indices = np.argsort(fitness)
+    selected_indices = sorted_indices[:n_selected]
+
+    selected_samples = initial_population[selected_indices]
+    selected_fitness = fitness[selected_indices]
+
+    metadata = {
+        'type': f'Empirical Fitness ({objective_name})',
+        'objective_name': objective_name,
+        'objective_description': obj_info['description'],
+        'n_initial': n_initial,
+        'n_selected': n_selected,
+        'selection_ratio': n_selected / n_initial,
+        'bounds': bounds,
+        'optimum': obj_info['optimum'],
+        'shift': shift,
+        'shifted_optimum': shift if shift is not None else np.zeros(n_vars),
+        'best_fitness': selected_fitness[0],
+        'worst_fitness': selected_fitness[-1],
+        'mean_fitness': np.mean(selected_fitness),
+        'std_fitness': np.std(selected_fitness)
+    }
+
+    return selected_samples, selected_fitness, metadata
+
+
+def generate_boltzmann_distribution(
+    objective_name: str,
+    n_initial: int = 1000,
+    n_selected: int = 500,
+    n_vars: int = 10,
+    temperature: float = 1.0,
+    seed: int = 42,
+    use_shift: bool = True
+) -> Tuple[np.ndarray, np.ndarray, Dict[str, Any]]:
+    """
+    Generate distribution using Boltzmann selection based on fitness.
+
+    In Boltzmann selection, solutions are selected with probability proportional
+    to exp(-fitness / temperature). Better fitness (lower value) gives higher
+    probability. This promotes both exploitation of good solutions and
+    exploration of the fitness landscape.
+
+    Parameters
+    ----------
+    objective_name : str
+        Name of the objective function
+    n_initial : int
+        Number of initial random solutions to generate
+    n_selected : int
+        Number of solutions to select using Boltzmann probabilities
+    n_vars : int
+        Number of variables
+    temperature : float
+        Temperature parameter for Boltzmann distribution (higher = more exploration)
+    seed : int
+        Random seed
+    use_shift : bool
+        Whether to shift the optimum away from origin
 
     Returns
     -------
@@ -274,31 +406,176 @@ def generate_empirical_fitness_distribution(
     obj_function = obj_info['function']
     bounds = obj_info['bounds']
 
-    # Generate initial random population within bounds
+    # Generate random shift if requested
+    shift = None
+    if use_shift and 'shift_range' in obj_info:
+        shift_range = obj_info['shift_range']
+        shift = np.random.uniform(shift_range[0], shift_range[1], n_vars)
+
+    # Generate initial random population
     initial_population = np.random.uniform(
         bounds[0], bounds[1],
         (n_initial, n_vars)
     )
 
     # Evaluate fitness
-    fitness = obj_function(initial_population)
+    fitness = obj_function(initial_population, shift=shift)
 
-    # Select top n_selected solutions (lower fitness is better)
-    sorted_indices = np.argsort(fitness)
-    selected_indices = sorted_indices[:n_selected]
+    # Normalize fitness to avoid numerical issues
+    # For minimization, lower fitness should have higher probability
+    # Use negative fitness in exponential
+    fitness_normalized = fitness - np.min(fitness)
+
+    # Compute Boltzmann probabilities
+    boltzmann_weights = np.exp(-fitness_normalized / temperature)
+    probabilities = boltzmann_weights / np.sum(boltzmann_weights)
+
+    # Select solutions according to Boltzmann probabilities
+    selected_indices = np.random.choice(
+        n_initial,
+        size=n_selected,
+        replace=False,
+        p=probabilities
+    )
 
     selected_samples = initial_population[selected_indices]
     selected_fitness = fitness[selected_indices]
 
+    # Sort by fitness for consistency with other methods
+    sorted_indices = np.argsort(selected_fitness)
+    selected_samples = selected_samples[sorted_indices]
+    selected_fitness = selected_fitness[sorted_indices]
+
     metadata = {
-        'type': f'Empirical Fitness ({objective_name})',
+        'type': f'Boltzmann Distribution ({objective_name})',
         'objective_name': objective_name,
         'objective_description': obj_info['description'],
         'n_initial': n_initial,
         'n_selected': n_selected,
         'selection_ratio': n_selected / n_initial,
+        'temperature': temperature,
         'bounds': bounds,
         'optimum': obj_info['optimum'],
+        'shift': shift,
+        'shifted_optimum': shift if shift is not None else np.zeros(n_vars),
+        'best_fitness': selected_fitness[0],
+        'worst_fitness': selected_fitness[-1],
+        'mean_fitness': np.mean(selected_fitness),
+        'std_fitness': np.std(selected_fitness)
+    }
+
+    return selected_samples, selected_fitness, metadata
+
+
+def generate_rank_based_distribution(
+    objective_name: str,
+    n_initial: int = 1000,
+    n_selected: int = 500,
+    n_vars: int = 10,
+    selection_pressure: float = 2.0,
+    seed: int = 42,
+    use_shift: bool = True
+) -> Tuple[np.ndarray, np.ndarray, Dict[str, Any]]:
+    """
+    Generate distribution using rank-based selection (similar to CMA-ES).
+
+    In rank-based selection, solutions are ranked by fitness and selection
+    probability depends only on rank, not the actual fitness values. This
+    makes the method robust to fitness scaling issues.
+
+    The probability of selecting a solution with rank r (1 = best) is
+    proportional to: (selection_pressure - 2*selection_pressure*(r-1)/(n-1))
+
+    Parameters
+    ----------
+    objective_name : str
+        Name of the objective function
+    n_initial : int
+        Number of initial random solutions to generate
+    n_selected : int
+        Number of solutions to select using rank-based probabilities
+    n_vars : int
+        Number of variables
+    selection_pressure : float
+        Selection pressure parameter (typically 2.0)
+        Higher values favor better-ranked solutions more strongly
+    seed : int
+        Random seed
+    use_shift : bool
+        Whether to shift the optimum away from origin
+
+    Returns
+    -------
+    selected_samples : np.ndarray
+        Selected solutions of shape (n_selected, n_vars)
+    selected_fitness : np.ndarray
+        Fitness values of selected solutions
+    metadata : dict
+        Distribution metadata
+    """
+    if objective_name not in OBJECTIVE_FUNCTIONS:
+        raise ValueError(f"Unknown objective function: {objective_name}")
+
+    np.random.seed(seed)
+
+    obj_info = OBJECTIVE_FUNCTIONS[objective_name]
+    obj_function = obj_info['function']
+    bounds = obj_info['bounds']
+
+    # Generate random shift if requested
+    shift = None
+    if use_shift and 'shift_range' in obj_info:
+        shift_range = obj_info['shift_range']
+        shift = np.random.uniform(shift_range[0], shift_range[1], n_vars)
+
+    # Generate initial random population
+    initial_population = np.random.uniform(
+        bounds[0], bounds[1],
+        (n_initial, n_vars)
+    )
+
+    # Evaluate fitness
+    fitness = obj_function(initial_population, shift=shift)
+
+    # Rank solutions (1 = best, n_initial = worst)
+    sorted_indices = np.argsort(fitness)
+    ranks = np.empty(n_initial, dtype=int)
+    ranks[sorted_indices] = np.arange(1, n_initial + 1)
+
+    # Compute rank-based selection probabilities (linear ranking)
+    # p(rank) = (selection_pressure - 2*selection_pressure*(rank-1)/(n-1)) / n
+    rank_weights = selection_pressure - 2 * selection_pressure * (ranks - 1) / (n_initial - 1)
+    rank_weights = np.maximum(rank_weights, 0)  # Ensure non-negative
+    probabilities = rank_weights / np.sum(rank_weights)
+
+    # Select solutions according to rank-based probabilities
+    selected_indices = np.random.choice(
+        n_initial,
+        size=n_selected,
+        replace=False,
+        p=probabilities
+    )
+
+    selected_samples = initial_population[selected_indices]
+    selected_fitness = fitness[selected_indices]
+
+    # Sort by fitness for consistency
+    sorted_indices = np.argsort(selected_fitness)
+    selected_samples = selected_samples[sorted_indices]
+    selected_fitness = selected_fitness[sorted_indices]
+
+    metadata = {
+        'type': f'Rank-based Distribution ({objective_name})',
+        'objective_name': objective_name,
+        'objective_description': obj_info['description'],
+        'n_initial': n_initial,
+        'n_selected': n_selected,
+        'selection_ratio': n_selected / n_initial,
+        'selection_pressure': selection_pressure,
+        'bounds': bounds,
+        'optimum': obj_info['optimum'],
+        'shift': shift,
+        'shifted_optimum': shift if shift is not None else np.zeros(n_vars),
         'best_fitness': selected_fitness[0],
         'worst_fitness': selected_fitness[-1],
         'mean_fitness': np.mean(selected_fitness),
