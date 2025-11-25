@@ -1,7 +1,7 @@
 """
-Focused Parameter Analysis for Dendiff on Rank-Based Selection - GNBG Benchmark
+Focused Parameter Analysis for Dendiff ReLU on Rank-Based Selection - GNBG Benchmark
 
-This script provides a comprehensive analysis of how dendiff parameters affect
+This script provides a comprehensive analysis of how dendiff_relu parameters affect
 approximation quality specifically for Rank-based selection (SP=2.0) across
 the 24 GNBG benchmark functions.
 
@@ -210,11 +210,11 @@ def analyze_timesteps_effect(objectives: list, n_vars: int = 10, seed: int = 42)
     """Analyze the effect of timesteps on approximation quality."""
 
     print("\n" + "=" * 100)
-    print("ANALYSIS 1: EFFECT OF TIMESTEPS (Rank-based Selection, SP=2.0)")
+    print("ANALYSIS 1: EFFECT OF TIMESTEPS (Rank-based Selection, SP=2.0) - DENDIFF RELU")
     print("=" * 100)
     print()
     print("This analysis shows how the number of diffusion timesteps affects the quality")
-    print("of the learned distribution approximation on GNBG benchmark functions.")
+    print("of the learned distribution approximation on GNBG benchmark functions using dendiff_relu.")
     print()
 
     timesteps_to_test = [100, 200, 300, 400, 500]
@@ -247,7 +247,8 @@ def analyze_timesteps_effect(objectives: list, n_vars: int = 10, seed: int = 42)
                     n_samples_test=n_selected,
                     dendiff_params={'epochs': 100, 'n_timesteps': n_timesteps, 'hidden_dims': [128, 64]},
                     seed=seed,
-                    verbose=False
+                    verbose=False,
+                    model_type='dendiff_relu'
                 )
 
                 results_by_objective[obj_name].append({
@@ -300,11 +301,11 @@ def analyze_epochs_effect(objectives: list, n_vars: int = 10, seed: int = 42):
     """Analyze the effect of training epochs on approximation quality."""
 
     print("\n\n" + "=" * 100)
-    print("ANALYSIS 2: EFFECT OF TRAINING EPOCHS (Rank-based Selection, SP=2.0)")
+    print("ANALYSIS 2: EFFECT OF TRAINING EPOCHS (Rank-based Selection, SP=2.0) - DENDIFF RELU")
     print("=" * 100)
     print()
     print("This analysis shows how the number of training epochs affects convergence")
-    print("and approximation quality on GNBG benchmark functions.")
+    print("and approximation quality on GNBG benchmark functions using dendiff_relu.")
     print()
 
     epochs_to_test = [20, 40, 60, 80, 100]
@@ -337,7 +338,8 @@ def analyze_epochs_effect(objectives: list, n_vars: int = 10, seed: int = 42):
                     n_samples_test=n_selected,
                     dendiff_params={'epochs': epochs, 'n_timesteps': 500, 'hidden_dims': [128, 64]},
                     seed=seed,
-                    verbose=False
+                    verbose=False,
+                    model_type='dendiff_relu'
                 )
 
                 results_by_objective[obj_name].append({
@@ -390,11 +392,11 @@ def analyze_architecture_effect(objectives: list, n_vars: int = 10, seed: int = 
     """Analyze the effect of network architecture on approximation quality."""
 
     print("\n\n" + "=" * 100)
-    print("ANALYSIS 3: EFFECT OF NETWORK ARCHITECTURE (Rank-based Selection, SP=2.0)")
+    print("ANALYSIS 3: EFFECT OF NETWORK ARCHITECTURE (Rank-based Selection, SP=2.0) - DENDIFF RELU")
     print("=" * 100)
     print()
     print("This analysis shows how network capacity (architecture) affects the ability")
-    print("to learn complex distributions on GNBG benchmark functions.")
+    print("to learn complex distributions on GNBG benchmark functions using dendiff_relu.")
     print()
 
     architectures = [
@@ -434,7 +436,8 @@ def analyze_architecture_effect(objectives: list, n_vars: int = 10, seed: int = 
                     n_samples_test=n_selected,
                     dendiff_params={'epochs': 100, 'n_timesteps': 500, 'hidden_dims': hidden_dims},
                     seed=seed,
-                    verbose=False
+                    verbose=False,
+                    model_type='dendiff_relu'
                 )
 
                 results_by_objective[obj_name].append({
@@ -487,10 +490,10 @@ def analyze_objective_characteristics(objectives: list, n_vars: int = 10, seed: 
     """Analyze how GNBG problem characteristics affect dendiff performance."""
 
     print("\n\n" + "=" * 100)
-    print("ANALYSIS 4: GNBG PROBLEM CHARACTERISTICS (Rank-based Selection, SP=2.0)")
+    print("ANALYSIS 4: GNBG PROBLEM CHARACTERISTICS (Rank-based Selection, SP=2.0) - DENDIFF RELU")
     print("=" * 100)
     print()
-    print("This analysis compares dendiff performance across the 24 GNBG functions")
+    print("This analysis compares dendiff_relu performance across the 24 GNBG functions")
     print("with fixed parameters.")
     print()
 
@@ -523,7 +526,8 @@ def analyze_objective_characteristics(objectives: list, n_vars: int = 10, seed: 
                 n_samples_test=n_selected,
                 dendiff_params=dendiff_params,
                 seed=seed,
-                verbose=False
+                verbose=False,
+                model_type='dendiff_relu'
             )
 
             results.append({
@@ -558,11 +562,11 @@ def run_comprehensive_parameter_analysis():
     start_time = time.time()
 
     print("=" * 100)
-    print("COMPREHENSIVE DENDIFF PARAMETER ANALYSIS - GNBG BENCHMARK")
+    print("COMPREHENSIVE DENDIFF RELU PARAMETER ANALYSIS - GNBG BENCHMARK")
     print("Rank-Based Selection (SP=2.0) on 24 GNBG Functions")
     print("=" * 100)
     print()
-    print("This analysis systematically evaluates how dendiff parameters affect")
+    print("This analysis systematically evaluates how dendiff_relu parameters affect")
     print("approximation quality across the GNBG benchmark suite.")
     print()
     print("Parameters analyzed:")
