@@ -206,7 +206,7 @@ print(f"Successfully loaded {len(GNBG_OBJECTIVE_FUNCTIONS)}/24 GNBG functions\n"
 # Parameter Analysis Functions (identical to original)
 # ============================================================================
 
-def analyze_timesteps_effect(objectives: list, n_vars: int = 10, seed: int = 42):
+def analyze_timesteps_effect(objectives: list, n_vars: int = 30, seed: int = 42):
     """Analyze the effect of timesteps on approximation quality."""
 
     print("\n" + "=" * 100)
@@ -218,7 +218,7 @@ def analyze_timesteps_effect(objectives: list, n_vars: int = 10, seed: int = 42)
     print()
 
     timesteps_to_test = [100, 200, 300, 400, 500]
-    n_initial = 1000
+    n_initial = 5000
     n_selected = 500
 
     results_by_objective = {}
@@ -240,12 +240,12 @@ def analyze_timesteps_effect(objectives: list, n_vars: int = 10, seed: int = 42)
                         'n_initial': n_initial,
                         'n_selected': n_selected,
                         'n_vars': n_vars,
-                        'selection_pressure': 2.0,
+                        'selection_pressure': 3.0,
                         'seed': seed,
                         'use_shift': False  # GNBG doesn't use shift
                     },
                     n_samples_test=n_selected,
-                    dendiff_params={'epochs': 100, 'n_timesteps': n_timesteps, 'hidden_dims': [128, 64]},
+                    dendiff_params={'epochs': 100, 'n_timesteps': n_timesteps, 'hidden_dims': [256, 128]},
                     seed=seed,
                     verbose=False,
                     model_type='dendiff_relu'
@@ -297,7 +297,7 @@ def analyze_timesteps_effect(objectives: list, n_vars: int = 10, seed: int = 42)
     return results_by_objective
 
 
-def analyze_epochs_effect(objectives: list, n_vars: int = 10, seed: int = 42):
+def analyze_epochs_effect(objectives: list, n_vars: int = 30, seed: int = 42):
     """Analyze the effect of training epochs on approximation quality."""
 
     print("\n\n" + "=" * 100)
@@ -308,8 +308,9 @@ def analyze_epochs_effect(objectives: list, n_vars: int = 10, seed: int = 42):
     print("and approximation quality on GNBG benchmark functions using dendiff_relu.")
     print()
 
-    epochs_to_test = [20, 40, 60, 80, 100]
-    n_initial = 1000
+    #epochs_to_test = [20, 40, 60, 80, 100]
+    epochs_to_test = [50, 100, 150, 200, 300]
+    n_initial = 5000
     n_selected = 500
 
     results_by_objective = {}
@@ -331,7 +332,7 @@ def analyze_epochs_effect(objectives: list, n_vars: int = 10, seed: int = 42):
                         'n_initial': n_initial,
                         'n_selected': n_selected,
                         'n_vars': n_vars,
-                        'selection_pressure': 2.0,
+                        'selection_pressure': 3.0,
                         'seed': seed,
                         'use_shift': False  # GNBG doesn't use shift
                     },
@@ -388,7 +389,7 @@ def analyze_epochs_effect(objectives: list, n_vars: int = 10, seed: int = 42):
     return results_by_objective
 
 
-def analyze_architecture_effect(objectives: list, n_vars: int = 10, seed: int = 42):
+def analyze_architecture_effect(objectives: list, n_vars: int = 30, seed: int = 42):
     """Analyze the effect of network architecture on approximation quality."""
 
     print("\n\n" + "=" * 100)
@@ -407,7 +408,7 @@ def analyze_architecture_effect(objectives: list, n_vars: int = 10, seed: int = 
         ([512, 256], "[512, 256]")
     ]
 
-    n_initial = 1000
+    n_initial = 5000
     n_selected = 500
 
     results_by_objective = {}
@@ -429,7 +430,7 @@ def analyze_architecture_effect(objectives: list, n_vars: int = 10, seed: int = 
                         'n_initial': n_initial,
                         'n_selected': n_selected,
                         'n_vars': n_vars,
-                        'selection_pressure': 2.0,
+                        'selection_pressure': 3.0,
                         'seed': seed,
                         'use_shift': False  # GNBG doesn't use shift
                     },
@@ -486,7 +487,7 @@ def analyze_architecture_effect(objectives: list, n_vars: int = 10, seed: int = 
     return results_by_objective
 
 
-def analyze_objective_characteristics(objectives: list, n_vars: int = 10, seed: int = 42):
+def analyze_objective_characteristics(objectives: list, n_vars: int = 30, seed: int = 42):
     """Analyze how GNBG problem characteristics affect dendiff performance."""
 
     print("\n\n" + "=" * 100)
@@ -497,7 +498,7 @@ def analyze_objective_characteristics(objectives: list, n_vars: int = 10, seed: 
     print("with fixed parameters.")
     print()
 
-    n_initial = 1000
+    n_initial = 5000
     n_selected = 500
 
     # Fixed parameters - balanced configuration
@@ -519,7 +520,7 @@ def analyze_objective_characteristics(objectives: list, n_vars: int = 10, seed: 
                     'n_initial': n_initial,
                     'n_selected': n_selected,
                     'n_vars': n_vars,
-                    'selection_pressure': 2.0,
+                    'selection_pressure': 3.0,
                     'seed': seed,
                     'use_shift': False  # GNBG doesn't use shift
                 },

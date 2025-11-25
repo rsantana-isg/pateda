@@ -273,7 +273,7 @@ def learn_dendiff_relu(
         # Print progress every 10 epochs
         if (epoch + 1) % 10 == 0 or epoch == 0:
             avg_loss = epoch_loss / n_batches
-            print(f'Epoch {epoch+1}/{epochs}, Loss: {avg_loss:.6f}')
+            #print(f'Epoch {epoch+1}/{epochs}, Loss: {avg_loss:.6f}')
 
     # Return model state and parameters
     return {
