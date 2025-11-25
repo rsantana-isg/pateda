@@ -1247,7 +1247,7 @@ def test_parameter_variations():
         results = evaluate_dendiff_on_distribution(
             generate_multivariate_gaussian,
             n_samples=300,
-            n_vars=10,
+            n_vars=20,
             n_samples_test=300,
             params={'epochs': 80, 'n_timesteps': n_timesteps, 'hidden_dims': [128, 64]},
             seed=42,
@@ -1262,16 +1262,24 @@ def test_parameter_variations():
     print(f"{'Architecture':<25} {'JS Divergence':<15} {'KL Divergence':<15}")
     print("-" * 80)
 
+    #architectures = [
+    #    ([64, 32], "[64, 32]"),
+    #    ([128, 64], "[128, 64]"),
+    #    ([256, 128], "[256, 128]"),
+    #    ([256, 128, 64], "[256, 128, 64]"),
+    #]
+
     architectures = [
-        ([64, 32], "[64, 32]"),
-        ([128, 64], "[128, 64]"),
-        ([256, 128], "[256, 128]"),
-        ([256, 128, 64], "[256, 128, 64]"),
+        ([16, 16], "[16, 16]"),
+        ([32, 32], "[32, 32]"),
+        ([100, 100], "[100, 100]"),
+        ([64, 32, 64], "[64, 32, 64]"),
     ]
 
     for hidden_dims, arch_str in architectures:
         results = evaluate_dendiff_on_distribution(
-            generate_multivariate_gaussian,
+            generate_multivariate_cauchy,
+            #generate_multivariate_gaussian,
             n_samples=400,
             n_vars=10,
             n_samples_test=400,
