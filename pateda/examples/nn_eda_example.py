@@ -199,10 +199,13 @@ def run_nn_eda_example():
     print()
 
     # This is the recommended approach - combines training and sampling automatically
+    # Pass initial population to transform it (better than random or training solutions)
     hybrid_solutions = sample_nn_eda_hybrid(
         model_data,
         n_samples=pop_size,
         fraction_from_training=0.7,  # 70% from training, 30% generated
+        source_population=initial_population,
+        source_fitness=initial_fitness,
         params=sampling_params
     )
 
@@ -211,7 +214,7 @@ def run_nn_eda_example():
     print(f"Hybrid sampling ({pop_size} solutions):")
     print(f"  Best fitness: {hybrid_fitness.min():.6f}")
     print(f"  Mean fitness: {hybrid_fitness.mean():.6f}")
-    print(f"  70% from training, 30% newly generated")
+    print(f"  70% from training, 30% by transforming initial population")
     print()
 
     # ========================================================================
@@ -286,11 +289,14 @@ def run_eda_iteration_example():
         )
 
         # Sample new population (hybrid approach)
+        # Pass current population so autoencoder transforms it
         new_population = sample_nn_eda_hybrid(
             model_data,
             n_samples=pop_size,
             fraction_from_training=0.6,  # 60% from training, 40% new
-            params={'use_training_solutions': True, 'add_noise': True, 'noise_std': 0.05}
+            source_population=population,
+            source_fitness=fitness,
+            params={'add_noise': True, 'noise_std': 0.05}
         )
 
         # Evaluate (but training solutions are already evaluated)

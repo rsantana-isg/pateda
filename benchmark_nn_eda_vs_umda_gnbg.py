@@ -221,11 +221,14 @@ def run_nn_eda(
 
         # Sample new population (hybrid: training + generated solutions)
         # Elitism is automatically handled in hybrid sampling
+        # Pass current population so autoencoder transforms it (not random solutions)
         new_population = sample_nn_eda_hybrid(
             model_data,
             n_samples=pop_size,
             fraction_from_training=0.6,
-            params={'use_training_solutions': True, 'add_noise': True, 'noise_std': 0.05}
+            source_population=population,
+            source_fitness=fitness,
+            params={'add_noise': True, 'noise_std': 0.05}
         )
 
         # Evaluate new population (but many are from training, so already evaluated)
