@@ -206,7 +206,7 @@ print(f"Successfully loaded {len(GNBG_OBJECTIVE_FUNCTIONS)}/24 GNBG functions\n"
 # Parameter Analysis Functions (identical to original)
 # ============================================================================
 
-def analyze_timesteps_effect(objectives: list, n_vars: int = 10, seed: int = 42):
+def analyze_timesteps_effect(objectives: list, n_vars: int = 30, seed: int = 42):
     """Analyze the effect of timesteps on approximation quality."""
 
     print("\n" + "=" * 100)
@@ -218,7 +218,7 @@ def analyze_timesteps_effect(objectives: list, n_vars: int = 10, seed: int = 42)
     print()
 
     timesteps_to_test = [100, 200, 300, 400, 500]
-    n_initial = 1000
+    n_initial = 5000
     n_selected = 500
 
     results_by_objective = {}
@@ -297,7 +297,7 @@ def analyze_timesteps_effect(objectives: list, n_vars: int = 10, seed: int = 42)
     return results_by_objective
 
 
-def analyze_epochs_effect(objectives: list, n_vars: int = 10, seed: int = 42):
+def analyze_epochs_effect(objectives: list, n_vars: int = 30, seed: int = 42):
     """Analyze the effect of training epochs on approximation quality."""
 
     print("\n\n" + "=" * 100)
@@ -309,7 +309,7 @@ def analyze_epochs_effect(objectives: list, n_vars: int = 10, seed: int = 42):
     print()
 
     epochs_to_test = [20, 40, 60, 80, 100]
-    n_initial = 1000
+    n_initial = 5000
     n_selected = 500
 
     results_by_objective = {}
@@ -388,7 +388,7 @@ def analyze_epochs_effect(objectives: list, n_vars: int = 10, seed: int = 42):
     return results_by_objective
 
 
-def analyze_architecture_effect(objectives: list, n_vars: int = 10, seed: int = 42):
+def analyze_architecture_effect(objectives: list, n_vars: int = 30, seed: int = 42):
     """Analyze the effect of network architecture on approximation quality."""
 
     print("\n\n" + "=" * 100)
@@ -407,7 +407,7 @@ def analyze_architecture_effect(objectives: list, n_vars: int = 10, seed: int = 
         ([512, 256], "[512, 256]")
     ]
 
-    n_initial = 1000
+    n_initial = 5000
     n_selected = 500
 
     results_by_objective = {}
@@ -486,7 +486,7 @@ def analyze_architecture_effect(objectives: list, n_vars: int = 10, seed: int = 
     return results_by_objective
 
 
-def analyze_objective_characteristics(objectives: list, n_vars: int = 10, seed: int = 42):
+def analyze_objective_characteristics(objectives: list, n_vars: int = 30, seed: int = 42):
     """Analyze how GNBG problem characteristics affect dendiff performance."""
 
     print("\n\n" + "=" * 100)
@@ -497,7 +497,7 @@ def analyze_objective_characteristics(objectives: list, n_vars: int = 10, seed: 
     print("with fixed parameters.")
     print()
 
-    n_initial = 1000
+    n_initial = 5000
     n_selected = 500
 
     # Fixed parameters - balanced configuration
