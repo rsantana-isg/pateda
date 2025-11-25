@@ -37,7 +37,6 @@ from pateda.learning.nn_eda import learn_nn_eda
 from pateda.sampling.nn_eda import sample_nn_eda_hybrid, get_training_statistics
 from pateda.learning.basic_gaussian import learn_gaussian_univariate
 from pateda.sampling.basic_gaussian import sample_gaussian_univariate
-from pateda.selection.truncation import truncation_selection
 
 
 # ============================================================================
