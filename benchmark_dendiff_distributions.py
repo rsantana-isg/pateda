@@ -430,10 +430,19 @@ def generate_boltzmann_distribution(
     boltzmann_weights = np.exp(-fitness_normalized / temperature)
     probabilities = boltzmann_weights / np.sum(boltzmann_weights)
 
+    # Count non-zero probabilities to ensure we can sample without replacement
+    non_zero_count = np.sum(probabilities > 0)
+    if non_zero_count < n_selected:
+        # If not enough non-zero probabilities, adjust n_selected
+        print(f"    Warning: Only {non_zero_count} non-zero probabilities, adjusting n_selected from {n_selected} to {non_zero_count}")
+        n_selected_actual = non_zero_count
+    else:
+        n_selected_actual = n_selected
+
     # Select solutions according to Boltzmann probabilities
     selected_indices = np.random.choice(
         n_initial,
-        size=n_selected,
+        size=n_selected_actual,
         replace=False,
         p=probabilities
     )
@@ -451,8 +460,8 @@ def generate_boltzmann_distribution(
         'objective_name': objective_name,
         'objective_description': obj_info['description'],
         'n_initial': n_initial,
-        'n_selected': n_selected,
-        'selection_ratio': n_selected / n_initial,
+        'n_selected': n_selected_actual,
+        'selection_ratio': n_selected_actual / n_initial,
         'temperature': temperature,
         'bounds': bounds,
         'optimum': obj_info['optimum'],
@@ -548,10 +557,19 @@ def generate_rank_based_distribution(
     rank_weights = np.maximum(rank_weights, 0)  # Ensure non-negative
     probabilities = rank_weights / np.sum(rank_weights)
 
+    # Count non-zero probabilities to ensure we can sample without replacement
+    non_zero_count = np.sum(probabilities > 0)
+    if non_zero_count < n_selected:
+        # If not enough non-zero probabilities, adjust n_selected
+        print(f"    Warning: Only {non_zero_count} non-zero probabilities, adjusting n_selected from {n_selected} to {non_zero_count}")
+        n_selected_actual = non_zero_count
+    else:
+        n_selected_actual = n_selected
+
     # Select solutions according to rank-based probabilities
     selected_indices = np.random.choice(
         n_initial,
-        size=n_selected,
+        size=n_selected_actual,
         replace=False,
         p=probabilities
     )
@@ -569,8 +587,8 @@ def generate_rank_based_distribution(
         'objective_name': objective_name,
         'objective_description': obj_info['description'],
         'n_initial': n_initial,
-        'n_selected': n_selected,
-        'selection_ratio': n_selected / n_initial,
+        'n_selected': n_selected_actual,
+        'selection_ratio': n_selected_actual / n_initial,
         'selection_pressure': selection_pressure,
         'bounds': bounds,
         'optimum': obj_info['optimum'],
