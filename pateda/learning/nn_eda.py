@@ -270,6 +270,7 @@ def learn_nn_eda(
         - 'output_activation': str, output activation (default: None)
         - 'fitness_weight_clip': float, clip fitness weights to avoid extreme values (default: 10.0)
         - 'store_all_solutions': bool, store all evaluated solutions (default: True)
+        - 'elitism': bool, preserve best solution from original population (default: True)
         - 'verbose': bool, print training progress (default: True)
 
     Returns
@@ -287,6 +288,8 @@ def learn_nn_eda(
         - 'evaluated_fitness': Fitness values of evaluated solutions (n_evaluated,)
         - 'n_evaluations': Total number of evaluations performed
         - 'training_history': List of epoch losses
+        - 'elite_solution': Best solution from original population (if elitism=True)
+        - 'elite_fitness': Fitness of elite solution (if elitism=True)
     """
     if params is None:
         params = {}
@@ -304,7 +307,17 @@ def learn_nn_eda(
     output_activation = params.get('output_activation', None)
     fitness_weight_clip = params.get('fitness_weight_clip', 10.0)
     store_all_solutions = params.get('store_all_solutions', True)
+    elitism = params.get('elitism', True)
     verbose = params.get('verbose', True)
+
+    # Store elite solution if elitism is enabled
+    if elitism:
+        best_idx = np.argmin(fitness)
+        elite_solution = population[best_idx].copy()
+        elite_fitness = fitness[best_idx]
+    else:
+        elite_solution = None
+        elite_fitness = None
 
     # Normalize data to [0, 1] range for each dimension
     x_min = population.min(axis=0)
@@ -471,6 +484,9 @@ def learn_nn_eda(
         'evaluated_fitness': all_evaluated_fitness,
         'n_evaluations': n_evaluations,
         'training_history': training_history,
+        'elite_solution': elite_solution,
+        'elite_fitness': elite_fitness,
+        'elitism': elitism,
     }
 
     return model_data
