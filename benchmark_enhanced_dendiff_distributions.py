@@ -145,6 +145,9 @@ def evaluate_dendiff_on_enhanced_distribution(
         print(f"  Computing fitness statistics...")
 
     # Enhanced fitness statistics comparison including std
+    # Signed difference: negative means sampled is better (lower fitness for minimization)
+    signed_fitness_diff_vs_mat = np.mean(Sampled_MAT_fitness) - metadata['mean_fitness']
+
     fitness_stats = {
         'mat_best_fitness': metadata['best_fitness'],
         'mat_mean_fitness': metadata['mean_fitness'],
@@ -159,6 +162,7 @@ def evaluate_dendiff_on_enhanced_distribution(
         'fitness_std_diff': abs(np.std(Sampled_MAT_fitness) - metadata_another['std_fitness']),
         'fitness_mean_improvement': (metadata['mean_fitness'] - np.mean(Sampled_MAT_fitness)) / (abs(metadata['mean_fitness']) + 1e-10),
         'fitness_std_ratio': np.std(Sampled_MAT_fitness) / (metadata['std_fitness'] + 1e-10),
+        'signed_fitness_diff_vs_mat': signed_fitness_diff_vs_mat,  # negative = improvement for minimization
     }
 
     results = {
@@ -254,11 +258,13 @@ def run_enhanced_benchmark():
             all_results.append(('Standard (Shifted)', objective_name, results))
 
             print(f"\n  Results:")
-            print(f"    JS Divergence:           {results['js_divergence']:.6f}")
-            print(f"    Fitness Mean Diff:       {results['fitness_mean_diff']:.6f}")
-            print(f"    Fitness Std Diff:        {results['fitness_std_diff']:.6f}")
-            print(f"    Fitness Std Ratio:       {results['fitness_std_ratio']:.4f}")
-            print(f"    Mean Improvement:        {results['fitness_mean_improvement']*100:.2f}%")
+            print(f"    JS Divergence (vs MAT_ANOTHER): {results['js_divergence']:.6f}")
+            print(f"    KL Divergence (vs MAT):         {results['kl_divergence_vs_mat']:.6f}")
+            print(f"    Signed Fitness Diff (vs MAT):   {results['signed_fitness_diff_vs_mat']:+.6f}")
+            print(f"    Fitness Mean Diff:              {results['fitness_mean_diff']:.6f}")
+            print(f"    Fitness Std Diff:               {results['fitness_std_diff']:.6f}")
+            print(f"    Fitness Std Ratio:              {results['fitness_std_ratio']:.4f}")
+            print(f"    Mean Improvement:               {results['fitness_mean_improvement']*100:.2f}%")
 
         except Exception as e:
             print(f"  ERROR: {str(e)}")
@@ -305,10 +311,12 @@ def run_enhanced_benchmark():
                 all_results.append((f'Boltzmann (T={temp})', objective_name, results))
 
                 print(f"\n  Results:")
-                print(f"    JS Divergence:           {results['js_divergence']:.6f}")
-                print(f"    Fitness Mean Diff:       {results['fitness_mean_diff']:.6f}")
-                print(f"    Fitness Std Diff:        {results['fitness_std_diff']:.6f}")
-                print(f"    Fitness Std Ratio:       {results['fitness_std_ratio']:.4f}")
+                print(f"    JS Divergence (vs MAT_ANOTHER): {results['js_divergence']:.6f}")
+                print(f"    KL Divergence (vs MAT):         {results['kl_divergence_vs_mat']:.6f}")
+                print(f"    Signed Fitness Diff (vs MAT):   {results['signed_fitness_diff_vs_mat']:+.6f}")
+                print(f"    Fitness Mean Diff:              {results['fitness_mean_diff']:.6f}")
+                print(f"    Fitness Std Diff:               {results['fitness_std_diff']:.6f}")
+                print(f"    Fitness Std Ratio:              {results['fitness_std_ratio']:.4f}")
 
             except Exception as e:
                 print(f"  ERROR: {str(e)}")
@@ -355,10 +363,12 @@ def run_enhanced_benchmark():
                 all_results.append((f'Rank-based (SP={sp})', objective_name, results))
 
                 print(f"\n  Results:")
-                print(f"    JS Divergence:           {results['js_divergence']:.6f}")
-                print(f"    Fitness Mean Diff:       {results['fitness_mean_diff']:.6f}")
-                print(f"    Fitness Std Diff:        {results['fitness_std_diff']:.6f}")
-                print(f"    Fitness Std Ratio:       {results['fitness_std_ratio']:.4f}")
+                print(f"    JS Divergence (vs MAT_ANOTHER): {results['js_divergence']:.6f}")
+                print(f"    KL Divergence (vs MAT):         {results['kl_divergence_vs_mat']:.6f}")
+                print(f"    Signed Fitness Diff (vs MAT):   {results['signed_fitness_diff_vs_mat']:+.6f}")
+                print(f"    Fitness Mean Diff:              {results['fitness_mean_diff']:.6f}")
+                print(f"    Fitness Std Diff:               {results['fitness_std_diff']:.6f}")
+                print(f"    Fitness Std Ratio:              {results['fitness_std_ratio']:.4f}")
 
             except Exception as e:
                 print(f"  ERROR: {str(e)}")
@@ -384,13 +394,14 @@ def run_enhanced_benchmark():
     for method in sorted(methods.keys()):
         print(f"\n{method}")
         print("-" * 80)
-        print(f"{'Objective':<15} {'JS Div':<12} {'Mean Diff':<12} {'Std Diff':<12} {'Std Ratio':<12}")
+        print(f"{'Objective':<15} {'JS Div':<10} {'KL Div':<10} {'Signed Diff':<14} {'Mean Diff':<12} {'Std Ratio':<12}")
         print("-" * 80)
 
         for obj_name, results in methods[method]:
-            print(f"{obj_name:<15} {results['js_divergence']:>10.4f}  "
+            print(f"{obj_name:<15} {results['js_divergence']:>8.4f}  "
+                  f"{results['kl_divergence_vs_mat']:>8.4f}  "
+                  f"{results['signed_fitness_diff_vs_mat']:>12.6f}  "
                   f"{results['fitness_mean_diff']:>10.4f}  "
-                  f"{results['fitness_std_diff']:>10.4f}  "
                   f"{results['fitness_std_ratio']:>10.4f}")
 
     # ========================================================================
@@ -403,22 +414,31 @@ def run_enhanced_benchmark():
 Enhanced Metrics Explanation:
 
 1. JS Divergence (Jensen-Shannon):
-   - Measures distributional similarity
+   - Measures distributional similarity vs MAT_ANOTHER (independent reference)
    - Range: [0, 1], lower is better
    - < 0.3: Good approximation
    - < 0.5: Acceptable approximation
 
-2. Fitness Mean Difference:
-   - Absolute difference in mean fitness between sampled and reference
+2. KL Divergence (vs MAT):
+   - Measures how well dendiff approximates the training distribution (MAT)
+   - Range: [0, ∞), lower is better
+   - < 0.3: Excellent approximation
+   - < 0.5: Good approximation
+   - Higher values suggest underfitting or need for more capacity
+
+3. Signed Fitness Difference (vs MAT):
+   - Difference: mean(Sampled_MAT) - mean(MAT)
+   - Negative values: Sampled has BETTER (lower) fitness → SUCCESS for minimization!
+   - Positive values: Sampled has WORSE (higher) fitness
+   - Near zero: Good approximation without improvement
+   - Large negative: dendiff found better regions (exploration bonus)
+
+4. Fitness Mean Difference:
+   - Absolute difference in mean fitness between sampled and MAT_ANOTHER
    - Lower is better
    - Should be small relative to fitness scale
 
-3. Fitness Std Difference:
-   - Absolute difference in standard deviation
-   - Measures if dendiff captures fitness variance
-   - Lower is better for pure approximation
-
-4. Fitness Std Ratio:
+5. Fitness Std Ratio:
    - Ratio of sampled std to original std
    - > 1.0: Sampled distribution has MORE variance (better exploration)
    - < 1.0: Sampled distribution has LESS variance (more exploitation)
@@ -452,6 +472,293 @@ Expected Observations:
 """)
 
     return all_results
+
+
+def test_fitness_parameter_variations():
+    """Test parameter variations on Boltzmann and Rank-based distributions."""
+
+    print("\n\n" + "=" * 80)
+    print("ENHANCED FITNESS DISTRIBUTION PARAMETER VARIATION TESTS")
+    print("=" * 80)
+    print()
+    print("This tests how dendiff parameters affect approximation quality")
+    print("for Boltzmann and Rank-based selection methods.")
+    print()
+
+    n_vars = 10
+    n_initial = 1000
+    n_selected = 500
+    seed = 42
+
+    # Test 1: Varying timesteps on Boltzmann distribution
+    print("\n" + "=" * 80)
+    print("Test 1: Effect of Timesteps on Boltzmann Distribution (Sphere)")
+    print("=" * 80)
+    print(f"{'Timesteps':<15} {'JS Div':<12} {'KL Div (MAT)':<15} {'Signed Diff':<15} {'Fitness Diff':<15}")
+    print("-" * 80)
+
+    for n_timesteps in [300, 500, 800, 1000]:
+        results = evaluate_dendiff_on_enhanced_distribution(
+            generate_boltzmann_distribution,
+            {
+                'objective_name': 'sphere',
+                'n_initial': n_initial,
+                'n_selected': n_selected,
+                'n_vars': n_vars,
+                'temperature': 1.0,
+                'seed': seed,
+                'use_shift': True
+            },
+            n_samples_test=n_selected,
+            dendiff_params={'epochs': 100, 'n_timesteps': n_timesteps, 'hidden_dims': [128, 64]},
+            seed=seed,
+            verbose=False
+        )
+        print(f"{n_timesteps:<15} {results['js_divergence']:<12.4f} {results['kl_divergence_vs_mat']:<15.4f} "
+              f"{results['signed_fitness_diff_vs_mat']:<15.6f} {results['fitness_mean_diff']:<15.6f}")
+
+    # Test 2: Varying epochs on Boltzmann distribution with multimodal function
+    print("\n" + "=" * 80)
+    print("Test 2: Effect of Epochs on Boltzmann Distribution (Rastrigin)")
+    print("=" * 80)
+    print(f"{'Epochs':<15} {'JS Div':<12} {'KL Div (MAT)':<15} {'Signed Diff':<15} {'Fitness Diff':<15}")
+    print("-" * 80)
+
+    for epochs in [50, 100, 150, 200]:
+        results = evaluate_dendiff_on_enhanced_distribution(
+            generate_boltzmann_distribution,
+            {
+                'objective_name': 'rastrigin',
+                'n_initial': n_initial,
+                'n_selected': n_selected,
+                'n_vars': n_vars,
+                'temperature': 1.0,
+                'seed': seed,
+                'use_shift': True
+            },
+            n_samples_test=n_selected,
+            dendiff_params={'epochs': epochs, 'n_timesteps': 500, 'hidden_dims': [128, 64]},
+            seed=seed,
+            verbose=False
+        )
+        print(f"{epochs:<15} {results['js_divergence']:<12.4f} {results['kl_divergence_vs_mat']:<15.4f} "
+              f"{results['signed_fitness_diff_vs_mat']:<15.6f} {results['fitness_mean_diff']:<15.6f}")
+
+    # Test 3: Varying network architecture on Boltzmann distribution
+    print("\n" + "=" * 80)
+    print("Test 3: Effect of Network Architecture on Boltzmann Distribution (Rosenbrock)")
+    print("=" * 80)
+    print(f"{'Architecture':<25} {'JS Div':<12} {'KL Div (MAT)':<15} {'Signed Diff':<15}")
+    print("-" * 80)
+
+    architectures = [
+        ([64, 32], "[64, 32]"),
+        ([128, 64], "[128, 64]"),
+        ([256, 128], "[256, 128]"),
+        ([256, 128, 64], "[256, 128, 64]"),
+    ]
+
+    for hidden_dims, arch_str in architectures:
+        results = evaluate_dendiff_on_enhanced_distribution(
+            generate_boltzmann_distribution,
+            {
+                'objective_name': 'rosenbrock',
+                'n_initial': n_initial,
+                'n_selected': n_selected,
+                'n_vars': n_vars,
+                'temperature': 1.0,
+                'seed': seed,
+                'use_shift': True
+            },
+            n_samples_test=n_selected,
+            dendiff_params={'epochs': 100, 'n_timesteps': 500, 'hidden_dims': hidden_dims},
+            seed=seed,
+            verbose=False
+        )
+        print(f"{arch_str:<25} {results['js_divergence']:<12.4f} {results['kl_divergence_vs_mat']:<15.4f} "
+              f"{results['signed_fitness_diff_vs_mat']:<15.6f}")
+
+    # Test 4: Varying temperature on Boltzmann distribution
+    print("\n" + "=" * 80)
+    print("Test 4: Effect of Temperature on Boltzmann Distribution (Ackley)")
+    print("=" * 80)
+    print(f"{'Temperature':<15} {'JS Div':<12} {'KL Div (MAT)':<15} {'Signed Diff':<15} {'Std Ratio':<12}")
+    print("-" * 80)
+
+    for temperature in [0.5, 1.0, 2.0, 5.0]:
+        results = evaluate_dendiff_on_enhanced_distribution(
+            generate_boltzmann_distribution,
+            {
+                'objective_name': 'ackley',
+                'n_initial': n_initial,
+                'n_selected': n_selected,
+                'n_vars': n_vars,
+                'temperature': temperature,
+                'seed': seed,
+                'use_shift': True
+            },
+            n_samples_test=n_selected,
+            dendiff_params={'epochs': 100, 'n_timesteps': 500, 'hidden_dims': [128, 64]},
+            seed=seed,
+            verbose=False
+        )
+        print(f"{temperature:<15.1f} {results['js_divergence']:<12.4f} {results['kl_divergence_vs_mat']:<15.4f} "
+              f"{results['signed_fitness_diff_vs_mat']:<15.6f} {results['fitness_std_ratio']:<12.4f}")
+
+    # Test 5: Varying timesteps on Rank-based distribution
+    print("\n" + "=" * 80)
+    print("Test 5: Effect of Timesteps on Rank-based Distribution (Sphere)")
+    print("=" * 80)
+    print(f"{'Timesteps':<15} {'JS Div':<12} {'KL Div (MAT)':<15} {'Signed Diff':<15} {'Fitness Diff':<15}")
+    print("-" * 80)
+
+    for n_timesteps in [300, 500, 800, 1000]:
+        results = evaluate_dendiff_on_enhanced_distribution(
+            generate_rank_based_distribution,
+            {
+                'objective_name': 'sphere',
+                'n_initial': n_initial,
+                'n_selected': n_selected,
+                'n_vars': n_vars,
+                'selection_pressure': 2.0,
+                'seed': seed,
+                'use_shift': True
+            },
+            n_samples_test=n_selected,
+            dendiff_params={'epochs': 100, 'n_timesteps': n_timesteps, 'hidden_dims': [128, 64]},
+            seed=seed,
+            verbose=False
+        )
+        print(f"{n_timesteps:<15} {results['js_divergence']:<12.4f} {results['kl_divergence_vs_mat']:<15.4f} "
+              f"{results['signed_fitness_diff_vs_mat']:<15.6f} {results['fitness_mean_diff']:<15.6f}")
+
+    # Test 6: Varying selection pressure on Rank-based distribution
+    print("\n" + "=" * 80)
+    print("Test 6: Effect of Selection Pressure on Rank-based Distribution (Rastrigin)")
+    print("=" * 80)
+    print(f"{'Sel. Pressure':<15} {'JS Div':<12} {'KL Div (MAT)':<15} {'Signed Diff':<15} {'Std Ratio':<12}")
+    print("-" * 80)
+
+    for selection_pressure in [1.5, 2.0, 2.5, 3.0]:
+        results = evaluate_dendiff_on_enhanced_distribution(
+            generate_rank_based_distribution,
+            {
+                'objective_name': 'rastrigin',
+                'n_initial': n_initial,
+                'n_selected': n_selected,
+                'n_vars': n_vars,
+                'selection_pressure': selection_pressure,
+                'seed': seed,
+                'use_shift': True
+            },
+            n_samples_test=n_selected,
+            dendiff_params={'epochs': 100, 'n_timesteps': 500, 'hidden_dims': [128, 64]},
+            seed=seed,
+            verbose=False
+        )
+        print(f"{selection_pressure:<15.1f} {results['js_divergence']:<12.4f} {results['kl_divergence_vs_mat']:<15.4f} "
+              f"{results['signed_fitness_diff_vs_mat']:<15.6f} {results['fitness_std_ratio']:<12.4f}")
+
+    # Test 7: Comparison across different objective functions with fixed parameters
+    print("\n" + "=" * 80)
+    print("Test 7: Boltzmann vs Rank-based Across Different Objectives")
+    print("=" * 80)
+    print(f"{'Method':<30} {'Objective':<12} {'JS Div':<10} {'KL Div':<10} {'Signed Diff':<15}")
+    print("-" * 80)
+
+    objectives_to_test = ['sphere', 'ellipsoid', 'rastrigin', 'rosenbrock', 'ackley']
+
+    for obj_name in objectives_to_test:
+        # Boltzmann
+        results_boltz = evaluate_dendiff_on_enhanced_distribution(
+            generate_boltzmann_distribution,
+            {
+                'objective_name': obj_name,
+                'n_initial': n_initial,
+                'n_selected': n_selected,
+                'n_vars': n_vars,
+                'temperature': 1.0,
+                'seed': seed,
+                'use_shift': True
+            },
+            n_samples_test=n_selected,
+            dendiff_params={'epochs': 100, 'n_timesteps': 500, 'hidden_dims': [128, 64]},
+            seed=seed,
+            verbose=False
+        )
+
+        # Rank-based
+        results_rank = evaluate_dendiff_on_enhanced_distribution(
+            generate_rank_based_distribution,
+            {
+                'objective_name': obj_name,
+                'n_initial': n_initial,
+                'n_selected': n_selected,
+                'n_vars': n_vars,
+                'selection_pressure': 2.0,
+                'seed': seed,
+                'use_shift': True
+            },
+            n_samples_test=n_selected,
+            dendiff_params={'epochs': 100, 'n_timesteps': 500, 'hidden_dims': [128, 64]},
+            seed=seed,
+            verbose=False
+        )
+
+        print(f"{'Boltzmann (T=1.0)':<30} {obj_name:<12} {results_boltz['js_divergence']:<10.4f} "
+              f"{results_boltz['kl_divergence_vs_mat']:<10.4f} {results_boltz['signed_fitness_diff_vs_mat']:<15.6f}")
+        print(f"{'Rank-based (SP=2.0)':<30} {obj_name:<12} {results_rank['js_divergence']:<10.4f} "
+              f"{results_rank['kl_divergence_vs_mat']:<10.4f} {results_rank['signed_fitness_diff_vs_mat']:<15.6f}")
+
+    # Interpretation
+    print("\n" + "=" * 80)
+    print("INTERPRETATION OF PARAMETER VARIATION TESTS")
+    print("=" * 80)
+    print("""
+Key Findings to Look For:
+
+1. Timesteps (Tests 1, 5):
+   - More timesteps generally improve approximation quality (lower JS/KL divergence)
+   - Diminishing returns after 500-800 timesteps
+   - Trade-off: More timesteps = slower sampling
+
+2. Epochs (Test 2):
+   - More epochs improve convergence (lower divergence)
+   - Risk of overfitting with too many epochs on small datasets
+   - 100-150 epochs often sufficient
+
+3. Network Architecture (Test 3):
+   - Larger networks ([256, 128]) handle complex distributions better
+   - Smaller networks ([64, 32]) may be sufficient for simple distributions
+   - Deeper networks ([256, 128, 64]) help with multimodal functions
+
+4. Temperature (Test 4):
+   - Higher temperature (T > 2.0): More uniform selection, higher std ratio
+   - Lower temperature (T < 1.0): More exploitation, may have numerical issues
+   - T = 1.0 is often a good default balance
+
+5. Selection Pressure (Test 6):
+   - Higher pressure (> 2.5): Focuses more on best solutions
+   - Lower pressure (< 2.0): More uniform across ranks
+   - Robust across different fitness landscapes
+
+6. Signed Fitness Difference:
+   - Negative values indicate improvement (sampled has lower mean fitness)
+   - Should be small in magnitude (good approximation)
+   - Large negative: dendiff found better region (exploration bonus)
+   - Large positive: dendiff failed to capture best solutions
+
+7. KL Divergence (vs MAT):
+   - Measures how well dendiff approximates the training distribution
+   - Lower is better (< 0.5 is good)
+   - Higher divergence suggests need for more capacity or training
+
+Recommendations:
+- Start with: epochs=100, n_timesteps=500, hidden_dims=[128, 64]
+- For complex/multimodal: increase to epochs=150, n_timesteps=800, hidden_dims=[256, 128]
+- For Boltzmann: T=1.0 is a good default
+- For Rank-based: SP=2.0 is robust across problems
+""")
 
 
 def compare_selection_methods():
@@ -535,6 +842,9 @@ if __name__ == '__main__':
 
     # Run direct comparison
     compare_selection_methods()
+
+    # Run parameter variation tests
+    test_fitness_parameter_variations()
 
     elapsed_time = time.time() - start_time
 
