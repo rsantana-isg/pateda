@@ -268,9 +268,10 @@ def learn_nn_eda(
         - 'list_act_functs': List[str], activation functions (default: ['relu', 'relu'])
         - 'list_init_functs': List[str], weight initializations (default: ['default', 'default'])
         - 'output_activation': str, output activation (default: None)
-        - 'fitness_weight_clip': float, clip fitness weights to avoid extreme values (default: 10.0)
+        - 'fitness_weight_clip': float, clip fitness weights to avoid extreme values (default: 10**10.0)
         - 'store_all_solutions': bool, store all evaluated solutions (default: True)
         - 'elitism': bool, preserve best solution from original population (default: True)
+        - 'update_data_per_epoch': bool, update training data after each epoch (default: False)
         - 'verbose': bool, print training progress (default: True)
 
     Returns
@@ -305,9 +306,10 @@ def learn_nn_eda(
     list_act_functs = params.get('list_act_functs', None)
     list_init_functs = params.get('list_init_functs', None)
     output_activation = params.get('output_activation', None)
-    fitness_weight_clip = params.get('fitness_weight_clip', 10.0)
+    fitness_weight_clip = params.get('fitness_weight_clip', 10**10.0)
     store_all_solutions = params.get('store_all_solutions', True)
     elitism = params.get('elitism', True)
+    update_data_per_epoch = params.get('update_data_per_epoch', False)
     verbose = params.get('verbose', True)
 
     # Store elite solution if elitism is enabled
@@ -375,12 +377,14 @@ def learn_nn_eda(
     for epoch in range(epochs):
         epoch_losses = []
         epoch_evaluations = 0
+        epoch_predictions = []  # Store predictions for this epoch
 
         # Shuffle data
-        indices = np.random.permutation(pop_size)
+        current_pop_size = len(input_tensor)
+        indices = np.random.permutation(current_pop_size)
 
         # Mini-batch training
-        for i in range(0, pop_size, batch_size):
+        for i in range(0, current_pop_size, batch_size):
             batch_indices = indices[i:i + batch_size]
             batch_input = input_tensor[batch_indices]
 
@@ -403,6 +407,14 @@ def learn_nn_eda(
             if store_all_solutions:
                 evaluated_solutions.append(pred_solutions)
                 evaluated_fitness.append(actual_fitness)
+
+            # Store predictions for data update
+            if update_data_per_epoch:
+                for j in range(len(pred_solutions)):
+                    epoch_predictions.append({
+                        'x': pred_solutions[j],
+                        'f(x)': actual_fitness[j]
+                    })
 
             n_evaluations += len(actual_fitness)
             epoch_evaluations += len(actual_fitness)
@@ -450,7 +462,55 @@ def learn_nn_eda(
         mean_epoch_loss = np.mean(epoch_losses)
         training_history.append(mean_epoch_loss)
 
-        if verbose and (epoch % 10 == 0 or epoch == epochs - 1):
+        # Update training data with best solutions found in this epoch
+        if update_data_per_epoch and epoch_predictions:
+            # Convert current input_tensor to numpy
+            current_data = input_tensor.numpy()
+            current_solutions = current_data[:, :n_vars] * range_diff + x_min
+            current_fitness = current_data[:, n_vars] * f_range + f_min
+
+            # Combine current solutions with epoch predictions
+            all_solutions = []
+            all_fitness = []
+
+            # Add current training data
+            for j in range(len(current_solutions)):
+                all_solutions.append(current_solutions[j])
+                all_fitness.append(current_fitness[j])
+
+            # Add epoch predictions
+            for pred in epoch_predictions:
+                all_solutions.append(pred['x'])
+                all_fitness.append(pred['f(x)'])
+
+            # Convert to numpy arrays
+            all_solutions = np.array(all_solutions)
+            all_fitness = np.array(all_fitness)
+
+            # Sort by fitness (best first)
+            sorted_indices = np.argsort(all_fitness)
+
+            # Keep the best pop_size solutions
+            best_indices = sorted_indices[:pop_size]
+            updated_solutions = all_solutions[best_indices]
+            updated_fitness = all_fitness[best_indices]
+
+            # Normalize updated solutions and fitness
+            norm_updated_solutions = (updated_solutions - x_min) / range_diff
+            norm_updated_fitness = (updated_fitness - f_min) / f_range
+
+            # Create new input tensor
+            input_tensor = torch.FloatTensor(
+                np.hstack([norm_updated_solutions, norm_updated_fitness.reshape(-1, 1)])
+            )
+
+            if verbose and (epoch % 10 == 0 or epoch == epochs - 1):
+                best_f = updated_fitness[0]
+                worst_f = updated_fitness[-1]
+                print(f"  Epoch {epoch + 1}/{epochs}: Loss = {mean_epoch_loss:.6f}, "
+                      f"Evals = {epoch_evaluations}, "
+                      f"Data updated (best: {best_f:.6f}, worst: {worst_f:.6f})")
+        elif verbose and (epoch % 10 == 0 or epoch == epochs - 1):
             print(f"  Epoch {epoch + 1}/{epochs}: Loss = {mean_epoch_loss:.6f}, Evaluations = {epoch_evaluations}")
 
     # Concatenate all evaluated solutions
