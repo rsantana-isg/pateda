@@ -73,6 +73,28 @@ from pateda.functions.discrete.additive_decomposable import (
     create_decep3_function,
     create_polytree3_function,
 )
+from pateda.functions.discrete.integer_functions import (
+    # Integer representation benchmark functions
+    integer_onemax,
+    integer_leading_blocks,
+    integer_max_blocks,
+    integer_categorical_match,
+    integer_plateau_search,
+    integer_dependency_chain,
+    integer_multi_level_trap,
+    integer_parity_blocks,
+    integer_hierarchical_blocks,
+    IntegerNKLandscape,
+    # Factory functions for integer EDAs
+    create_integer_onemax_function,
+    create_integer_max_blocks_function,
+    create_integer_multi_level_trap_function,
+    create_integer_dependency_chain_function,
+    create_integer_categorical_match_function,
+    create_integer_hierarchical_function,
+    create_integer_parity_function,
+    create_integer_nk_objective_function,
+)
 
 __all__ = [
     "onemax",
@@ -128,4 +150,23 @@ __all__ = [
     "create_hiff_function",
     "create_decep3_function",
     "create_polytree3_function",
+    # Integer representation benchmark functions
+    "integer_onemax",
+    "integer_leading_blocks",
+    "integer_max_blocks",
+    "integer_categorical_match",
+    "integer_plateau_search",
+    "integer_dependency_chain",
+    "integer_multi_level_trap",
+    "integer_parity_blocks",
+    "integer_hierarchical_blocks",
+    "IntegerNKLandscape",
+    "create_integer_onemax_function",
+    "create_integer_max_blocks_function",
+    "create_integer_multi_level_trap_function",
+    "create_integer_dependency_chain_function",
+    "create_integer_categorical_match_function",
+    "create_integer_hierarchical_function",
+    "create_integer_parity_function",
+    "create_integer_nk_objective_function",
 ]
