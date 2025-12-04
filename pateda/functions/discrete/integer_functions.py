@@ -9,7 +9,7 @@ These functions extend binary benchmarks to multi-valued domains, testing
 the ability of EDAs to model dependencies among integer-valued variables.
 
 Functions included:
-- Generalized OneMax: Sum of normalized integer values
+- Generalized OneMax: Sum of integer values
 - Generalized Deceptive: Extension of k-deceptive for integers
 - Integer NK Landscape: NK landscapes with integer-valued variables
 - Categorical Peak: Finding a specific categorical pattern
@@ -24,8 +24,8 @@ def integer_onemax(x: np.ndarray, cardinality: int = 4) -> float:
     """
     Generalized OneMax for integer representation
 
-    Sums all values normalized by maximum possible value (cardinality - 1).
-    The optimal solution is all variables at their maximum value.
+    Sums all values directly. The optimal solution is all variables 
+    at their maximum value (cardinality - 1).
 
     Args:
         x: Integer vector with values in [0, cardinality-1]
@@ -337,6 +337,7 @@ def integer_parity_blocks(
     Example:
         >>> x = np.array([0, 1, 2, 1, 3, 3, 3, 3])  # sums: 4 (even), 12 (even)
         >>> integer_parity_blocks(x, block_size=4, cardinality=4)
+        22.0  # Block1: 4+3=7 (even bonus), Block2: 12+3=15 (even bonus)
     """
     if x.ndim == 2:
         x = x.flatten()

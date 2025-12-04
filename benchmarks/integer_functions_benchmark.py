@@ -545,40 +545,47 @@ def run_integer_benchmark(
 
 
 def generate_integer_summary(df: pd.DataFrame) -> pd.DataFrame:
-    """Generate summary statistics from benchmark results."""
-    summary_rows = []
+    """Generate summary statistics from benchmark results using groupby for efficiency."""
+    # Define aggregation functions
+    agg_funcs = {
+        'category': 'first',
+        'best_fitness': ['mean', 'std', 'median', 'count'],
+        'generation_found': ['mean', 'std'],
+        'runtime_seconds': ['mean', 'std'],
+    }
 
-    for eda_name in df['eda_name'].unique():
-        for func_name in df['function_name'].unique():
-            for n_vars in df[df['function_name'] == func_name]['n_vars'].unique():
-                for card in df[(df['function_name'] == func_name) &
-                              (df['n_vars'] == n_vars)]['cardinality'].unique():
-                    subset = df[(df['eda_name'] == eda_name) &
-                               (df['function_name'] == func_name) &
-                               (df['n_vars'] == n_vars) &
-                               (df['cardinality'] == card)]
+    # Add success rate if success column exists
+    if 'success' in df.columns:
+        agg_funcs['success'] = 'mean'
 
-                    if len(subset) == 0:
-                        continue
+    # Group by key columns and aggregate
+    grouped = df.groupby(['eda_name', 'function_name', 'n_vars', 'cardinality']).agg(agg_funcs)
 
-                    summary_rows.append({
-                        'eda_name': eda_name,
-                        'function_name': func_name,
-                        'category': subset.iloc[0]['category'],
-                        'n_vars': n_vars,
-                        'cardinality': card,
-                        'n_runs': len(subset),
-                        'success_rate': subset['success'].mean() if 'success' in subset.columns else None,
-                        'mean_fitness': subset['best_fitness'].mean(),
-                        'std_fitness': subset['best_fitness'].std(),
-                        'median_fitness': subset['best_fitness'].median(),
-                        'mean_generations': subset['generation_found'].mean(),
-                        'std_generations': subset['generation_found'].std(),
-                        'mean_runtime': subset['runtime_seconds'].mean(),
-                        'std_runtime': subset['runtime_seconds'].std(),
-                    })
+    # Flatten multi-level column names
+    grouped.columns = ['_'.join(col).strip('_') for col in grouped.columns]
 
-    return pd.DataFrame(summary_rows)
+    # Reset index and rename columns
+    summary = grouped.reset_index()
+
+    # Rename columns for clarity
+    column_mapping = {
+        'category_first': 'category',
+        'best_fitness_mean': 'mean_fitness',
+        'best_fitness_std': 'std_fitness',
+        'best_fitness_median': 'median_fitness',
+        'best_fitness_count': 'n_runs',
+        'generation_found_mean': 'mean_generations',
+        'generation_found_std': 'std_generations',
+        'runtime_seconds_mean': 'mean_runtime',
+        'runtime_seconds_std': 'std_runtime',
+    }
+
+    if 'success' in df.columns:
+        column_mapping['success_mean'] = 'success_rate'
+
+    summary = summary.rename(columns=column_mapping)
+
+    return summary
 
 
 def print_integer_summary(summary: pd.DataFrame):
