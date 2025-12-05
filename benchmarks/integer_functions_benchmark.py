@@ -168,7 +168,7 @@ def get_integer_eda_configuration(
     pop_size: int,
     max_gen: int,
     cardinality: int = 4,
-    selection_ratio: float = 0.5,
+    selection_ratio: float = 0.25,
 ) -> EDAComponents:
     """
     Get EDA component configuration for integer representation problems.
@@ -269,7 +269,7 @@ def run_integer_experiment(
     max_gen: int = 100,
     selection_ratio: float = 0.5,
     seed: Optional[int] = None,
-    verbose: bool = False
+    verbose: bool = True
 ) -> Dict[str, Any]:
     """
     Run a single EDA on a single integer function.
