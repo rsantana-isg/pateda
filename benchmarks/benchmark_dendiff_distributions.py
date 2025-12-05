@@ -16,8 +16,8 @@ from typing import Dict, Any, Tuple, Callable, List
 import sys
 import os
 
-# Add pateda to path
-sys.path.insert(0, os.path.dirname(os.path.abspath(__file__)))
+# Add pateda parent to path
+sys.path.insert(0, os.path.dirname(os.path.dirname(os.path.abspath(__file__))))
 
 from pateda.learning.dendiff import learn_dendiff
 from pateda.sampling.dendiff import sample_dendiff

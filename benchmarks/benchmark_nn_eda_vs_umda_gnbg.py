@@ -24,11 +24,11 @@ from pathlib import Path
 from typing import Dict, Any, Tuple
 import time
 
-# Add pateda to path
-sys.path.insert(0, os.path.dirname(os.path.abspath(__file__)))
+# Add pateda parent to path
+sys.path.insert(0, os.path.dirname(os.path.dirname(os.path.abspath(__file__))))
 
-# Import GNBG class
-sys.path.insert(0, str(Path(__file__).parent / 'enhanced_edas'))
+# Import GNBG class from enhanced_edas
+sys.path.insert(0, str(Path(__file__).parent.parent / 'enhanced_edas'))
 from GNBG_class import GNBG
 from scipy.io import loadmat
 
