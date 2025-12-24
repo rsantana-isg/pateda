@@ -27,17 +27,17 @@ import time
 from typing import Dict, Any, List
 import warnings
 
-# Neural learning modules - categorical versions
+# Neural learning modules - categorical/discrete versions
 from pateda.learning.discrete_vae import learn_categorical_vae
 from pateda.learning.discrete_gan import learn_categorical_gan
-from pateda.learning.discrete_backdrive import learn_categorical_backdrive
+from pateda.learning.discrete_backdrive import learn_discrete_backdrive
 from pateda.learning.dae import learn_categorical_dae
 from pateda.learning.rbm import learn_softmax_rbm
 from pateda.learning.discrete_dbd import learn_categorical_dbd
 
-# Neural sampling modules - categorical versions
+# Neural sampling modules - categorical/discrete versions
 from pateda.sampling.discrete_neural import (
-    sample_categorical_vae, sample_categorical_gan, sample_categorical_backdrive
+    sample_categorical_vae, sample_categorical_gan, sample_discrete_backdrive
 )
 from pateda.sampling.dae import sample_categorical_dae
 from pateda.sampling.rbm import sample_softmax_rbm
@@ -140,7 +140,7 @@ class UnifiedIntegerNeuralEDA:
         self.method_map = {
             'vae': (learn_categorical_vae, sample_categorical_vae, False),
             'gan': (learn_categorical_gan, sample_categorical_gan, False),
-            'backdrive': (learn_categorical_backdrive, sample_categorical_backdrive, False),
+            'backdrive': (learn_discrete_backdrive, sample_discrete_backdrive, False),
             'dae': (learn_categorical_dae, sample_categorical_dae, True),  # Needs cardinality
             'rbm': (learn_softmax_rbm, sample_softmax_rbm, True),  # Needs cardinality
             'dbd': (learn_categorical_dbd, sample_categorical_dbd, True),  # Needs two populations
@@ -196,10 +196,8 @@ class UnifiedIntegerNeuralEDA:
 
             # Learn model
             try:
-                if self.method == 'rbm':
-                    model = learn_fn(selected_pop, selected_fitness, self.cardinality,
-                                   self.learning_params)
-                elif self.method == 'dae':
+                if self.method in ['rbm', 'dae', 'backdrive']:
+                    # These methods need cardinality parameter
                     model = learn_fn(selected_pop, selected_fitness, self.cardinality,
                                    self.learning_params)
                 elif self.method == 'dbd':
