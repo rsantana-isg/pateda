@@ -542,17 +542,19 @@ def corrupt_categorical(x: torch.Tensor, cardinality: np.ndarray,
         start_idx = cum_card[i]
         end_idx = cum_card[i + 1]
         
-        # Determine which samples to corrupt
+        # Determine which samples to corrupt (vectorized)
         mask = torch.rand(batch_size) < corruption_level
         n_corrupt = mask.sum().item()
         
         if n_corrupt > 0:
-            # Zero out current category
+            # Zero out current category for corrupted samples
             x_corrupted[mask, start_idx:end_idx] = 0.0
             
-            # Randomly assign new category
+            # Randomly assign new categories (vectorized)
             new_categories = torch.randint(0, int(cardinality[i]), (n_corrupt,))
-            for j, idx in enumerate(mask.nonzero(as_tuple=True)[0]):
+            # Use advanced indexing to assign
+            corrupt_indices = torch.where(mask)[0]
+            for j, idx in enumerate(corrupt_indices):
                 x_corrupted[idx, start_idx + new_categories[j]] = 1.0
     
     return x_corrupted
@@ -634,8 +636,16 @@ def learn_categorical_dae(
     # Optimizer
     optimizer = torch.optim.Adam(dae.parameters(), lr=learning_rate)
     
-    # Loss function - use cross-entropy for categorical data
-    criterion = nn.BCELoss()  # Since output is already softmax probabilities
+    # Loss function - use KL divergence for comparing probability distributions
+    # Since both output and target are probability distributions
+    # Alternative: could use cross-entropy computed manually
+    def categorical_loss(pred, target):
+        """Compute cross-entropy between probability distributions"""
+        # pred and target are both one-hot/softmax distributions
+        # Clamp pred to avoid log(0)
+        pred_clamped = torch.clamp(pred, min=1e-10, max=1.0)
+        # Cross-entropy: -sum(target * log(pred))
+        return -torch.sum(target * torch.log(pred_clamped)) / pred.size(0)
     
     # Training loop
     dae.train()
@@ -659,7 +669,7 @@ def learn_categorical_dae(
             reconstruction = dae(corrupted_batch)
             
             # Compute loss (reconstruct original, not corrupted)
-            loss = criterion(reconstruction, batch)
+            loss = categorical_loss(reconstruction, batch)
             
             # Backward pass
             optimizer.zero_grad()
