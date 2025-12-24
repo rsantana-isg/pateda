@@ -412,3 +412,106 @@ def sample_dae_from_seeds(
     population = population.astype(int)
 
     return population
+
+
+def sample_categorical_dae(
+    model: Dict[str, Any],
+    n_samples: int,
+    params: Optional[Dict[str, Any]] = None
+) -> np.ndarray:
+    """
+    Sample from a categorical DAE model using iterative refinement.
+    
+    Parameters
+    ----------
+    model : dict
+        Model containing categorical DAE state and parameters including:
+        - 'dae_state': network state dict
+        - 'n_vars': number of variables
+        - 'cardinality': cardinality of each variable
+        - 'total_categories': total number of categories
+        - 'hidden_dims': list of hidden dimensions
+        - 'list_act_functs_enc': encoder activation functions (optional)
+        - 'list_act_functs_dec': decoder activation functions (optional)
+        - 'list_init_functs_enc': encoder initialization functions (optional)
+        - 'list_init_functs_dec': decoder initialization functions (optional)
+    n_samples : int
+        Number of samples to generate
+    params : dict, optional
+        Sampling parameters:
+        - 'n_refinement_steps': number of corruption-reconstruction iterations (default: 10)
+        - 'corruption_level': noise level during sampling (default: 0.1)
+        - 'init_strategy': 'random' or 'uniform' (default: 'random')
+    
+    Returns
+    -------
+    population : np.ndarray
+        Sampled population of shape (n_samples, n_vars)
+    """
+    # Import here to avoid circular imports
+    from pateda.learning.dae import CategoricalDAE, corrupt_categorical
+    
+    n_vars = model['n_vars']
+    cardinality = model['cardinality']
+    total_categories = model['total_categories']
+    hidden_dims = model['hidden_dims']
+    
+    # Extract activation and initialization functions from model
+    list_act_functs_enc = model.get('list_act_functs_enc', None)
+    list_act_functs_dec = model.get('list_act_functs_dec', None)
+    list_init_functs_enc = model.get('list_init_functs_enc', None)
+    list_init_functs_dec = model.get('list_init_functs_dec', None)
+    
+    if params is None:
+        params = {}
+    
+    n_refinement_steps = params.get('n_refinement_steps', 10)
+    corruption_level = params.get('corruption_level', 0.1)
+    init_strategy = params.get('init_strategy', 'random')
+    
+    # Recreate categorical DAE with stored configuration
+    dae = CategoricalDAE(
+        n_vars,
+        cardinality,
+        hidden_dims=hidden_dims,
+        list_act_functs_enc=list_act_functs_enc,
+        list_act_functs_dec=list_act_functs_dec,
+        list_init_functs_enc=list_init_functs_enc,
+        list_init_functs_dec=list_init_functs_dec
+    )
+    dae.load_state_dict(model['dae_state'])
+    dae.eval()
+    
+    with torch.no_grad():
+        # Initialize samples as one-hot
+        if init_strategy == 'random':
+            # Random initialization - sample random category for each variable
+            init_pop = np.zeros((n_samples, n_vars), dtype=int)
+            for i in range(n_vars):
+                init_pop[:, i] = np.random.randint(0, cardinality[i], n_samples)
+            samples = dae._encode_population(init_pop)
+        else:
+            # Uniform initialization - equal probability for all categories
+            samples = torch.zeros(n_samples, total_categories)
+            cum_card = dae.cum_card
+            for i in range(n_vars):
+                start_idx = cum_card[i]
+                end_idx = cum_card[i + 1]
+                samples[:, start_idx:end_idx] = 1.0 / cardinality[i]
+        
+        # Iterative refinement
+        for step in range(n_refinement_steps):
+            # Corrupt
+            corrupted = corrupt_categorical(samples, cardinality, 
+                                          dae.cum_card, corruption_level)
+            
+            # Reconstruct
+            reconstructed = dae(corrupted)
+            
+            # Use probabilities for next iteration
+            samples = reconstructed
+        
+        # Final decode to discrete values
+        population = dae._decode_onehot(samples)
+    
+    return population
