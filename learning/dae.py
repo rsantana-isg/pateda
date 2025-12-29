@@ -326,6 +326,374 @@ def corrupt_binary(x: torch.Tensor, corruption_level: float = 0.1) -> torch.Tens
     return x_corrupted
 
 
+class CategoricalDAE(nn.Module):
+    """
+    Denoising Autoencoder for categorical (multi-valued discrete) variables.
+    
+    Similar to binary DAE but uses one-hot encoding for categorical variables.
+    Each variable can take K possible values, and the DAE learns to reconstruct
+    clean one-hot encoded inputs from corrupted versions.
+    
+    Parameters
+    ----------
+    n_vars : int
+        Number of categorical variables
+    cardinality : np.ndarray
+        Array of shape (n_vars,) with cardinality for each variable
+    hidden_dims : list, optional
+        List of hidden layer dimensions
+    list_act_functs_enc : list, optional
+        List of activation functions for encoder layers
+    list_act_functs_dec : list, optional
+        List of activation functions for decoder layers
+    list_init_functs_enc : list, optional
+        List of initialization functions for encoder layers
+    list_init_functs_dec : list, optional
+        List of initialization functions for decoder layers
+    """
+    
+    def __init__(
+        self,
+        n_vars: int,
+        cardinality: np.ndarray,
+        hidden_dims: List[int] = None,
+        list_act_functs_enc: List[str] = None,
+        list_act_functs_dec: List[str] = None,
+        list_init_functs_enc: List[str] = None,
+        list_init_functs_dec: List[str] = None
+    ):
+        super(CategoricalDAE, self).__init__()
+        
+        self.n_vars = n_vars
+        self.cardinality = cardinality
+        self.total_categories = int(np.sum(cardinality))
+        
+        # Cumulative indices for variable grouping
+        self.cum_card = np.concatenate([[0], np.cumsum(cardinality)]).astype(int)
+        
+        if hidden_dims is None:
+            hidden_dims = [max(self.total_categories // 2, 20)]
+        
+        self.hidden_dims = hidden_dims
+        n_hidden = len(hidden_dims)
+        
+        # Set default activation functions
+        if list_act_functs_enc is None:
+            list_act_functs_enc = ['relu'] * n_hidden
+        if list_act_functs_dec is None:
+            list_act_functs_dec = ['relu'] * n_hidden
+        if list_init_functs_enc is None:
+            list_init_functs_enc = ['default'] * n_hidden
+        if list_init_functs_dec is None:
+            list_init_functs_dec = ['default'] * n_hidden
+        
+        # Validate parameters
+        list_act_functs_enc, list_init_functs_enc = validate_list_params(
+            hidden_dims, list_act_functs_enc, list_init_functs_enc
+        )
+        list_act_functs_dec, list_init_functs_dec = validate_list_params(
+            hidden_dims, list_act_functs_dec, list_init_functs_dec
+        )
+        
+        # Store configuration
+        self.list_act_functs_enc = list_act_functs_enc
+        self.list_act_functs_dec = list_act_functs_dec
+        self.list_init_functs_enc = list_init_functs_enc
+        self.list_init_functs_dec = list_init_functs_dec
+        
+        # Build encoder layers
+        encoder_layers = []
+        prev_dim = self.total_categories
+        for i, hidden_dim in enumerate(hidden_dims):
+            linear = nn.Linear(prev_dim, hidden_dim)
+            apply_weight_init(linear, list_init_functs_enc[i])
+            encoder_layers.append(linear)
+            encoder_layers.append(get_activation(list_act_functs_enc[i], in_features=hidden_dim))
+            prev_dim = hidden_dim
+        
+        self.encoder = nn.Sequential(*encoder_layers)
+        
+        # Build decoder layers
+        decoder_layers = []
+        for i in range(len(hidden_dims) - 1, -1, -1):
+            if i == 0:
+                next_dim = self.total_categories
+            else:
+                next_dim = hidden_dims[i - 1]
+            
+            linear = nn.Linear(hidden_dims[i], next_dim)
+            apply_weight_init(linear, list_init_functs_dec[len(hidden_dims) - 1 - i])
+            decoder_layers.append(linear)
+            
+            # Don't add activation after final layer (will apply softmax per variable)
+            if i > 0:
+                decoder_layers.append(get_activation(
+                    list_act_functs_dec[len(hidden_dims) - 1 - i],
+                    in_features=next_dim
+                ))
+        
+        self.decoder = nn.Sequential(*decoder_layers)
+    
+    def _encode_population(self, population: np.ndarray) -> torch.Tensor:
+        """
+        Encode population into one-hot representation.
+        
+        Parameters
+        ----------
+        population : np.ndarray
+            Population array of shape (pop_size, n_vars) with discrete values
+        
+        Returns
+        -------
+        encoded : torch.Tensor
+            One-hot encoded tensor of shape (pop_size, total_categories)
+        """
+        pop_size = population.shape[0]
+        encoded = torch.zeros(pop_size, self.total_categories)
+        
+        for i in range(self.n_vars):
+            start_idx = self.cum_card[i]
+            for j in range(pop_size):
+                value = int(population[j, i])
+                encoded[j, start_idx + value] = 1.0
+        
+        return encoded
+    
+    def _decode_onehot(self, onehot: torch.Tensor) -> np.ndarray:
+        """
+        Decode one-hot representation back to discrete values.
+        
+        Parameters
+        ----------
+        onehot : torch.Tensor
+            One-hot encoded tensor of shape (pop_size, total_categories)
+        
+        Returns
+        -------
+        population : np.ndarray
+            Population array of shape (pop_size, n_vars)
+        """
+        pop_size = onehot.shape[0]
+        population = np.zeros((pop_size, self.n_vars), dtype=int)
+        
+        for i in range(self.n_vars):
+            start_idx = self.cum_card[i]
+            end_idx = self.cum_card[i + 1]
+            var_probs = onehot[:, start_idx:end_idx]
+            population[:, i] = torch.argmax(var_probs, dim=1).cpu().numpy()
+        
+        return population
+    
+    def encode(self, x: torch.Tensor) -> torch.Tensor:
+        """Encode input to hidden representation"""
+        return self.encoder(x)
+    
+    def decode(self, h: torch.Tensor) -> torch.Tensor:
+        """Decode hidden representation to output logits"""
+        logits = self.decoder(h)
+        
+        # Apply softmax to each variable separately
+        outputs = []
+        for i in range(self.n_vars):
+            start_idx = self.cum_card[i]
+            end_idx = self.cum_card[i + 1]
+            var_logits = logits[:, start_idx:end_idx]
+            var_probs = F.softmax(var_logits, dim=1)
+            outputs.append(var_probs)
+        
+        return torch.cat(outputs, dim=1)
+    
+    def forward(self, x: torch.Tensor) -> torch.Tensor:
+        """Forward pass through the autoencoder"""
+        h = self.encode(x)
+        z = self.decode(h)
+        return z
+
+
+def corrupt_categorical(x: torch.Tensor, cardinality: np.ndarray, 
+                       cum_card: np.ndarray, corruption_level: float = 0.1) -> torch.Tensor:
+    """
+    Apply corruption to categorical one-hot inputs.
+    
+    Randomly changes category assignments with probability corruption_level.
+    
+    Parameters
+    ----------
+    x : torch.Tensor
+        Clean one-hot encoded input [batch_size, total_categories]
+    cardinality : np.ndarray
+        Cardinality of each variable
+    cum_card : np.ndarray
+        Cumulative cardinality indices
+    corruption_level : float
+        Probability of changing each variable (default: 0.1)
+    
+    Returns
+    -------
+    x_corrupted : torch.Tensor
+        Corrupted one-hot input
+    """
+    x_corrupted = x.clone()
+    batch_size = x.shape[0]
+    n_vars = len(cardinality)
+    
+    # For each variable, randomly reassign to different category
+    for i in range(n_vars):
+        start_idx = cum_card[i]
+        end_idx = cum_card[i + 1]
+        
+        # Determine which samples to corrupt (vectorized)
+        mask = torch.rand(batch_size) < corruption_level
+        n_corrupt = mask.sum().item()
+        
+        if n_corrupt > 0:
+            # Zero out current category for corrupted samples
+            x_corrupted[mask, start_idx:end_idx] = 0.0
+            
+            # Randomly assign new categories (vectorized)
+            new_categories = torch.randint(0, int(cardinality[i]), (n_corrupt,))
+            # Use advanced indexing to assign
+            corrupt_indices = torch.where(mask)[0]
+            for j, idx in enumerate(corrupt_indices):
+                x_corrupted[idx, start_idx + new_categories[j]] = 1.0
+    
+    return x_corrupted
+
+
+def learn_categorical_dae(
+    population: np.ndarray,
+    fitness: np.ndarray,
+    cardinality: np.ndarray,
+    params: Optional[Dict[str, Any]] = None
+) -> Dict[str, Any]:
+    """
+    Learn a Categorical Denoising Autoencoder model from selected population.
+    
+    Parameters
+    ----------
+    population : np.ndarray
+        Population of shape (pop_size, n_vars) with integer values
+    fitness : np.ndarray
+        Fitness values (not directly used in basic DAE training)
+    cardinality : np.ndarray
+        Cardinality of each variable (number of possible values)
+    params : dict, optional
+        Training parameters containing:
+        - 'hidden_dims': list of hidden layer dimensions
+        - 'list_act_functs_enc': list of activation functions for encoder
+        - 'list_act_functs_dec': list of activation functions for decoder
+        - 'list_init_functs_enc': list of initialization functions for encoder
+        - 'list_init_functs_dec': list of initialization functions for decoder
+        - 'epochs': number of training epochs (default: 50)
+        - 'batch_size': mini-batch size (default: 32)
+        - 'learning_rate': learning rate (default: 0.001)
+        - 'corruption_level': noise corruption probability (default: 0.1)
+    
+    Returns
+    -------
+    model : dict
+        Dictionary containing trained model state and configuration
+    """
+    if params is None:
+        params = {}
+    
+    # Extract dimensions
+    pop_size = population.shape[0]
+    n_vars = population.shape[1]
+    total_categories = int(np.sum(cardinality))
+    
+    # Compute defaults
+    default_hidden_dims = compute_default_hidden_dims(total_categories, pop_size)
+    default_batch_size = compute_default_batch_size(total_categories, pop_size)
+    
+    # Extract parameters
+    hidden_dims = params.get('hidden_dims', default_hidden_dims)
+    epochs = params.get('epochs', 50)
+    batch_size = params.get('batch_size', default_batch_size)
+    learning_rate = params.get('learning_rate', 0.001)
+    corruption_level = params.get('corruption_level', 0.1)
+    
+    # Extract activation and initialization function lists
+    list_act_functs_enc = params.get('list_act_functs_enc', None)
+    list_act_functs_dec = params.get('list_act_functs_dec', None)
+    list_init_functs_enc = params.get('list_init_functs_enc', None)
+    list_init_functs_dec = params.get('list_init_functs_dec', None)
+    
+    # Create categorical DAE
+    dae = CategoricalDAE(
+        n_vars,
+        cardinality,
+        hidden_dims=hidden_dims,
+        list_act_functs_enc=list_act_functs_enc,
+        list_act_functs_dec=list_act_functs_dec,
+        list_init_functs_enc=list_init_functs_enc,
+        list_init_functs_dec=list_init_functs_dec
+    )
+    
+    # Encode population to one-hot
+    data_onehot = dae._encode_population(population)
+    
+    # Optimizer
+    optimizer = torch.optim.Adam(dae.parameters(), lr=learning_rate)
+    
+    # Loss function - use KL divergence for comparing probability distributions
+    # Since both output and target are probability distributions
+    # Alternative: could use cross-entropy computed manually
+    def categorical_loss(pred, target):
+        """Compute cross-entropy between probability distributions"""
+        # pred and target are both one-hot/softmax distributions
+        # Clamp pred to avoid log(0)
+        pred_clamped = torch.clamp(pred, min=1e-10, max=1.0)
+        # Cross-entropy: -sum(target * log(pred))
+        return -torch.sum(target * torch.log(pred_clamped)) / pred.size(0)
+    
+    # Training loop
+    dae.train()
+    
+    for epoch in range(epochs):
+        # Shuffle data
+        perm = torch.randperm(len(data_onehot))
+        
+        epoch_loss = 0.0
+        n_batches = 0
+        
+        for i in range(0, len(data_onehot), batch_size):
+            idx = perm[i:i+batch_size]
+            batch = data_onehot[idx]
+            
+            # Corrupt input
+            corrupted_batch = corrupt_categorical(batch, cardinality, 
+                                                 dae.cum_card, corruption_level)
+            
+            # Forward pass
+            reconstruction = dae(corrupted_batch)
+            
+            # Compute loss (reconstruct original, not corrupted)
+            loss = categorical_loss(reconstruction, batch)
+            
+            # Backward pass
+            optimizer.zero_grad()
+            loss.backward()
+            optimizer.step()
+            
+            epoch_loss += loss.item()
+            n_batches += 1
+    
+    # Return model with all configuration
+    return {
+        'dae_state': dae.state_dict(),
+        'n_vars': n_vars,
+        'cardinality': cardinality,
+        'total_categories': total_categories,
+        'hidden_dims': hidden_dims,
+        'list_act_functs_enc': dae.list_act_functs_enc,
+        'list_act_functs_dec': dae.list_act_functs_dec,
+        'list_init_functs_enc': dae.list_init_functs_enc,
+        'list_init_functs_dec': dae.list_init_functs_dec,
+        'type': 'categorical_dae'
+    }
+
+
 def learn_dae(
     population: np.ndarray,
     fitness: np.ndarray,
