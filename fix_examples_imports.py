@@ -14,6 +14,12 @@ def has_sys_path_insert(content):
     return 'sys.path.insert' in content or 'sys.path.append' in content
 
 
+def has_correct_sys_path(content):
+    """Check if file has the CORRECT sys.path manipulation (3 levels up)"""
+    # The correct pattern uses 3 dirname() calls
+    return 'os.path.dirname(os.path.dirname(os.path.dirname(os.path.abspath(__file__))))' in content
+
+
 def get_first_import_line(lines):
     """Find the line number of the first import statement"""
     for i, line in enumerate(lines):
@@ -24,20 +30,42 @@ def get_first_import_line(lines):
 
 
 def fix_example_file(filepath):
-    """Add sys.path manipulation to an example file if needed"""
+    """Add or fix sys.path manipulation in an example file if needed"""
     with open(filepath, 'r', encoding='utf-8') as f:
         content = f.read()
         lines = content.splitlines(keepends=True)
 
-    # Check if already has sys.path manipulation
-    if has_sys_path_insert(content):
-        print(f"  ✓ {filepath.name} - already has sys.path manipulation")
+    # Check if it imports pateda or modules directly
+    imports_modules = any(x in content for x in ['from pateda', 'import pateda', 'from core', 'from learning', 'from sampling'])
+
+    if not imports_modules:
+        print(f"  ⊘ {filepath.name} - doesn't import pateda or modules")
         return False
 
-    # Check if it imports pateda
-    if 'from pateda' not in content and 'import pateda' not in content:
-        print(f"  ⊘ {filepath.name} - doesn't import pateda")
+    # Check if already has correct sys.path manipulation
+    if has_correct_sys_path(content):
+        print(f"  ✓ {filepath.name} - already has correct sys.path")
         return False
+
+    # If has incorrect sys.path, fix it
+    if has_sys_path_insert(content):
+        # Replace the incorrect sys.path line
+        new_content = re.sub(
+            r'sys\.path\.insert\(0,\s*os\.path\.dirname\(os\.path\.dirname\(os\.path\.abspath\(__file__\)\)\)\)',
+            'sys.path.insert(0, os.path.dirname(os.path.dirname(os.path.dirname(os.path.abspath(__file__)))))',
+            content
+        )
+        # Also fix the older pattern from dbd_eda_example.py
+        new_content = re.sub(
+            r'sys\.path\.insert\(0,\s*os\.path\.dirname\(os\.path\.dirname\(__file__\)\)\)',
+            'sys.path.insert(0, os.path.dirname(os.path.dirname(os.path.dirname(os.path.abspath(__file__)))))',
+            new_content
+        )
+
+        with open(filepath, 'w', encoding='utf-8') as f:
+            f.write(new_content)
+        print(f"  ✓ {filepath.name} - fixed sys.path (updated)")
+        return True
 
     # Find first import line
     first_import_idx = get_first_import_line(lines)
@@ -46,12 +74,13 @@ def fix_example_file(filepath):
         return False
 
     # Insert sys.path manipulation before first import
+    # Need to go up 3 levels: example.py -> examples/ -> pateda/ -> parent_of_pateda/
     insertion = [
         "import sys\n",
         "import os\n",
         "\n",
         "# Add parent directory to path for running examples without installation\n",
-        "sys.path.insert(0, os.path.dirname(os.path.dirname(os.path.abspath(__file__))))\n",
+        "sys.path.insert(0, os.path.dirname(os.path.dirname(os.path.dirname(os.path.abspath(__file__)))))\n",
         "\n",
     ]
 

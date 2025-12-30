@@ -18,7 +18,7 @@ import sys
 import os
 
 # Add pateda to path
-sys.path.insert(0, os.path.dirname(os.path.dirname(os.path.abspath(__file__))))
+sys.path.insert(0, os.path.dirname(os.path.dirname(os.path.dirname(os.path.abspath(__file__)))))
 
 from pateda.learning.nn_eda import learn_nn_eda
 from pateda.sampling.nn_eda import (
