@@ -23,7 +23,7 @@ from pateda.core.eda import EDA, EDAComponents
 from pateda.learning import LearnUMDA
 from pateda.sampling import SampleFDA
 from pateda.selection import TruncationSelection
-from pateda.replacement import GenerationalReplacement
+from pateda.replacement import ElitistReplacement
 from pateda.seeding import RandomInit
 from pateda.stop_conditions import MaxGenerations
 from pateda.functions.discrete.additive_decomposable import (
@@ -56,7 +56,7 @@ def run_eda_on_function(objective, n_vars, cardinality, pop_size=1000,
         selection=TruncationSelection(ratio=0.5),
         learning=LearnUMDA(alpha=1.0),  # Laplace smoothing
         sampling=SampleFDA(n_samples=pop_size),
-        replacement=GenerationalReplacement(),
+        replacement=ElitistReplacement(),
         stop_condition=MaxGenerations(max_gen),
     )
 

@@ -17,7 +17,7 @@ from pateda.core.eda import EDA, EDAComponents
 from pateda.learning import LearnMarkovChain
 from pateda.sampling import SampleMarkovChain
 from pateda.selection import TournamentSelection
-from pateda.replacement import GenerationalReplacement
+from pateda.replacement import ElitistReplacement
 from pateda.stop_conditions import MaxGenerations
 from pateda.seeding import RandomInit
 from pateda.functions.discrete import onemax, deceptive3
@@ -45,7 +45,7 @@ def markov_eda_onemax():
         selection=TournamentSelection(tournament_size=3, n_select=50),
         learning=LearnMarkovChain(k=2, alpha=0.1),
         sampling=SampleMarkovChain(n_samples=pop_size),
-        replacement=GenerationalReplacement(),
+        replacement=ElitistReplacement(),
         stop_condition=MaxGenerations(30),
     )
 
@@ -89,7 +89,7 @@ def markov_eda_deceptive():
         selection=TournamentSelection(tournament_size=3, n_select=100),
         learning=LearnMarkovChain(k=3, alpha=0.1),
         sampling=SampleMarkovChain(n_samples=pop_size),
-        replacement=GenerationalReplacement(),
+        replacement=ElitistReplacement(),
         stop_condition=MaxGenerations(50),
     )
 
@@ -137,7 +137,7 @@ def compare_markov_orders():
             selection=TournamentSelection(tournament_size=2, n_select=50),
             learning=LearnMarkovChain(k=k, alpha=0.1),
             sampling=SampleMarkovChain(n_samples=pop_size),
-            replacement=GenerationalReplacement(),
+            replacement=ElitistReplacement(),
             stop_condition=MaxGenerations(max_gens),
         )
 

@@ -17,6 +17,7 @@ from pateda.seeding import RandomInit
 from pateda.learning import LearnEBNA
 from pateda.sampling import SampleBayesianNetwork
 from pateda.selection import RankingSelection
+from pateda.replacement import ElitistReplacement
 from pateda.stop_conditions import MaxGenerations
 from pateda.functions.discrete.deceptive import deceptive3
 
@@ -50,6 +51,7 @@ def run_ebna_deceptive():
         selection=RankingSelection(
             ratio=0.5, selection_pressure=1.8, ranking_type="linear"
         ),
+        replacement=ElitistReplacement(),
         stop_condition=MaxGenerations(max_gen=max_gen),
     )
 

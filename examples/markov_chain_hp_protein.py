@@ -19,7 +19,7 @@ from pateda.core.eda import EDA, EDAComponents
 from pateda.learning import LearnMarkovChain
 from pateda.sampling import SampleMarkovChain
 from pateda.selection import TruncationSelection
-from pateda.replacement import GenerationalReplacement
+from pateda.replacement import ElitistReplacement
 from pateda.seeding import RandomInit
 from pateda.stop_conditions import MaxGenerations
 from pateda.functions.discrete import create_hp_objective_function
@@ -51,7 +51,7 @@ def main():
         selection=TruncationSelection(ratio=0.5),
         learning=LearnMarkovChain(k=2, alpha=1.0),
         sampling=SampleMarkovChain(n_samples=pop_size),
-        replacement=GenerationalReplacement(),
+        replacement=ElitistReplacement(),
         stop_condition=MaxGenerations(50),
     )
 

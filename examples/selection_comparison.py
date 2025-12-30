@@ -26,6 +26,7 @@ from pateda.selection import (
 )
 from pateda.stop_conditions import MaxGenerations
 from pateda.functions import onemax
+from pateda.replacement import ElitistReplacement
 
 
 def run_with_selection(selection_method, selection_name):
@@ -49,6 +50,7 @@ def run_with_selection(selection_method, selection_name):
         learning=LearnUMDA(alpha=0.1),
         sampling=SampleFDA(n_samples=pop_size),
         selection=selection_method,
+        replacement=ElitistReplacement(),
         stop_condition=MaxGenerations(max_gen=max_gen),
     )
 

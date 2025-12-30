@@ -22,7 +22,7 @@ from pateda.learning.affinity import (
 )
 from pateda.sampling.fda import SampleFDA
 from pateda.selection import TruncationSelection
-from pateda.replacement import GenerationalReplacement
+from pateda.replacement import ElitistReplacement
 from pateda.seeding import RandomInit
 from pateda.stop_conditions import MaxGenerations
 from pateda.functions.discrete.trap import trap_n
@@ -54,7 +54,7 @@ def run_eda_variant(learning_method, method_name):
         selection=TruncationSelection(ratio=0.5),
         learning=learning_method,
         sampling=SampleFDA(n_samples=pop_size),
-        replacement=GenerationalReplacement(),
+        replacement=ElitistReplacement(),
         stop_condition=MaxGenerations(max_generations),
     )
 
