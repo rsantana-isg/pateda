@@ -5,6 +5,12 @@ This script demonstrates how to use the newly ported additive decomposable
 benchmark functions with discrete EDAs like UMDA and cGA.
 """
 
+import sys
+import os
+
+# Add parent directory to path for running examples without installation
+sys.path.insert(0, os.path.dirname(os.path.dirname(os.path.abspath(__file__))))
+
 import numpy as np
 from pateda.eda.discrete.umda import UMDA
 from pateda.eda.discrete.compact_ga import CompactGA

@@ -17,6 +17,12 @@ This is a pedagogical example that shows how these three components work togethe
 The optimal solution has k consecutive ones: e.g., for k=5, n=10: [0,0,1,1,1,1,1,0,0,0]
 """
 
+import sys
+import os
+
+# Add parent directory to path for running examples without installation
+sys.path.insert(0, os.path.dirname(os.path.dirname(os.path.abspath(__file__))))
+
 import numpy as np
 from pateda import EDA, EDAComponents
 from pateda.seeding import SeedingUnitationConstraint, RandomInit
