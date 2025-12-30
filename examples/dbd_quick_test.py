@@ -23,7 +23,7 @@ def quick_test_dbd():
     try:
         import sys
         import os
-        sys.path.insert(0, os.path.dirname(os.path.dirname(__file__)))
+        sys.path.insert(0, os.path.dirname(os.path.dirname(os.path.dirname(os.path.abspath(__file__)))))
 
         from learning.dbd import learn_dbd, sample_univariate_gaussian
         from sampling.dbd import sample_dbd
