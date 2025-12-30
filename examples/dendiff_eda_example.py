@@ -8,6 +8,12 @@ This example shows how to use DenDiff-EDA:
 - Measures execution time for learning and sampling
 """
 
+import sys
+import os
+
+# Add parent directory to path for running examples without installation
+sys.path.insert(0, os.path.dirname(os.path.dirname(os.path.abspath(__file__))))
+
 import numpy as np
 import time
 from pateda.learning.dendiff import learn_dendiff

@@ -5,6 +5,12 @@ This example demonstrates how to use the Mallows model with Kendall distance
 to solve the Traveling Salesman Problem (TSP).
 """
 
+import sys
+import os
+
+# Add parent directory to path for running examples without installation
+sys.path.insert(0, os.path.dirname(os.path.dirname(os.path.abspath(__file__))))
+
 import numpy as np
 from pateda.core.eda import EDA
 from pateda.core.components import EDAComponents

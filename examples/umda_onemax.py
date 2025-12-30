@@ -5,6 +5,12 @@ This example demonstrates using UMDA (Univariate Marginal Distribution Algorithm
 to solve the OneMax problem. This is equivalent to MATEDA's UMDA_OneMax.m script.
 """
 
+import sys
+import os
+
+# Add parent directory to path for running examples without installation
+sys.path.insert(0, os.path.dirname(os.path.dirname(os.path.abspath(__file__))))
+
 import numpy as np
 from pateda import EDA, EDAComponents
 from pateda.seeding import RandomInit

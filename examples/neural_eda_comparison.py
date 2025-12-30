@@ -34,6 +34,12 @@ This comparison helps identify which neural approach works best for different
 types of optimization problems.
 """
 
+import sys
+import os
+
+# Add parent directory to path for running examples without installation
+sys.path.insert(0, os.path.dirname(os.path.dirname(os.path.abspath(__file__))))
+
 import numpy as np
 import time
 from typing import Dict, Any, Optional, Callable, List

@@ -8,6 +8,12 @@ are either hydrophobic (H=1) or polar (P=0).
 Based on MATEDA-2.0 LearnTree_HPProtein.m and TreeFDA_HPProtein.m
 """
 
+import sys
+import os
+
+# Add parent directory to path for running examples without installation
+sys.path.insert(0, os.path.dirname(os.path.dirname(os.path.abspath(__file__))))
+
 import numpy as np
 from pateda.core.eda import EDA, EDAComponents
 from pateda.learning import LearnTreeModel

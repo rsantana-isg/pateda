@@ -2,6 +2,12 @@
 CUMDA (Constraint UMDA) for Posfunction
 
 This example demonstrates CUMDA on the Posfunction, one of the test functions
+import sys
+import os
+
+# Add parent directory to path for running examples without installation
+sys.path.insert(0, os.path.dirname(os.path.dirname(os.path.abspath(__file__))))
+
 from the original CUMDA paper (Santana & Ochoa).
 
 Problem: Maximize Posfunction(x) = Σ Pos(xi), where Pos(xi) = i if xi=1, 0 otherwise
