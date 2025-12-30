@@ -19,7 +19,7 @@ from pateda.core.eda import EDA, EDAComponents
 from pateda.stop_conditions import MaxGenerations
 from pateda.seeding import RandomInit
 from pateda.selection import TruncationSelection
-from pateda.replacement import GenerationalReplacement
+from pateda.replacement import ElitistReplacement
 
 # Import new learning methods
 from pateda.learning.mnfda import LearnMNFDA
@@ -88,7 +88,7 @@ def run_mnfda_example():
             return_factorized=True  # Return FactorizedModel for PLS
         ),
         sampling=SampleFDA(n_samples=pop_size),
-        replacement=GenerationalReplacement(),
+        replacement=ElitistReplacement(),
         stop_condition=MaxGenerations(max_generations),
     )
 
@@ -135,7 +135,7 @@ def run_mnfdag_example():
             return_factorized=True
         ),
         sampling=SampleFDA(n_samples=pop_size),
-        replacement=GenerationalReplacement(),
+        replacement=ElitistReplacement(),
         stop_condition=MaxGenerations(max_generations),
     )
 
@@ -184,7 +184,7 @@ def run_moa_example():
             temperature=1.0,
             random_order=True
         ),
-        replacement=GenerationalReplacement(),
+        replacement=ElitistReplacement(),
         stop_condition=MaxGenerations(max_generations),
     )
 
@@ -234,7 +234,7 @@ def run_moa_trap5_example():
             random_order=True,
             burnin=50  # Discard first 50 iterations
         ),
-        replacement=GenerationalReplacement(),
+        replacement=ElitistReplacement(),
         stop_condition=MaxGenerations(max_generations),
     )
 
@@ -289,7 +289,7 @@ def comparison_example():
                 selection=TruncationSelection(proportion=0.5),
                 learning=learning,
                 sampling=sampling,
-                replacement=GenerationalReplacement(),
+                replacement=ElitistReplacement(),
                 stop_condition=MaxGenerations(max_generations),
             )
 

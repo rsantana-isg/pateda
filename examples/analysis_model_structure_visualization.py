@@ -36,7 +36,7 @@ from pateda.core.eda import EDA, EDAComponents
 from pateda.stop_conditions import MaxGenerations
 from pateda.seeding import RandomInit
 from pateda.selection import TruncationSelection
-from pateda.replacement import GenerationalReplacement
+from pateda.replacement import ElitistReplacement
 from pateda.learning import LearnEBNA
 from pateda.sampling.bayesian_network import SampleBayesianNetwork
 from pateda.functions.discrete.trap import trap_n
@@ -314,7 +314,7 @@ def run_analysis_example():
             score_metric='bic',
         ),
         sampling=SampleBayesianNetwork(n_samples=pop_size),
-        replacement=GenerationalReplacement(),
+        replacement=ElitistReplacement(),
         stop_condition=MaxGenerations(max_generations),
     )
 

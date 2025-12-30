@@ -24,6 +24,7 @@ from pateda.selection.truncation import TruncationSelection
 from pateda.replacement.generational import GenerationalReplacement
 from pateda.seeding.random_init import RandomInit
 from pateda.stop_conditions.max_generations import MaxGenerations
+from pateda.replacement import ElitistReplacement
 
 
 def create_ising_model(grid_size, coupling_strength=1.0):
@@ -95,7 +96,7 @@ def run_affinity_elim_eda():
             alpha=0.1,  # Laplace smoothing
         ),
         sampling=SampleFDA(n_samples=pop_size),
-        replacement=GenerationalReplacement(),
+        replacement=ElitistReplacement(),
         stop_condition=MaxGenerations(max_generations),
     )
 

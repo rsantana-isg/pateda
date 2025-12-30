@@ -19,6 +19,7 @@ from pateda.sampling import SampleFDA
 from pateda.selection import TruncationSelection
 from pateda.stop_conditions import MaxGenerations
 from pateda.functions import onemax
+from pateda.replacement import ElitistReplacement
 
 
 def run_umda_onemax():
@@ -46,6 +47,7 @@ def run_umda_onemax():
         learning=LearnFDA(cliques=None),  # None = univariate (UMDA)
         sampling=SampleFDA(n_samples=pop_size),
         selection=TruncationSelection(ratio=0.5),
+        replacement=ElitistReplacement(),
         stop_condition=MaxGenerations(max_gen=max_gen),
     )
 

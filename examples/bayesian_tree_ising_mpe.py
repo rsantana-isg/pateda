@@ -40,7 +40,7 @@ from pateda.core.eda import EDA, EDAComponents
 from pateda.core.components import StopCondition
 from pateda.seeding import RandomInit
 from pateda.selection import TruncationSelection
-from pateda.replacement import GenerationalReplacement
+from pateda.replacement import ElitistReplacement
 from pateda.learning.tree import LearnTreeModel
 from pateda.sampling.map_sampling import SampleInsertMAP
 
@@ -243,7 +243,7 @@ def run_bayesian_tree_ising_mpe():
         ),
 
         # No replacement (generational)
-        replacement=GenerationalReplacement(),
+        replacement=ElitistReplacement(),
 
         # Stop condition: max generations OR optimal value
         stop_condition=StopCriteriaMaxGenOrOptimum(
@@ -328,7 +328,7 @@ def run_comparison_with_without_mpe():
             selection=TruncationSelection(ratio=0.5),
             learning=LearnTreeModel(),
             sampling=SampleInsertMAP(n_samples=pop_size, map_method='bp'),
-            replacement=GenerationalReplacement(),
+            replacement=ElitistReplacement(),
             stop_condition=StopCriteriaMaxGenOrOptimum(max_generations, optimal_value),
         )
 
@@ -358,7 +358,7 @@ def run_comparison_with_without_mpe():
             selection=TruncationSelection(ratio=0.5),
             learning=LearnTreeModel(),
             sampling=SampleFDA(n_samples=pop_size),  # Standard PLS sampling
-            replacement=GenerationalReplacement(),
+            replacement=ElitistReplacement(),
             stop_condition=StopCriteriaMaxGenOrOptimum(max_generations, optimal_value),
         )
 

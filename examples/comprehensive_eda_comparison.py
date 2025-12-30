@@ -129,7 +129,7 @@ def get_algorithms(pop_size: int) -> List[AlgorithmConfig]:
             name="UMDA",
             learning=LearnUMDA(alpha=1.0),
             sampling=SampleFDA(n_samples=pop_size),
-            replacement=GenerationalReplacement(),
+            replacement=ElitistReplacement(),
         ),
         AlgorithmConfig(
             name="EBNA",
@@ -138,7 +138,7 @@ def get_algorithms(pop_size: int) -> List[AlgorithmConfig]:
                 score_metric='bic'
             ),
             sampling=SampleBayesianNetwork(n_samples=pop_size),
-            replacement=GenerationalReplacement(),
+            replacement=ElitistReplacement(),
         ),
         AlgorithmConfig(
             name="Tree EDA",
@@ -146,7 +146,7 @@ def get_algorithms(pop_size: int) -> List[AlgorithmConfig]:
                 alpha=0.1
             ),
             sampling=SampleFDA(n_samples=pop_size),
-            replacement=GenerationalReplacement(),
+            replacement=ElitistReplacement(),
         ),
         AlgorithmConfig(
             name="Affinity EDA",
@@ -155,7 +155,7 @@ def get_algorithms(pop_size: int) -> List[AlgorithmConfig]:
                 max_iter=200
             ),
             sampling=SampleFDA(n_samples=pop_size),
-            replacement=GenerationalReplacement(),
+            replacement=ElitistReplacement(),
         ),
         AlgorithmConfig(
             name="MOA",
@@ -168,7 +168,7 @@ def get_algorithms(pop_size: int) -> List[AlgorithmConfig]:
                 IT=4,
                 temperature=1.0
             ),
-            replacement=GenerationalReplacement(),
+            replacement=ElitistReplacement(),
         ),
     ]
 

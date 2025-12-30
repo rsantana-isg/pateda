@@ -19,7 +19,7 @@ from pateda.core.eda import EDA, EDAComponents
 from pateda.learning import LearnTreeModel
 from pateda.sampling import SampleFDA
 from pateda.selection import TruncationSelection
-from pateda.replacement import GenerationalReplacement
+from pateda.replacement import ElitistReplacement
 from pateda.seeding import RandomInit
 from pateda.stop_conditions import MaxGenerations
 from pateda.functions.discrete import (
@@ -54,7 +54,7 @@ def main():
         selection=TruncationSelection(ratio=0.5),
         learning=LearnTreeModel(alpha=0.0),
         sampling=SampleFDA(n_samples=pop_size),
-        replacement=GenerationalReplacement(),
+        replacement=ElitistReplacement(),
         stop_condition=MaxGenerations(50),
     )
 

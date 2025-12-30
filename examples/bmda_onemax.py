@@ -19,6 +19,7 @@ from pateda.sampling import SampleFDA
 from pateda.selection import TournamentSelection
 from pateda.stop_conditions import MaxGenerations
 from pateda.functions import onemax
+from pateda.replacement import ElitistReplacement
 
 
 def run_bmda_onemax():
@@ -48,6 +49,7 @@ def run_bmda_onemax():
         learning=LearnBMDA(structure_learning="tree", alpha=0.1),
         sampling=SampleFDA(n_samples=pop_size),
         selection=TournamentSelection(tournament_size=3, ratio=0.5),
+        replacement=ElitistReplacement(),
         stop_condition=MaxGenerations(max_gen=max_gen),
     )
 

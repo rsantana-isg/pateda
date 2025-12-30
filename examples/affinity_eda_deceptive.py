@@ -24,6 +24,7 @@ from pateda.replacement.generational import GenerationalReplacement
 from pateda.seeding.random_init import RandomInit
 from pateda.stop_conditions.max_generations import MaxGenerations
 from pateda.functions.discrete.additive_decomposable import decep3
+from pateda.replacement import ElitistReplacement
 
 
 def run_affinity_eda():
@@ -59,7 +60,7 @@ def run_affinity_eda():
             alpha=0.1,  # Laplace smoothing
         ),
         sampling=SampleFDA(n_samples=pop_size),
-        replacement=GenerationalReplacement(),
+        replacement=ElitistReplacement(),
         stop_condition=MaxGenerations(max_generations),
     )
 

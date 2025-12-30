@@ -33,6 +33,7 @@ from pateda.stop_conditions import MaxGenerations
 from pateda.repairing.unitation_method import UnitationRepairing
 from pateda.local_optimization.contiguous_block_opt import ContiguousBlockOptimizer
 from pateda.functions.discrete.contiguous_block import create_contiguous_block_function
+from pateda.replacement import ElitistReplacement
 
 
 def print_solution(x: np.ndarray, fitness: float, k: int):
@@ -128,6 +129,7 @@ def run_umda_contiguous_block(
         local_opt=ContiguousBlockOptimizer(max_iterations=10, aggressive=True) if use_local_opt else None,
 
         # Stop condition
+        replacement=ElitistReplacement(),
         stop_condition=MaxGenerations(max_gen=max_gen),
     )
 

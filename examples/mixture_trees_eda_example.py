@@ -21,6 +21,7 @@ from pateda.replacement.generational import GenerationalReplacement
 from pateda.seeding import RandomInit
 from pateda.stop_conditions import MaxGenerations
 from pateda.functions.discrete import onemax, deceptive3
+from pateda.replacement import ElitistReplacement
 
 
 def mixture_trees_onemax():
@@ -51,7 +52,7 @@ def mixture_trees_onemax():
             random_seed=42
         ),
         sampling=SampleMixtureTrees(n_samples=pop_size),
-        replacement=GenerationalReplacement(),
+        replacement=ElitistReplacement(),
         stop_condition=MaxGenerations(30),
     )
 
@@ -101,7 +102,7 @@ def mixture_trees_deceptive():
             random_seed=42
         ),
         sampling=SampleMixtureTrees(n_samples=pop_size),
-        replacement=GenerationalReplacement(),
+        replacement=ElitistReplacement(),
         stop_condition=MaxGenerations(50),
     )
 
@@ -155,7 +156,7 @@ def compare_mixture_sizes():
                 random_seed=42
             ),
             sampling=SampleMixtureTrees(n_samples=pop_size),
-            replacement=GenerationalReplacement(),
+            replacement=ElitistReplacement(),
             stop_condition=MaxGenerations(max_gens),
         )
 
@@ -200,7 +201,7 @@ def mixture_trees_with_em_weights():
             random_seed=42
         ),
         sampling=SampleMixtureTrees(n_samples=pop_size),
-        replacement=GenerationalReplacement(),
+        replacement=ElitistReplacement(),
         stop_condition=MaxGenerations(30),
     )
 

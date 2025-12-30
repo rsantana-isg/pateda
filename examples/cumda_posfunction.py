@@ -33,6 +33,7 @@ from pateda.learning import LearnCUMDA
 from pateda.sampling import SampleCUMDA
 from pateda.selection import TruncationSelection
 from pateda.stop_conditions import MaxGenerations
+from pateda.replacement import ElitistReplacement
 
 
 def create_posfunction(r: int):
@@ -146,6 +147,7 @@ def run_cumda_posfunction(
         # No repairing needed: CUMDA sampling already ensures exactly r ones
 
         # Stop condition
+        replacement=ElitistReplacement(),
         stop_condition=MaxGenerations(max_gen=max_gen),
     )
 

@@ -36,6 +36,7 @@ from pateda.learning import LearnCFDA, create_pairwise_chain_cliques
 from pateda.sampling import SampleCFDA
 from pateda.selection import TruncationSelection
 from pateda.stop_conditions import MaxGenerations
+from pateda.replacement import ElitistReplacement
 
 
 def create_onemaxblock_function(r: int):
@@ -186,6 +187,7 @@ def run_cfda_onemaxblock(
         selection=TruncationSelection(ratio=selection_ratio),
 
         # Stop condition
+        replacement=ElitistReplacement(),
         stop_condition=MaxGenerations(max_gen=max_gen),
     )
 
