@@ -17,7 +17,7 @@ Neural EDAs:
 
 Traditional EDAs:
 - UMDA: Univariate Marginal Distribution Algorithm
-- TreeEDA: Tree-based FDA
+- TreeEDA: Tree-based Factorized Distribution Algorithm
 - EBNA: Estimation of Bayesian Network Algorithm
 - MOA: Markovianity Based Optimization Algorithm
 
@@ -78,6 +78,14 @@ from pateda.sampling.gibbs import SampleGibbs
 
 # Benchmark functions
 from pateda.functions.discrete.additive_decomposable import decep3, k_deceptive
+
+
+# ==============================================================================
+# Constants
+# ==============================================================================
+
+# Success threshold as a fraction of optimal fitness
+SUCCESS_THRESHOLD = 0.01
 
 
 # ==============================================================================
@@ -568,7 +576,7 @@ def main():
     print(f"Best Fitness:     {best_fitness:.4f}")
     print(f"Optimal Fitness:  {optimal_fitness:.4f}")
     print(f"Gap:              {abs(best_fitness - optimal_fitness):.4f}")
-    print(f"Success:          {'Yes' if abs(best_fitness - optimal_fitness) < 0.01 * optimal_fitness else 'No'}")
+    print(f"Success:          {'Yes' if abs(best_fitness - optimal_fitness) < SUCCESS_THRESHOLD * optimal_fitness else 'No'}")
     print(f"Elapsed Time:     {elapsed_time:.2f} seconds")
     print(f"Best Solution:    {best_solution[:20]}{'...' if len(best_solution) > 20 else ''}")
     print("=" * 80)
