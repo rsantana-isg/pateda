@@ -14,9 +14,10 @@ import os
 sys.path.insert(0, os.path.dirname(os.path.dirname(os.path.dirname(os.path.abspath(__file__)))))
 
 import numpy as np
-from pateda.core.eda import EDA
+from pateda.core.eda import EDA, EDAComponents
 from pateda.learning import LearnTreeModel
 from pateda.sampling import SampleFDA
+from pateda.seeding import RandomInit
 from pateda.selection import ProportionalSelection
 from pateda.replacement import ElitistReplacement
 from pateda.stop_conditions import MaxGenerations
@@ -35,25 +36,23 @@ def main():
     def objective(population):
         return deceptive3(population)
 
-    # Create EDA components
-    learning = LearnTreeModel(alpha=0.0)
-    sampling = SampleFDA()
-    selection = ProportionalSelection()
-    replacement = ElitistReplacement(n_elite=10)
-    stop_condition = MaxGenerations(max_generations=100)
+    # Configure EDA components
+    components = EDAComponents(
+        seeding=RandomInit(),
+        learning=LearnTreeModel(alpha=0.0),
+        sampling=SampleFDA(n_samples=pop_size),
+        selection=ProportionalSelection(),
+        replacement=ElitistReplacement(n_elite=10),
+        stop_condition=MaxGenerations(max_gen=100),
+    )
 
     # Create and run EDA
     eda = EDA(
         pop_size=pop_size,
         n_vars=n_vars,
         cardinality=cardinality,
-        objective_function=objective,
-        learning_method=learning,
-        sampling_method=sampling,
-        selection_method=selection,
-        replacement_method=replacement,
-        stop_condition=stop_condition,
-        maximize=True,
+        fitness_func=objective,
+        components=components,
         random_seed=42,
     )
 
@@ -64,24 +63,25 @@ def main():
     print(f"Maximum generations: 100")
     print()
 
-    statistics = eda.run()
+    stats, cache = eda.run(verbose=True)
 
     # Print results
     print("\n" + "=" * 60)
     print("RESULTS")
     print("=" * 60)
-    print(f"Generations run: {len(statistics['best_fitness'])}")
-    print(f"Best fitness: {statistics['best_fitness'][-1]:.4f}")
-    print(f"Mean fitness (final): {statistics['mean_fitness'][-1]:.4f}")
-    print(f"Best solution: {statistics['best_solution']}")
+    print(f"Generations run: {len(stats.best_fitness)}")
+    print(f"Best fitness: {stats.best_fitness_overall:.4f}")
+    print(f"Mean fitness (final): {stats.mean_fitness[-1]:.4f}")
+    print(f"Best solution: {stats.best_individual}")
+    print(f"Generation found: {stats.generation_found}")
     print()
     print("Best fitness per generation:")
-    for gen, fitness in enumerate(statistics['best_fitness'][:10]):
+    for gen, fitness in enumerate(stats.best_fitness[:10]):
         print(f"  Generation {gen}: {fitness:.4f}")
-    if len(statistics['best_fitness']) > 10:
+    if len(stats.best_fitness) > 10:
         print("  ...")
-        for gen in range(len(statistics['best_fitness']) - 3, len(statistics['best_fitness'])):
-            print(f"  Generation {gen}: {statistics['best_fitness'][gen]:.4f}")
+        for gen in range(len(stats.best_fitness) - 3, len(stats.best_fitness)):
+            print(f"  Generation {gen}: {stats.best_fitness[gen]:.4f}")
 
 
 if __name__ == "__main__":
