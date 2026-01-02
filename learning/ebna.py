@@ -340,7 +340,12 @@ class LearnEBNA(LearningMethod):
                 for val in range(k):
                     counts[val] = np.sum(population[mask, var] == val) + self.alpha
 
-                cpd[parent_config, :] = counts / np.sum(counts)
+                sum_counts = np.sum(counts)
+                if sum_counts > 0:
+                    cpd[parent_config, :] = counts / sum_counts
+                else:
+                    # No samples for this parent configuration, use uniform distribution
+                    cpd[parent_config, :] = 1.0 / k
 
             return cpd
 
