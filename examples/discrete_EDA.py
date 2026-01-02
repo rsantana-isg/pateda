@@ -192,7 +192,7 @@ def parse_problem(obj_func: str, n: int):
     elif obj_func.startswith('KDeceptive'):
         # Parse k value (e.g., KDeceptive3, KDeceptive5)
         try:
-            k = int(obj_func[10:])  # Extract number after 'KDeceptive'
+            k = int(obj_func[len('KDeceptive'):])  # Extract number after 'KDeceptive'
         except (ValueError, IndexError):
             raise ValueError(f"Invalid KDeceptive format: {obj_func}. Expected format: KDeceptive<k> (e.g., KDeceptive3)")
         if n_vars % k != 0:
@@ -240,11 +240,12 @@ def parse_problem(obj_func: str, n: int):
     
     # HIFF (Hierarchical If and only If)
     elif obj_func == 'HIFF':
-        # Check if n is a power of 2
+        # Check if n is a power of 2 using bit manipulation
+        # Power of 2 numbers have only one bit set: n & (n-1) == 0
         if n_vars & (n_vars - 1) != 0 or n_vars == 0:
             raise ValueError(f"For HIFF, n must be a power of 2 (e.g., 16, 32, 64, 128)")
         # HIFF optimal is complex to calculate, approximate
-        return wrap_function(hiff), n_vars, float(n_vars * np.log2(n_vars))
+        return wrap_function(hiff), n_vars, float(n_vars * int(math.log2(n_vars)))
     
     # FHTrap1 (Hierarchical Trap)
     elif obj_func == 'FHTrap1':
