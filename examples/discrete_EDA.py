@@ -1,0 +1,586 @@
+"""
+Discrete EDA - Unified Command-Line Interface for EDA Variants
+===============================================================
+
+This program provides a unified interface to run various discrete EDA algorithms
+on benchmark problems with different seeds for cluster execution.
+
+Supports both neural network-based EDAs and traditional EDAs:
+
+Neural EDAs:
+- VAE: Variational Autoencoder with Gumbel-Softmax
+- GAN: Generative Adversarial Network
+- Backdrive: Network inversion approach
+- DAE: Denoising Autoencoder
+- RBM: Restricted Boltzmann Machine
+- DbD: Diffusion-by-Deblending
+
+Traditional EDAs:
+- UMDA: Univariate Marginal Distribution Algorithm
+- TreeEDA: Tree-based Factorized Distribution Algorithm
+- EBNA: Estimation of Bayesian Network Algorithm
+- MOA: Markovianity Based Optimization Algorithm
+
+Usage:
+    python discrete_EDA.py <seed> <obj_func> <pop_size> <n_gen> <alg>
+
+Example:
+    python discrete_EDA.py 0 OneMax-20 80 20 VAE
+    python discrete_EDA.py 1 Deceptive3-30 100 30 UMDA
+
+==============================================================================
+"""
+
+import sys
+import os
+
+# Add parent directory to path for running examples without installation
+sys.path.insert(0, os.path.dirname(os.path.dirname(os.path.dirname(os.path.abspath(__file__)))))
+
+import numpy as np
+import time
+from typing import Dict, Any
+import warnings
+
+# Neural learning modules
+from pateda.learning.discrete_vae import learn_binary_vae
+from pateda.learning.discrete_gan import learn_binary_gan
+from pateda.learning.discrete_backdrive import learn_binary_backdrive
+from pateda.learning.dae import learn_dae
+from pateda.learning.rbm import learn_softmax_rbm
+from pateda.learning.discrete_dbd import learn_binary_dbd
+
+# Neural sampling modules
+from pateda.sampling.discrete_neural import (
+    sample_binary_vae, sample_binary_gan, sample_binary_backdrive
+)
+from pateda.sampling.dae import sample_dae
+from pateda.sampling.rbm import sample_softmax_rbm
+from pateda.sampling.discrete_dbd import sample_binary_dbd
+
+# Traditional EDA modules
+from pateda.core.eda import EDA, EDAComponents
+from pateda.stop_conditions import MaxGenerations
+from pateda.seeding import RandomInit
+from pateda.selection import TruncationSelection
+from pateda.replacement import ElitistReplacement
+
+# Traditional learning methods
+from pateda.learning.umda import LearnUMDA
+from pateda.learning.ebna import LearnEBNA
+from pateda.learning.tree import LearnTreeModel
+from pateda.learning.moa import LearnMOA
+
+# Traditional sampling methods
+from pateda.sampling.bayesian_network import SampleBayesianNetwork
+from pateda.sampling.fda import SampleFDA
+from pateda.sampling.gibbs import SampleGibbs
+
+# Benchmark functions
+from pateda.functions.discrete.additive_decomposable import decep3, k_deceptive
+
+
+# ==============================================================================
+# Constants
+# ==============================================================================
+
+# Success threshold as a fraction of optimal fitness
+SUCCESS_THRESHOLD = 0.01
+
+
+# ==============================================================================
+# Fitness Function Wrappers
+# ==============================================================================
+
+def onemax(x: np.ndarray) -> np.ndarray:
+    """OneMax function"""
+    if x.ndim == 1:
+        return np.array([float(np.sum(x))])
+    else:
+        return np.sum(x, axis=1).astype(float)
+
+
+def wrap_deceptive3(x: np.ndarray) -> np.ndarray:
+    """Deceptive-3 wrapper"""
+    if x.ndim == 1:
+        return np.array([decep3(x)])
+    else:
+        return np.array([decep3(ind) for ind in x])
+
+
+def wrap_k_deceptive(k: int):
+    """K-deceptive wrapper factory"""
+    def wrapped(x: np.ndarray) -> np.ndarray:
+        if x.ndim == 1:
+            return np.array([k_deceptive(x, k=k)])
+        else:
+            return np.array([k_deceptive(ind, k=k) for ind in x])
+    return wrapped
+
+
+# ==============================================================================
+# Problem Configuration
+# ==============================================================================
+
+def parse_problem(obj_func: str):
+    """
+    Parse problem name and return fitness function, n_vars, and optimal fitness
+    
+    Parameters
+    ----------
+    obj_func : str
+        Problem name (e.g., 'OneMax-20', 'Deceptive3-30', 'KDeceptive3-30')
+    
+    Returns
+    -------
+    func : callable
+        Fitness function
+    n_vars : int
+        Number of variables
+    optimal : float
+        Optimal fitness value
+    """
+    if obj_func.startswith('OneMax-'):
+        n_vars = int(obj_func.split('-')[1])
+        return onemax, n_vars, float(n_vars)
+    
+    elif obj_func.startswith('Deceptive3-'):
+        n_vars = int(obj_func.split('-')[1])
+        # Deceptive3 has blocks of 3, optimal is number of blocks
+        n_blocks = n_vars // 3
+        return wrap_deceptive3, n_vars, float(n_blocks)
+    
+    elif obj_func.startswith('KDeceptive3-'):
+        n_vars = int(obj_func.split('-')[1])
+        # KDeceptive3 has optimal equal to n_vars
+        return wrap_k_deceptive(3), n_vars, float(n_vars)
+    
+    else:
+        raise ValueError(f"Unknown problem: {obj_func}")
+
+
+# ==============================================================================
+# Neural EDA Implementation
+# ==============================================================================
+
+class UnifiedDiscreteNeuralEDA:
+    """
+    Unified framework for all discrete neural EDAs
+    """
+
+    def __init__(
+        self,
+        method: str,
+        n_vars: int,
+        cardinality: np.ndarray,
+        pop_size: int = 100,
+        selection_ratio: float = 0.5,
+        max_generations: int = 50,
+        learning_params: Dict[str, Any] = None,
+        sampling_params: Dict[str, Any] = None,
+        random_seed: int = None,
+    ):
+        """
+        Initialize Unified Neural EDA
+
+        Parameters
+        ----------
+        method : str
+            Method: 'vae', 'gan', 'backdrive', 'dae', 'rbm', 'dbd'
+        n_vars : int
+            Number of variables
+        cardinality : np.ndarray
+            Cardinality of each variable
+        pop_size : int
+            Population size
+        selection_ratio : float
+            Selection ratio
+        max_generations : int
+            Maximum generations
+        learning_params : dict
+            Learning parameters
+        sampling_params : dict
+            Sampling parameters
+        random_seed : int
+            Random seed for reproducibility
+        """
+        self.method = method
+        self.n_vars = n_vars
+        self.cardinality = cardinality
+        self.pop_size = pop_size
+        self.selection_ratio = selection_ratio
+        self.max_generations = max_generations
+        self.learning_params = learning_params or {}
+        self.sampling_params = sampling_params or {}
+        self.random_seed = random_seed
+
+        # Set random seed if provided
+        if random_seed is not None:
+            np.random.seed(random_seed)
+
+        # Map methods to functions
+        self.method_map = {
+            'vae': (learn_binary_vae, sample_binary_vae, False),
+            'gan': (learn_binary_gan, sample_binary_gan, False),
+            'backdrive': (learn_binary_backdrive, sample_binary_backdrive, False),
+            'dae': (learn_dae, sample_dae, False),
+            'rbm': (learn_softmax_rbm, sample_softmax_rbm, True),  # Needs cardinality
+            'dbd': (learn_binary_dbd, sample_binary_dbd, True),  # Needs two populations
+        }
+
+    def run(self, fitness_func, verbose=True):
+        """
+        Run the EDA
+
+        Parameters
+        ----------
+        fitness_func : callable
+            Fitness function
+        verbose : bool
+            Print progress
+
+        Returns
+        -------
+        best_fitness : float
+            Best fitness found
+        best_solution : np.ndarray
+            Best solution found
+        history : dict
+            History dictionary
+        """
+        learn_fn, sample_fn, special = self.method_map[self.method]
+
+        # Initialize population
+        population = np.random.randint(0, self.cardinality, (self.pop_size, self.n_vars))
+
+        # Evaluate
+        fitness = fitness_func(population)
+
+        best_fitness = np.max(fitness)
+        best_solution = population[np.argmax(fitness)].copy()
+
+        history = {'best_fitness': [best_fitness]}
+
+        if verbose:
+            print(f"Generation 0: Best Fitness = {best_fitness:.4f}")
+
+        # Keep track of previous population for DbD
+        prev_population = None
+
+        for gen in range(self.max_generations):
+            # Selection
+            n_selected = int(self.pop_size * self.selection_ratio)
+            selected_idx = np.argsort(fitness)[-n_selected:]
+            selected_pop = population[selected_idx]
+            selected_fitness = fitness[selected_idx]
+
+            # Learn model
+            try:
+                if self.method == 'rbm':
+                    model = learn_fn(selected_pop, selected_fitness, self.cardinality,
+                                   self.learning_params)
+                elif self.method == 'dbd':
+                    # DbD needs two populations (source and target)
+                    if prev_population is None:
+                        # First generation: use random as source
+                        p0 = np.random.randint(0, self.cardinality,
+                                             (len(selected_pop), self.n_vars))
+                    else:
+                        # Use previous selected population as source
+                        p0 = prev_population
+
+                    p1 = selected_pop
+                    model = learn_fn(p0, p1, self.learning_params)
+
+                    # Save for next iteration
+                    prev_population = selected_pop.copy()
+                else:
+                    model = learn_fn(selected_pop, selected_fitness, self.learning_params)
+
+                # Sample new population
+                population = sample_fn(model, self.pop_size, self.sampling_params)
+
+            except Exception as e:
+                if verbose:
+                    print(f"  Warning: Sampling failed ({e}), using random population")
+                population = np.random.randint(0, self.cardinality,
+                                             (self.pop_size, self.n_vars))
+
+            # Evaluate
+            fitness = fitness_func(population)
+
+            # Update best
+            gen_best = np.max(fitness)
+            if gen_best > best_fitness:
+                best_fitness = gen_best
+                best_solution = population[np.argmax(fitness)].copy()
+
+            history['best_fitness'].append(best_fitness)
+
+            if verbose and (gen + 1) % 10 == 0:
+                print(f"Generation {gen+1}: Best Fitness = {best_fitness:.4f}")
+
+        return best_fitness, best_solution, history
+
+
+# ==============================================================================
+# Traditional EDA Implementation
+# ==============================================================================
+
+def run_traditional_eda(
+    alg: str,
+    fitness_func,
+    n_vars: int,
+    pop_size: int,
+    max_generations: int,
+    random_seed: int = None,
+    verbose: bool = True,
+):
+    """
+    Run a traditional EDA algorithm
+    
+    Parameters
+    ----------
+    alg : str
+        Algorithm name: 'UMDA', 'TreeEDA', 'EBNA', 'MOA'
+    fitness_func : callable
+        Fitness function
+    n_vars : int
+        Number of variables
+    pop_size : int
+        Population size
+    max_generations : int
+        Maximum generations
+    random_seed : int
+        Random seed
+    verbose : bool
+        Print progress
+        
+    Returns
+    -------
+    best_fitness : float
+        Best fitness found
+    best_solution : np.ndarray
+        Best solution found
+    history : dict
+        History dictionary
+    """
+    # Set random seed if provided
+    if random_seed is not None:
+        np.random.seed(random_seed)
+    
+    cardinality = np.full(n_vars, 2)  # Binary
+    
+    # Configure algorithm
+    if alg == 'UMDA':
+        learning = LearnUMDA(alpha=1.0)
+        sampling = SampleFDA(n_samples=pop_size)
+        
+    elif alg == 'TreeEDA':
+        learning = LearnTreeModel(alpha=0.1)
+        sampling = SampleFDA(n_samples=pop_size)
+        
+    elif alg == 'EBNA':
+        learning = LearnEBNA(max_parents=3, score_metric='bic')
+        sampling = SampleBayesianNetwork(n_samples=pop_size)
+        
+    elif alg == 'MOA':
+        learning = LearnMOA(k_neighbors=5, threshold_factor=1.5)
+        sampling = SampleGibbs(n_samples=pop_size, IT=4, temperature=1.0)
+        
+    else:
+        raise ValueError(f"Unknown traditional EDA: {alg}")
+    
+    # Create EDA components
+    components = EDAComponents(
+        seeding=RandomInit(),
+        selection=TruncationSelection(ratio=0.5),
+        learning=learning,
+        sampling=sampling,
+        replacement=ElitistReplacement(),
+        stop_condition=MaxGenerations(max_gen=max_generations),
+    )
+    
+    # Create and run EDA
+    eda = EDA(
+        pop_size=pop_size,
+        n_vars=n_vars,
+        fitness_func=fitness_func,
+        cardinality=cardinality,
+        components=components,
+        random_seed=random_seed,
+    )
+    
+    stats, _ = eda.run(verbose=verbose)
+    
+    # Extract results
+    best_fitness = stats.best_fitness_overall
+    best_solution = stats.best_individual
+    history = {'best_fitness': stats.best_fitness}
+    
+    return best_fitness, best_solution, history
+
+
+# ==============================================================================
+# Main Entry Point
+# ==============================================================================
+
+def main():
+    """Main entry point for command-line execution"""
+    
+    # Check arguments
+    if len(sys.argv) != 6:
+        print("Usage: python discrete_EDA.py <seed> <obj_func> <pop_size> <n_gen> <alg>")
+        print()
+        print("Arguments:")
+        print("  seed      : Random seed (integer)")
+        print("  obj_func  : Objective function (e.g., 'OneMax-20', 'Deceptive3-30', 'KDeceptive3-30')")
+        print("  pop_size  : Population size (integer)")
+        print("  n_gen     : Number of generations (integer)")
+        print("  alg       : Algorithm name")
+        print()
+        print("Supported algorithms:")
+        print("  Neural EDAs: VAE, GAN, Backdrive, DAE, RBM, DbD")
+        print("  Traditional EDAs: UMDA, TreeEDA, EBNA, MOA")
+        print()
+        print("Example:")
+        print("  python discrete_EDA.py 0 OneMax-20 80 20 VAE")
+        sys.exit(1)
+    
+    # Parse arguments
+    myseed = int(sys.argv[1])
+    obj_func = sys.argv[2]
+    pop_size = int(sys.argv[3])
+    n_gen = int(sys.argv[4])
+    alg = sys.argv[5]
+    
+    # Suppress warnings
+    warnings.filterwarnings('ignore', category=UserWarning)
+    warnings.filterwarnings('ignore', category=RuntimeWarning)
+    
+    # Parse problem
+    try:
+        fitness_func, n_vars, optimal_fitness = parse_problem(obj_func)
+    except ValueError as e:
+        print(f"Error: {e}")
+        sys.exit(1)
+    
+    # Print configuration
+    print("=" * 80)
+    print("DISCRETE EDA - Single Run Configuration")
+    print("=" * 80)
+    print(f"Seed:             {myseed}")
+    print(f"Problem:          {obj_func}")
+    print(f"Variables:        {n_vars}")
+    print(f"Optimal Fitness:  {optimal_fitness}")
+    print(f"Population Size:  {pop_size}")
+    print(f"Generations:      {n_gen}")
+    print(f"Algorithm:        {alg}")
+    print("=" * 80)
+    print()
+    
+    # Determine if neural or traditional EDA
+    neural_edas = ['VAE', 'GAN', 'Backdrive', 'DAE', 'RBM', 'DbD']
+    traditional_edas = ['UMDA', 'TreeEDA', 'EBNA', 'MOA']
+    
+    start_time = time.time()
+    
+    if alg in neural_edas:
+        # Run neural EDA
+        method_map = {
+            'VAE': 'vae',
+            'GAN': 'gan',
+            'Backdrive': 'backdrive',
+            'DAE': 'dae',
+            'RBM': 'rbm',
+            'DbD': 'dbd',
+        }
+        
+        method_id = method_map[alg]
+        
+        # Configure learning parameters
+        params_map = {
+            'vae': {
+                'epochs': 30,
+                'latent_dim': max(2, n_vars // 4),
+                'batch_size': min(32, pop_size // 2),
+            },
+            'gan': {
+                'epochs': 60,
+                'latent_dim': max(10, n_vars // 2),
+                'batch_size': min(32, pop_size // 2),
+            },
+            'backdrive': {
+                'epochs': 30,
+                'hidden_layers': [64, 32],
+                'batch_size': min(32, pop_size // 2),
+            },
+            'dae': {
+                'epochs': 30,
+                'hidden_dim': max(n_vars // 2, 10),
+                'corruption_level': 0.1,
+            },
+            'rbm': {
+                'epochs': 15,
+                'n_hidden': n_vars,
+                'k_cd': 1,
+            },
+            'dbd': {
+                'epochs': 50,
+                'hidden_dims': [64, 32],
+                'num_alpha_samples': 5,
+            },
+        }
+        
+        learning_params = params_map[method_id]
+        cardinality = np.full(n_vars, 2)
+        
+        eda = UnifiedDiscreteNeuralEDA(
+            method=method_id,
+            n_vars=n_vars,
+            cardinality=cardinality,
+            pop_size=pop_size,
+            selection_ratio=0.5,
+            max_generations=n_gen,
+            learning_params=learning_params,
+            sampling_params={},
+            random_seed=myseed,
+        )
+        
+        best_fitness, best_solution, history = eda.run(fitness_func, verbose=True)
+        
+    elif alg in traditional_edas:
+        # Run traditional EDA
+        best_fitness, best_solution, history = run_traditional_eda(
+            alg=alg,
+            fitness_func=fitness_func,
+            n_vars=n_vars,
+            pop_size=pop_size,
+            max_generations=n_gen,
+            random_seed=myseed,
+            verbose=True,
+        )
+        
+    else:
+        print(f"Error: Unknown algorithm '{alg}'")
+        print(f"Supported algorithms: {', '.join(neural_edas + traditional_edas)}")
+        sys.exit(1)
+    
+    elapsed_time = time.time() - start_time
+    
+    # Print results
+    print()
+    print("=" * 80)
+    print("RESULTS")
+    print("=" * 80)
+    print(f"Best Fitness:     {best_fitness:.4f}")
+    print(f"Optimal Fitness:  {optimal_fitness:.4f}")
+    print(f"Gap:              {abs(best_fitness - optimal_fitness):.4f}")
+    print(f"Success:          {'Yes' if abs(best_fitness - optimal_fitness) < SUCCESS_THRESHOLD * optimal_fitness else 'No'}")
+    print(f"Elapsed Time:     {elapsed_time:.2f} seconds")
+    print(f"Best Solution:    {best_solution[:20]}{'...' if len(best_solution) > 20 else ''}")
+    print("=" * 80)
+
+
+if __name__ == "__main__":
+    main()
