@@ -148,6 +148,16 @@ def wrap_function(func):
     return wrapped
 
 
+def wrap_polytree3(overlap: bool):
+    """Polytree-3 wrapper factory"""
+    def wrapped(x: np.ndarray) -> np.ndarray:
+        if x.ndim == 1:
+            return np.array([first_polytree3_ochoa(x, overlap=overlap)])
+        else:
+            return np.array([first_polytree3_ochoa(ind, overlap=overlap) for ind in x])
+    return wrapped
+
+
 # ==============================================================================
 # Problem Configuration
 # ==============================================================================
@@ -235,17 +245,22 @@ def parse_problem(obj_func: str, n: int):
     
     # FHTrap1 (Hierarchical Trap)
     elif obj_func == 'FHTrap1':
-        # Check if n is a power of 3
-        if n_vars <= 0 or (n_vars > 1 and math.log(n_vars, 3) % 1 != 0):
-            raise ValueError(f"For FHTrap1, n should be a power of 3 (e.g., 9, 27, 81, 243, 729)")
+        # Check if n is a power of 3 using integer-based approach
+        if n_vars <= 0:
+            raise ValueError(f"For FHTrap1, n must be positive")
+        # Check if 3^round(log3(n)) == n to handle floating-point precision
+        if n_vars > 1:
+            log_val = round(math.log(n_vars, 3))
+            if 3 ** log_val != n_vars:
+                raise ValueError(f"For FHTrap1, n should be a power of 3 (e.g., 9, 27, 81, 243, 729)")
         return wrap_function(fhtrap1), n_vars, float(n_vars)
     
     # Polytree functions
     elif obj_func == 'Polytree3':
-        return wrap_function(lambda x: first_polytree3_ochoa(x, overlap=False)), n_vars, float(n_vars)
+        return wrap_polytree3(overlap=False), n_vars, float(n_vars)
     
     elif obj_func == 'Polytree3Overlap':
-        return wrap_function(lambda x: first_polytree3_ochoa(x, overlap=True)), n_vars, float(n_vars)
+        return wrap_polytree3(overlap=True), n_vars, float(n_vars)
     
     elif obj_func == 'Polytree5':
         if n_vars % 5 != 0:
