@@ -248,9 +248,9 @@ def parse_problem(obj_func: str, n: int):
         # Power of 2 numbers have only one bit set: n & (n-1) == 0
         if n_vars <= 0 or (n_vars & (n_vars - 1) != 0):
             raise ValueError(f"For HIFF, n must be a power of 2 (e.g., 1, 2, 4, 8, 16, 32, 64, 128)")
-        # HIFF optimal is complex to calculate, approximate
-        # For n=1, optimal is 1; for larger n, it's n * log2(n)
-        return wrap_function(hiff), n_vars, float(n_vars * max(1, int(math.log2(n_vars))))
+        # HIFF optimal is n * (log2(n) + 1)
+        # Each level contributes n, and there are log2(n) + 1 levels (including base level)
+        return wrap_function(hiff), n_vars, float(n_vars * (1 + int(math.log2(n_vars))))
     
     # FHTrap1 (Hierarchical Trap)
     elif obj_func == 'FHTrap1':
