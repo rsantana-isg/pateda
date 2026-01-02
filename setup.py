@@ -2,27 +2,27 @@
 """
 PATEDA - Python Algorithms for Estimation of Distribution Algorithms
 
-A Python port of MATEDA-3.0 (Matlab toolbox for Estimation of Distribution Algorithms)
+A comprehensive Python library for Estimation of Distribution Algorithms (EDAs)
+supporting discrete, continuous, and permutation-based optimization.
 
-Original MATEDA by Roberto Santana (roberto.santana@ehu.es)
-Python port by Claude AI Assistant
+Author: Roberto Santana (roberto.santana@ehu.es)
 """
 
 from setuptools import setup, find_packages
 
-with open("README_PATEDA.md", "r", encoding="utf-8") as fh:
+with open("README.md", "r", encoding="utf-8") as fh:
     long_description = fh.read()
 
 setup(
     name="pateda",
     version="0.1.0",
-    author="Roberto Santana (original MATEDA), Claude (Python port)",
+    author="Roberto Santana",
     author_email="roberto.santana@ehu.es",
     description="Python Algorithms for Estimation of Distribution Algorithms",
     long_description=long_description,
     long_description_content_type="text/markdown",
     url="https://github.com/rsantana-isg/pateda",
-    packages=find_packages(),
+    packages=find_packages(exclude=["tests", "examples", "benchmarks", "scripts", "docs"]),
     classifiers=[
         "Development Status :: 3 - Alpha",
         "Intended Audience :: Science/Research",
@@ -33,6 +33,7 @@ setup(
         "Programming Language :: Python :: 3.9",
         "Programming Language :: Python :: 3.10",
         "Programming Language :: Python :: 3.11",
+        "Programming Language :: Python :: 3.12",
     ],
     python_requires=">=3.8",
     install_requires=[
@@ -59,11 +60,15 @@ setup(
         "performance": [
             "numba>=0.55.0",
         ],
+        "neural": [
+            "torch>=2.0.0",
+        ],
         "copula": [
             "pyvinecopulib>=0.6.0",
         ],
         "all": [
             "numba>=0.55.0",
+            "torch>=2.0.0",
             "pyvinecopulib>=0.6.0",
         ],
     },
