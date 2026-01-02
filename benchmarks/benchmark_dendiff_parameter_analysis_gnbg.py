@@ -33,7 +33,7 @@ import os
 from pathlib import Path
 
 # Add pateda to path
-sys.path.insert(0, os.path.dirname(os.path.abspath(__file__)))
+sys.path.insert(0, os.path.dirname(os.path.dirname(os.path.dirname(os.path.abspath(__file__)))))
 
 # Import GNBG class
 sys.path.insert(0, str(Path(__file__).parent / 'enhanced_edas'))

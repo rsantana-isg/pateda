@@ -22,7 +22,7 @@ import sys
 import os
 
 # Add pateda to path
-sys.path.insert(0, os.path.dirname(os.path.abspath(__file__)))
+sys.path.insert(0, os.path.dirname(os.path.dirname(os.path.dirname(os.path.abspath(__file__)))))
 
 from benchmark_enhanced_dendiff_distributions import (
     evaluate_dendiff_on_enhanced_distribution,
