@@ -191,7 +191,10 @@ def parse_problem(obj_func: str, n: int):
     # K-Deceptive family
     elif obj_func.startswith('KDeceptive'):
         # Parse k value (e.g., KDeceptive3, KDeceptive5)
-        k = int(obj_func.replace('KDeceptive', ''))
+        try:
+            k = int(obj_func[10:])  # Extract number after 'KDeceptive'
+        except (ValueError, IndexError):
+            raise ValueError(f"Invalid KDeceptive format: {obj_func}. Expected format: KDeceptive<k> (e.g., KDeceptive3)")
         if n_vars % k != 0:
             raise ValueError(f"For KDeceptive{k}, n must be a multiple of {k}")
         return wrap_k_deceptive(k), n_vars, float(n_vars)
@@ -245,14 +248,15 @@ def parse_problem(obj_func: str, n: int):
     
     # FHTrap1 (Hierarchical Trap)
     elif obj_func == 'FHTrap1':
-        # Check if n is a power of 3 using integer-based approach
+        # Check if n is a power of 3 using iterative division
         if n_vars <= 0:
             raise ValueError(f"For FHTrap1, n must be positive")
-        # Check if 3^round(log3(n)) == n to handle floating-point precision
-        if n_vars > 1:
-            log_val = round(math.log(n_vars, 3))
-            if 3 ** log_val != n_vars:
-                raise ValueError(f"For FHTrap1, n should be a power of 3 (e.g., 9, 27, 81, 243, 729)")
+        # Check by repeatedly dividing by 3
+        temp = n_vars
+        while temp > 1 and temp % 3 == 0:
+            temp //= 3
+        if temp != 1:
+            raise ValueError(f"For FHTrap1, n must be a power of 3 (e.g., 9, 27, 81, 243, 729)")
         return wrap_function(fhtrap1), n_vars, float(n_vars)
     
     # Polytree functions
