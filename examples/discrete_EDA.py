@@ -44,6 +44,7 @@ sys.path.insert(0, os.path.dirname(os.path.dirname(os.path.dirname(os.path.abspa
 
 import numpy as np
 import time
+import math
 from typing import Dict, Any
 import warnings
 
@@ -235,7 +236,6 @@ def parse_problem(obj_func: str, n: int):
     # FHTrap1 (Hierarchical Trap)
     elif obj_func == 'FHTrap1':
         # Check if n is a power of 3
-        import math
         if n_vars <= 0 or (n_vars > 1 and math.log(n_vars, 3) % 1 != 0):
             raise ValueError(f"For FHTrap1, n should be a power of 3 (e.g., 9, 27, 81, 243, 729)")
         return wrap_function(fhtrap1), n_vars, float(n_vars)
