@@ -195,6 +195,8 @@ def parse_problem(obj_func: str, n: int):
             k = int(obj_func[len('KDeceptive'):])  # Extract number after 'KDeceptive'
         except (ValueError, IndexError):
             raise ValueError(f"Invalid KDeceptive format: {obj_func}. Expected format: KDeceptive<k> (e.g., KDeceptive3)")
+        if k <= 0:
+            raise ValueError(f"k must be positive, got {k}")
         if n_vars % k != 0:
             raise ValueError(f"For KDeceptive{k}, n must be a multiple of {k}")
         return wrap_k_deceptive(k), n_vars, float(n_vars)
@@ -207,6 +209,8 @@ def parse_problem(obj_func: str, n: int):
         return wrap_decep3(overlap=False), n_vars, float(n_blocks)
     
     elif obj_func == 'Deceptive3Overlap':
+        # With overlap=True, uses overlapping partitions with step=2
+        # Number of partitions: (n - 2) // 2
         return wrap_decep3(overlap=True), n_vars, float((n_vars - 2) // 2)
     
     elif obj_func == 'DecepMarta3':
@@ -242,10 +246,11 @@ def parse_problem(obj_func: str, n: int):
     elif obj_func == 'HIFF':
         # Check if n is a power of 2 using bit manipulation
         # Power of 2 numbers have only one bit set: n & (n-1) == 0
-        if n_vars & (n_vars - 1) != 0 or n_vars == 0:
-            raise ValueError(f"For HIFF, n must be a power of 2 (e.g., 16, 32, 64, 128)")
+        if n_vars <= 0 or (n_vars & (n_vars - 1) != 0):
+            raise ValueError(f"For HIFF, n must be a power of 2 (e.g., 1, 2, 4, 8, 16, 32, 64, 128)")
         # HIFF optimal is complex to calculate, approximate
-        return wrap_function(hiff), n_vars, float(n_vars * int(math.log2(n_vars)))
+        # For n=1, optimal is 1; for larger n, it's n * log2(n)
+        return wrap_function(hiff), n_vars, float(n_vars * max(1, int(math.log2(n_vars))))
     
     # FHTrap1 (Hierarchical Trap)
     elif obj_func == 'FHTrap1':
@@ -603,7 +608,7 @@ def run_traditional_eda(
 def main():
     """Main entry point for command-line execution"""
     
-    # Check arguments
+    # Check arguments (sys.argv[0] is script name, so 7 total = 6 arguments + script name)
     if len(sys.argv) != 7:
         print("Usage: python discrete_EDA.py <seed> <obj_func> <n> <pop_size> <n_gen> <alg>")
         print()
