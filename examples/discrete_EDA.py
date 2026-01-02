@@ -20,13 +20,18 @@ Traditional EDAs:
 - TreeEDA: Tree-based Factorized Distribution Algorithm
 - EBNA: Estimation of Bayesian Network Algorithm
 - MOA: Markovianity Based Optimization Algorithm
+- MN-FDA: Markov Network Factorized Distribution Algorithm
+- MN-FDAG: MN-FDA with G-test
+- MK-EDA: k-order Markov Chain EDA (k=1,2,3)
+- MT-EDA: Mixture of Trees EDA (k=2,3)
 
 Usage:
-    python discrete_EDA.py <seed> <obj_func> <pop_size> <n_gen> <alg>
+    python discrete_EDA.py <seed> <obj_func> <n> <pop_size> <n_gen> <alg>
 
 Example:
-    python discrete_EDA.py 0 OneMax-20 80 20 VAE
-    python discrete_EDA.py 1 Deceptive3-30 100 30 UMDA
+    python discrete_EDA.py 0 OneMax 20 80 20 VAE
+    python discrete_EDA.py 1 Deceptive3 30 100 30 UMDA
+    python discrete_EDA.py 0 HIFF 64 200 50 MN-FDA
 
 ==============================================================================
 """
@@ -39,6 +44,7 @@ sys.path.insert(0, os.path.dirname(os.path.dirname(os.path.dirname(os.path.abspa
 
 import numpy as np
 import time
+import math
 from typing import Dict, Any
 import warnings
 
@@ -70,14 +76,26 @@ from pateda.learning.umda import LearnUMDA
 from pateda.learning.ebna import LearnEBNA
 from pateda.learning.tree import LearnTreeModel
 from pateda.learning.moa import LearnMOA
+from pateda.learning.mnfda import LearnMNFDA
+from pateda.learning.mnfdag import LearnMNFDAG
+from pateda.learning.markov import LearnMarkovChain
+from pateda.learning.mixture_trees import LearnMixtureTrees
 
 # Traditional sampling methods
 from pateda.sampling.bayesian_network import SampleBayesianNetwork
 from pateda.sampling.fda import SampleFDA
 from pateda.sampling.gibbs import SampleGibbs
+from pateda.sampling.markov import SampleMarkovChain
+from pateda.sampling.mixture_trees import SampleMixtureTrees
 
 # Benchmark functions
-from pateda.functions.discrete.additive_decomposable import decep3, k_deceptive
+from pateda.functions.discrete.additive_decomposable import (
+    k_deceptive, decep3, decep_marta3, decep_marta3_new, decep3_mh,
+    two_peaks_decep3, decep_venturini, hard_decep5,
+    hiff, fhtrap1,
+    first_polytree3_ochoa, first_polytree5_ochoa,
+    fc2, fc3, fc4, fc5
+)
 
 
 # ==============================================================================
@@ -100,14 +118,6 @@ def onemax(x: np.ndarray) -> np.ndarray:
         return np.sum(x, axis=1).astype(float)
 
 
-def wrap_deceptive3(x: np.ndarray) -> np.ndarray:
-    """Deceptive-3 wrapper"""
-    if x.ndim == 1:
-        return np.array([decep3(x)])
-    else:
-        return np.array([decep3(ind) for ind in x])
-
-
 def wrap_k_deceptive(k: int):
     """K-deceptive wrapper factory"""
     def wrapped(x: np.ndarray) -> np.ndarray:
@@ -118,18 +128,50 @@ def wrap_k_deceptive(k: int):
     return wrapped
 
 
+def wrap_decep3(overlap: bool = False):
+    """Deceptive-3 wrapper factory"""
+    def wrapped(x: np.ndarray) -> np.ndarray:
+        if x.ndim == 1:
+            return np.array([decep3(x, overlap=overlap)])
+        else:
+            return np.array([decep3(ind, overlap=overlap) for ind in x])
+    return wrapped
+
+
+def wrap_function(func):
+    """Generic function wrapper"""
+    def wrapped(x: np.ndarray) -> np.ndarray:
+        if x.ndim == 1:
+            return np.array([func(x)])
+        else:
+            return np.array([func(ind) for ind in x])
+    return wrapped
+
+
+def wrap_polytree3(overlap: bool):
+    """Polytree-3 wrapper factory"""
+    def wrapped(x: np.ndarray) -> np.ndarray:
+        if x.ndim == 1:
+            return np.array([first_polytree3_ochoa(x, overlap=overlap)])
+        else:
+            return np.array([first_polytree3_ochoa(ind, overlap=overlap) for ind in x])
+    return wrapped
+
+
 # ==============================================================================
 # Problem Configuration
 # ==============================================================================
 
-def parse_problem(obj_func: str):
+def parse_problem(obj_func: str, n: int):
     """
     Parse problem name and return fitness function, n_vars, and optimal fitness
     
     Parameters
     ----------
     obj_func : str
-        Problem name (e.g., 'OneMax-20', 'Deceptive3-30', 'KDeceptive3-30')
+        Problem name (e.g., 'OneMax', 'Deceptive3', 'KDeceptive3', 'HIFF')
+    n : int
+        Number of variables
     
     Returns
     -------
@@ -138,22 +180,119 @@ def parse_problem(obj_func: str):
     n_vars : int
         Number of variables
     optimal : float
-        Optimal fitness value
+        Optimal fitness value (or approximate optimal if not known)
     """
-    if obj_func.startswith('OneMax-'):
-        n_vars = int(obj_func.split('-')[1])
+    n_vars = n
+    
+    # OneMax family
+    if obj_func == 'OneMax':
         return onemax, n_vars, float(n_vars)
     
-    elif obj_func.startswith('Deceptive3-'):
-        n_vars = int(obj_func.split('-')[1])
-        # Deceptive3 has blocks of 3, optimal is number of blocks
-        n_blocks = n_vars // 3
-        return wrap_deceptive3, n_vars, float(n_blocks)
+    # K-Deceptive family
+    elif obj_func.startswith('KDeceptive'):
+        # Parse k value (e.g., KDeceptive3, KDeceptive5)
+        try:
+            k = int(obj_func[len('KDeceptive'):])  # Extract number after 'KDeceptive'
+        except (ValueError, IndexError):
+            raise ValueError(f"Invalid KDeceptive format: {obj_func}. Expected format: KDeceptive<k> (e.g., KDeceptive3)")
+        if k <= 0:
+            raise ValueError(f"k must be positive, got {k}")
+        if n_vars % k != 0:
+            raise ValueError(f"For KDeceptive{k}, n must be a multiple of {k}")
+        return wrap_k_deceptive(k), n_vars, float(n_vars)
     
-    elif obj_func.startswith('KDeceptive3-'):
-        n_vars = int(obj_func.split('-')[1])
-        # KDeceptive3 has optimal equal to n_vars
-        return wrap_k_deceptive(3), n_vars, float(n_vars)
+    # Deceptive-3 variants
+    elif obj_func == 'Deceptive3':
+        if n_vars % 3 != 0:
+            raise ValueError(f"For Deceptive3, n must be a multiple of 3")
+        n_blocks = n_vars // 3
+        return wrap_decep3(overlap=False), n_vars, float(n_blocks)
+    
+    elif obj_func == 'Deceptive3Overlap':
+        # With overlap=True, uses overlapping partitions with step=2
+        # Number of partitions: (n - 2) // 2
+        return wrap_decep3(overlap=True), n_vars, float((n_vars - 2) // 2)
+    
+    elif obj_func == 'DecepMarta3':
+        if n_vars % 3 != 0:
+            raise ValueError(f"For DecepMarta3, n must be a multiple of 3")
+        return wrap_function(decep_marta3), n_vars, float(n_vars)
+    
+    elif obj_func == 'DecepMarta3New':
+        if n_vars % 3 != 0:
+            raise ValueError(f"For DecepMarta3New, n must be a multiple of 3")
+        return wrap_function(decep_marta3_new), n_vars, float(n_vars)
+    
+    elif obj_func == 'Decep3MH':
+        if n_vars % 3 != 0:
+            raise ValueError(f"For Decep3MH, n must be a multiple of 3")
+        return wrap_function(decep3_mh), n_vars, float(n_vars)
+    
+    elif obj_func == 'TwoPeaksDecep3':
+        return wrap_function(two_peaks_decep3), n_vars, float(n_vars)
+    
+    elif obj_func == 'DecepVenturini':
+        if n_vars % 3 != 0:
+            raise ValueError(f"For DecepVenturini, n must be a multiple of 3")
+        return wrap_function(decep_venturini), n_vars, float(n_vars)
+    
+    # Hard Deceptive-5
+    elif obj_func == 'HardDecep5':
+        if n_vars % 5 != 0:
+            raise ValueError(f"For HardDecep5, n must be a multiple of 5")
+        return wrap_function(hard_decep5), n_vars, float(n_vars)
+    
+    # HIFF (Hierarchical If and only If)
+    elif obj_func == 'HIFF':
+        # Check if n is a power of 2 using bit manipulation
+        # Power of 2 numbers have only one bit set: n & (n-1) == 0
+        if n_vars <= 0 or (n_vars & (n_vars - 1) != 0):
+            raise ValueError(f"For HIFF, n must be a power of 2 (e.g., 1, 2, 4, 8, 16, 32, 64, 128)")
+        # HIFF optimal is complex to calculate, approximate
+        # For n=1, optimal is 1; for larger n, it's n * log2(n)
+        return wrap_function(hiff), n_vars, float(n_vars * max(1, int(math.log2(n_vars))))
+    
+    # FHTrap1 (Hierarchical Trap)
+    elif obj_func == 'FHTrap1':
+        # Check if n is a power of 3 using iterative division
+        if n_vars <= 0:
+            raise ValueError(f"For FHTrap1, n must be positive")
+        # Check by repeatedly dividing by 3
+        temp = n_vars
+        while temp > 1 and temp % 3 == 0:
+            temp //= 3
+        if temp != 1:
+            raise ValueError(f"For FHTrap1, n must be a power of 3 (e.g., 9, 27, 81, 243, 729)")
+        return wrap_function(fhtrap1), n_vars, float(n_vars)
+    
+    # Polytree functions
+    elif obj_func == 'Polytree3':
+        return wrap_polytree3(overlap=False), n_vars, float(n_vars)
+    
+    elif obj_func == 'Polytree3Overlap':
+        return wrap_polytree3(overlap=True), n_vars, float(n_vars)
+    
+    elif obj_func == 'Polytree5':
+        if n_vars % 5 != 0:
+            raise ValueError(f"For Polytree5, n must be a multiple of 5")
+        return wrap_function(first_polytree5_ochoa), n_vars, float(n_vars)
+    
+    # Cuban functions
+    elif obj_func == 'FC2':
+        if n_vars % 5 != 0:
+            raise ValueError(f"For FC2, n must be a multiple of 5")
+        return wrap_function(fc2), n_vars, float(n_vars)
+    
+    elif obj_func == 'FC3':
+        if n_vars % 5 != 0:
+            raise ValueError(f"For FC3, n must be a multiple of 5")
+        return wrap_function(fc3), n_vars, float(n_vars)
+    
+    elif obj_func == 'FC4':
+        return wrap_function(fc4), n_vars, float(n_vars)
+    
+    elif obj_func == 'FC5':
+        return wrap_function(fc5), n_vars, float(n_vars)
     
     else:
         raise ValueError(f"Unknown problem: {obj_func}")
@@ -342,7 +481,8 @@ def run_traditional_eda(
     Parameters
     ----------
     alg : str
-        Algorithm name: 'UMDA', 'TreeEDA', 'EBNA', 'MOA'
+        Algorithm name: 'UMDA', 'TreeEDA', 'EBNA', 'MOA', 'MN-FDA', 'MN-FDAG',
+                        'MK-EDA1', 'MK-EDA2', 'MK-EDA3', 'MT-EDA2', 'MT-EDA3'
     fitness_func : callable
         Fitness function
     n_vars : int
@@ -387,6 +527,46 @@ def run_traditional_eda(
     elif alg == 'MOA':
         learning = LearnMOA(k_neighbors=5, threshold_factor=1.5)
         sampling = SampleGibbs(n_samples=pop_size, IT=4, temperature=1.0)
+    
+    elif alg == 'MN-FDA':
+        learning = LearnMNFDA(max_clique_size=3, threshold=0.05, return_factorized=True)
+        sampling = SampleFDA(n_samples=pop_size)
+    
+    elif alg == 'MN-FDAG':
+        learning = LearnMNFDAG(max_clique_size=5, alpha=0.01, return_factorized=True)
+        sampling = SampleFDA(n_samples=pop_size)
+    
+    elif alg == 'MK-EDA1':
+        learning = LearnMarkovChain(k=1, alpha=0.1)
+        sampling = SampleMarkovChain(n_samples=pop_size)
+    
+    elif alg == 'MK-EDA2':
+        learning = LearnMarkovChain(k=2, alpha=0.1)
+        sampling = SampleMarkovChain(n_samples=pop_size)
+    
+    elif alg == 'MK-EDA3':
+        learning = LearnMarkovChain(k=3, alpha=0.1)
+        sampling = SampleMarkovChain(n_samples=pop_size)
+    
+    elif alg == 'MT-EDA2':
+        learning = LearnMixtureTrees(
+            n_components=2, 
+            component_learning="tree",
+            alpha=0.1,
+            weight_learning="uniform",
+            random_seed=random_seed
+        )
+        sampling = SampleMixtureTrees(n_samples=pop_size)
+    
+    elif alg == 'MT-EDA3':
+        learning = LearnMixtureTrees(
+            n_components=3,
+            component_learning="tree", 
+            alpha=0.1,
+            weight_learning="uniform",
+            random_seed=random_seed
+        )
+        sampling = SampleMixtureTrees(n_samples=pop_size)
         
     else:
         raise ValueError(f"Unknown traditional EDA: {alg}")
@@ -428,31 +608,43 @@ def run_traditional_eda(
 def main():
     """Main entry point for command-line execution"""
     
-    # Check arguments
-    if len(sys.argv) != 6:
-        print("Usage: python discrete_EDA.py <seed> <obj_func> <pop_size> <n_gen> <alg>")
+    # Check arguments (sys.argv[0] is script name, so 7 total = 6 arguments + script name)
+    if len(sys.argv) != 7:
+        print("Usage: python discrete_EDA.py <seed> <obj_func> <n> <pop_size> <n_gen> <alg>")
         print()
         print("Arguments:")
         print("  seed      : Random seed (integer)")
-        print("  obj_func  : Objective function (e.g., 'OneMax-20', 'Deceptive3-30', 'KDeceptive3-30')")
+        print("  obj_func  : Objective function name")
+        print("  n         : Number of variables (integer)")
         print("  pop_size  : Population size (integer)")
         print("  n_gen     : Number of generations (integer)")
         print("  alg       : Algorithm name")
         print()
+        print("Supported objective functions:")
+        print("  OneMax, KDeceptive3, KDeceptive5, Deceptive3, Deceptive3Overlap")
+        print("  DecepMarta3, DecepMarta3New, Decep3MH, TwoPeaksDecep3, DecepVenturini")
+        print("  HardDecep5, HIFF, FHTrap1")
+        print("  Polytree3, Polytree3Overlap, Polytree5")
+        print("  FC2, FC3, FC4, FC5")
+        print()
         print("Supported algorithms:")
         print("  Neural EDAs: VAE, GAN, Backdrive, DAE, RBM, DbD")
         print("  Traditional EDAs: UMDA, TreeEDA, EBNA, MOA")
+        print("  Markov EDAs: MN-FDA, MN-FDAG, MK-EDA1, MK-EDA2, MK-EDA3")
+        print("  Mixture EDAs: MT-EDA2, MT-EDA3")
         print()
         print("Example:")
-        print("  python discrete_EDA.py 0 OneMax-20 80 20 VAE")
+        print("  python discrete_EDA.py 0 OneMax 20 80 20 VAE")
+        print("  python discrete_EDA.py 0 HIFF 64 200 50 MN-FDA")
         sys.exit(1)
     
     # Parse arguments
     myseed = int(sys.argv[1])
     obj_func = sys.argv[2]
-    pop_size = int(sys.argv[3])
-    n_gen = int(sys.argv[4])
-    alg = sys.argv[5]
+    n = int(sys.argv[3])
+    pop_size = int(sys.argv[4])
+    n_gen = int(sys.argv[5])
+    alg = sys.argv[6]
     
     # Suppress warnings
     warnings.filterwarnings('ignore', category=UserWarning)
@@ -460,7 +652,7 @@ def main():
     
     # Parse problem
     try:
-        fitness_func, n_vars, optimal_fitness = parse_problem(obj_func)
+        fitness_func, n_vars, optimal_fitness = parse_problem(obj_func, n)
     except ValueError as e:
         print(f"Error: {e}")
         sys.exit(1)
@@ -481,7 +673,8 @@ def main():
     
     # Determine if neural or traditional EDA
     neural_edas = ['VAE', 'GAN', 'Backdrive', 'DAE', 'RBM', 'DbD']
-    traditional_edas = ['UMDA', 'TreeEDA', 'EBNA', 'MOA']
+    traditional_edas = ['UMDA', 'TreeEDA', 'EBNA', 'MOA', 'MN-FDA', 'MN-FDAG',
+                       'MK-EDA1', 'MK-EDA2', 'MK-EDA3', 'MT-EDA2', 'MT-EDA3']
     
     start_time = time.time()
     
