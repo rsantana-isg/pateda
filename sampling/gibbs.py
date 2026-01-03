@@ -239,7 +239,7 @@ class SampleGibbs(SamplingMethod):
         var_card = int(cardinality[var])
 
         # Get neighbors (all variables in clique except var itself)
-        neighbors = clique[clique != var]
+        neighbors = clique[clique != var].astype(int)
 
         if len(neighbors) == 0:
             # No neighbors: sample from marginal P(var)

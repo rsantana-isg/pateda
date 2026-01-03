@@ -245,10 +245,10 @@ def neighbors_to_cliques(neighbors_list: List[np.ndarray]) -> List[np.ndarray]:
     for var_i, neighbors in enumerate(neighbors_list):
         # Clique = [var_i, neighbor_1, neighbor_2, ...]
         if len(neighbors) > 0:
-            clique = np.concatenate([[var_i], neighbors])
+            clique = np.concatenate([[var_i], neighbors]).astype(int)
         else:
             # Singleton clique if no neighbors
-            clique = np.array([var_i])
+            clique = np.array([var_i], dtype=int)
 
         cliques.append(clique)
 
