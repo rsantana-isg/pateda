@@ -389,6 +389,13 @@ class UnifiedDiscreteNeuralEDA:
             'dbd_uc': (learn_binary_dbd_uc, sample_binary_dbd_uc, True, 'uc'),  # Univariate to Current
             'dbd_us': (learn_binary_dbd_us, sample_binary_dbd_us, True, 'us'),  # Univariate to Selected
         }
+        
+        # Methods that need current population for initialization
+        # This list is maintained separately to avoid hardcoding in multiple places
+        self.methods_needing_current_pop = {
+            'backdrive_perturb_best', 'backdrive_perturb_selected', 'backdrive_adaptive',
+            'backdrive_weighted_mse', 'backdrive_ranking', 'backdrive_huber'
+        }
 
     def run(self, fitness_func, verbose=True):
         """
@@ -473,8 +480,7 @@ class UnifiedDiscreteNeuralEDA:
                 sampling_params = self.sampling_params.copy()
 
                 # For backdrive perturb methods, add current population and fitness
-                if self.method in ['backdrive_perturb_best', 'backdrive_perturb_selected', 'backdrive_adaptive',
-                                   'backdrive_weighted_mse', 'backdrive_ranking', 'backdrive_huber']:
+                if self.method in self.methods_needing_current_pop:
                     sampling_params['current_population'] = population
                     sampling_params['current_fitness'] = fitness
 

@@ -49,6 +49,11 @@ def pairwise_ranking_loss(predictions: torch.Tensor, targets: torch.Tensor,
     For all pairs (i, j) where target[i] > target[j],
     encourage predictions[i] > predictions[j] + margin
     
+    Note: This function has O(n²) space complexity for batch size n,
+    as it creates matrices for all pairwise comparisons. For very large
+    batch sizes (>256), consider using batched pairwise comparison or
+    sampling pairs instead of all pairs.
+    
     Parameters
     ----------
     predictions : torch.Tensor
@@ -71,6 +76,7 @@ def pairwise_ranking_loss(predictions: torch.Tensor, targets: torch.Tensor,
     
     # Compute all pairwise comparisons
     # Shape: [batch_size, batch_size]
+    # Memory: O(batch_size²)
     pred_diff = predictions - predictions.t()  # pred[i] - pred[j]
     target_diff = targets - targets.t()  # target[i] - target[j]
     

@@ -108,6 +108,9 @@ def compute_backdrive_hidden_dims(n_vars: int, selection_size: int) -> List[int]
     For two hidden layers with architecture: n_vars -> h1 -> h2 -> 1
     Total params ≈ n_vars*h1 + h1*h2 + h2
     
+    If the initial computation still exceeds the target parameters by >20%,
+    the function scales down both hidden layers proportionally to meet the target.
+    
     Parameters
     ----------
     n_vars : int
@@ -132,9 +135,9 @@ def compute_backdrive_hidden_dims(n_vars: int, selection_size: int) -> List[int]
     # Calculate actual parameters
     actual_params = n_vars * h1 + h1 * h2 + h2
     
-    # If we're still too large, reduce further
-    if actual_params > target_params * 1.2:  # Allow 20% tolerance
-        # Scale down proportionally
+    # If we're still too large, scale down proportionally
+    # Allow 20% tolerance above target
+    if actual_params > target_params * 1.2:
         scale = np.sqrt(target_params / actual_params)
         h1 = max(8, int(h1 * scale))
         h2 = max(4, int(h2 * scale))

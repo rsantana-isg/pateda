@@ -41,6 +41,9 @@ from pateda.learning.discrete_backdrive import (
     compute_backdrive_hidden_dims,
 )
 
+# Constants for numerical stability
+EPSILON = 1e-10  # Small constant to prevent division by zero
+
 
 def fitness_weighted_mse_loss(predictions: torch.Tensor, targets: torch.Tensor, 
                               fitness_values: torch.Tensor) -> torch.Tensor:
@@ -68,7 +71,7 @@ def fitness_weighted_mse_loss(predictions: torch.Tensor, targets: torch.Tensor,
     fitness_min = fitness_values.min()
     fitness_max = fitness_values.max()
     
-    if fitness_max - fitness_min < 1e-10:
+    if fitness_max - fitness_min < EPSILON:
         # All fitness values are the same, use uniform weights
         weights = torch.ones_like(fitness_values)
     else:

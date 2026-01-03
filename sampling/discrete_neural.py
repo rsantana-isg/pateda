@@ -310,6 +310,9 @@ def sample_discrete_backdrive(
     temperature_schedule = params.get('temperature_schedule', 'cosine')
     temperature_decay = params.get('temperature_decay', 0.99)
     # Remove Gumbel noise during optimization by default
+    # Rationale: Continuous Gumbel noise at every iteration introduces stochasticity that
+    # hinders convergence. Deterministic softmax provides cleaner gradients for optimization.
+    # Gumbel noise can still be enabled via parameter if needed for diversity.
     use_gumbel_noise = params.get('use_gumbel_noise', False)
     init_noise = params.get('init_noise', 0.1)
     bias_strength = params.get('bias_strength', 5.0)  # Strength of initialization bias
