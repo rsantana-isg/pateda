@@ -10,15 +10,6 @@ Usage:
     python demo_backdrive_fix.py
 """
 
-import sys
-import os
-
-# Add parent directory to path
-current_dir = os.path.dirname(os.path.abspath(__file__))
-parent_dir = os.path.dirname(current_dir)
-if parent_dir not in sys.path:
-    sys.path.insert(0, parent_dir)
-
 import numpy as np
 import torch
 
@@ -26,8 +17,8 @@ import torch
 np.random.seed(42)
 torch.manual_seed(42)
 
-# Import after path is set
-from examples.discrete_EDA import UnifiedDiscreteNeuralEDA
+# Import using package name (requires package to be installed or in PYTHONPATH)
+from pateda.examples.discrete_EDA import UnifiedDiscreteNeuralEDA
 
 def onemax(x):
     """Simple OneMax fitness function"""

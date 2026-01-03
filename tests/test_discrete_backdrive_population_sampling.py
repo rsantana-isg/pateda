@@ -9,11 +9,6 @@ population to remain unchanged across generations.
 import pytest
 import numpy as np
 import torch
-import sys
-import os
-
-# Add parent directory to path for imports
-sys.path.insert(0, os.path.dirname(os.path.dirname(os.path.dirname(os.path.abspath(__file__)))))
 
 from pateda.learning.discrete_backdrive import learn_binary_backdrive
 from pateda.learning.discrete_backdrive_weighted_mse import learn_binary_backdrive_weighted_mse
@@ -284,7 +279,7 @@ class TestDiscreteBacdriveEDAIntegration:
         np.random.seed(42)
         torch.manual_seed(42)
         
-        # Import the EDA class
+        # Import here to avoid issues when running standalone
         from pateda.examples.discrete_EDA import UnifiedDiscreteNeuralEDA
         
         # Simple OneMax fitness function
