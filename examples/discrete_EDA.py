@@ -58,7 +58,8 @@ from pateda.learning.discrete_dbd import learn_binary_dbd
 
 # Neural sampling modules
 from pateda.sampling.discrete_neural import (
-    sample_binary_vae, sample_binary_gan, sample_binary_backdrive
+    sample_binary_vae, sample_binary_gan, sample_binary_backdrive,
+    sample_binary_backdrive_adaptive
 )
 from pateda.sampling.dae import sample_dae
 from pateda.sampling.rbm import sample_softmax_rbm
@@ -325,7 +326,8 @@ class UnifiedDiscreteNeuralEDA:
         Parameters
         ----------
         method : str
-            Method: 'vae', 'gan', 'backdrive', 'dae', 'rbm', 'dbd'
+            Method: 'vae', 'gan', 'backdrive', 'backdrive_random', 'backdrive_perturb_best', 
+                    'backdrive_perturb_selected', 'backdrive_adaptive', 'dae', 'rbm', 'dbd'
         n_vars : int
             Number of variables
         cardinality : np.ndarray
@@ -362,6 +364,10 @@ class UnifiedDiscreteNeuralEDA:
             'vae': (learn_binary_vae, sample_binary_vae, False),
             'gan': (learn_binary_gan, sample_binary_gan, False),
             'backdrive': (learn_binary_backdrive, sample_binary_backdrive, False),
+            'backdrive_random': (learn_binary_backdrive, sample_binary_backdrive, False),
+            'backdrive_perturb_best': (learn_binary_backdrive, sample_binary_backdrive, False),
+            'backdrive_perturb_selected': (learn_binary_backdrive, sample_binary_backdrive, False),
+            'backdrive_adaptive': (learn_binary_backdrive, sample_binary_backdrive_adaptive, False),
             'dae': (learn_dae, sample_dae, False),
             'rbm': (learn_softmax_rbm, sample_softmax_rbm, True),  # Needs cardinality
             'dbd': (learn_binary_dbd, sample_binary_dbd, True),  # Needs two populations
@@ -437,8 +443,16 @@ class UnifiedDiscreteNeuralEDA:
                 else:
                     model = learn_fn(selected_pop, selected_fitness, self.learning_params)
 
+                # Prepare sampling parameters
+                sampling_params = self.sampling_params.copy()
+                
+                # For backdrive perturb methods, add current population and fitness
+                if self.method in ['backdrive_perturb_best', 'backdrive_perturb_selected', 'backdrive_adaptive']:
+                    sampling_params['current_population'] = population
+                    sampling_params['current_fitness'] = fitness
+                
                 # Sample new population
-                population = sample_fn(model, self.pop_size, self.sampling_params)
+                population = sample_fn(model, self.pop_size, sampling_params)
 
             except Exception as e:
                 if verbose:
@@ -637,6 +651,8 @@ def main():
         print()
         print("Supported algorithms:")
         print("  Neural EDAs: VAE, GAN, Backdrive, DAE, RBM, DbD")
+        print("  Backdrive variants: Backdrive-Random, Backdrive-PerturbBest,")
+        print("                      Backdrive-PerturbSelected, Backdrive-Adaptive")
         print("  Traditional EDAs: UMDA, TreeEDA, EBNA, MOA")
         print("  Markov EDAs: MN-FDA, MN-FDAG, MK-EDA1, MK-EDA2, MK-EDA3")
         print("  Mixture EDAs: MT-EDA2, MT-EDA3")
@@ -680,7 +696,8 @@ def main():
     print()
     
     # Determine if neural or traditional EDA
-    neural_edas = ['VAE', 'GAN', 'Backdrive', 'DAE', 'RBM', 'DbD']
+    neural_edas = ['VAE', 'GAN', 'Backdrive', 'Backdrive-Random', 'Backdrive-PerturbBest', 
+                   'Backdrive-PerturbSelected', 'Backdrive-Adaptive', 'DAE', 'RBM', 'DbD']
     traditional_edas = ['UMDA', 'TreeEDA', 'EBNA', 'MOA', 'MN-FDA', 'MN-FDAG',
                        'MK-EDA1', 'MK-EDA2', 'MK-EDA3', 'MT-EDA2', 'MT-EDA3']
     
@@ -692,6 +709,10 @@ def main():
             'VAE': 'vae',
             'GAN': 'gan',
             'Backdrive': 'backdrive',
+            'Backdrive-Random': 'backdrive_random',
+            'Backdrive-PerturbBest': 'backdrive_perturb_best',
+            'Backdrive-PerturbSelected': 'backdrive_perturb_selected',
+            'Backdrive-Adaptive': 'backdrive_adaptive',
             'DAE': 'dae',
             'RBM': 'rbm',
             'DbD': 'dbd',
@@ -716,6 +737,26 @@ def main():
                 'hidden_layers': [64, 32],
                 'batch_size': min(32, pop_size // 2),
             },
+            'backdrive_random': {
+                'epochs': 30,
+                'hidden_layers': [64, 32],
+                'batch_size': min(32, pop_size // 2),
+            },
+            'backdrive_perturb_best': {
+                'epochs': 30,
+                'hidden_layers': [64, 32],
+                'batch_size': min(32, pop_size // 2),
+            },
+            'backdrive_perturb_selected': {
+                'epochs': 30,
+                'hidden_layers': [64, 32],
+                'batch_size': min(32, pop_size // 2),
+            },
+            'backdrive_adaptive': {
+                'epochs': 30,
+                'hidden_layers': [64, 32],
+                'batch_size': min(32, pop_size // 2),
+            },
             'dae': {
                 'epochs': 30,
                 'hidden_dim': max(n_vars // 2, 10),
@@ -734,6 +775,39 @@ def main():
         }
         
         learning_params = params_map[method_id]
+        
+        # Configure sampling parameters specific to backdrive variants
+        sampling_params = {}
+        if method_id == 'backdrive_random':
+            sampling_params = {
+                'init_method': 'random',
+                'n_iterations': 100,
+                'learning_rate': 0.1,
+            }
+        elif method_id == 'backdrive_perturb_best':
+            sampling_params = {
+                'init_method': 'perturb_best',
+                'init_noise': 0.1,
+                'n_iterations': 100,
+                'learning_rate': 0.1,
+            }
+        elif method_id == 'backdrive_perturb_selected':
+            sampling_params = {
+                'init_method': 'perturb_selected',
+                'init_noise': 0.1,
+                'n_iterations': 100,
+                'learning_rate': 0.1,
+            }
+        elif method_id == 'backdrive_adaptive':
+            sampling_params = {
+                'init_method': 'perturb_best',
+                'init_noise': 0.1,
+                'n_iterations': 100,
+                'learning_rate': 0.1,
+                'target_levels': [100, 90, 80],
+                'level_fractions': [0.5, 0.3, 0.2],
+            }
+        
         cardinality = np.full(n_vars, 2)
         
         eda = UnifiedDiscreteNeuralEDA(
@@ -744,7 +818,7 @@ def main():
             selection_ratio=0.5,
             max_generations=n_gen,
             learning_params=learning_params,
-            sampling_params={},
+            sampling_params=sampling_params,
             random_seed=myseed,
         )
         
