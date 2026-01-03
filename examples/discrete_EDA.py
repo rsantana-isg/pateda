@@ -480,10 +480,11 @@ class UnifiedDiscreteNeuralEDA:
                 # Prepare sampling parameters
                 sampling_params = self.sampling_params.copy()
 
-                # For backdrive perturb methods, add current population and fitness
+                # For backdrive perturb methods, add selected population and fitness
+                # (not current population, as these methods initialize from best/selected solutions)
                 if self.method in self.methods_needing_current_pop:
-                    sampling_params['current_population'] = population
-                    sampling_params['current_fitness'] = fitness
+                    sampling_params['current_population'] = selected_pop
+                    sampling_params['current_fitness'] = selected_fitness
 
                 # Sample new population based on method
                 if self.method in ['dbd_cs', 'dbd_us']:
