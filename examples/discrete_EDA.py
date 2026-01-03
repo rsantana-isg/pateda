@@ -61,6 +61,8 @@ from pateda.learning.discrete_dbd import (
     learn_binary_dbd, learn_binary_dbd_cs, learn_binary_dbd_cd,
     learn_binary_dbd_uc, learn_binary_dbd_us
 )
+from pateda.learning.discrete_dendiff_gumbel import learn_discrete_dendiff_gumbel
+from pateda.learning.discrete_dendiff_corruption import learn_discrete_dendiff_corruption
 
 # Neural sampling modules
 from pateda.sampling.discrete_neural import (
@@ -72,6 +74,9 @@ from pateda.sampling.rbm import sample_softmax_rbm
 from pateda.sampling.discrete_dbd import (
     sample_binary_dbd, sample_binary_dbd_cs, sample_binary_dbd_cd,
     sample_binary_dbd_uc, sample_binary_dbd_us
+)
+from pateda.sampling.discrete_dendiff import (
+    sample_discrete_dendiff_gumbel, sample_discrete_dendiff_corruption
 )
 
 # Traditional EDA modules
@@ -389,6 +394,8 @@ class UnifiedDiscreteNeuralEDA:
             'dbd_cd': (learn_binary_dbd_cd, sample_binary_dbd_cd, True, 'cd'),  # Current to Distance
             'dbd_uc': (learn_binary_dbd_uc, sample_binary_dbd_uc, True, 'uc'),  # Univariate to Current
             'dbd_us': (learn_binary_dbd_us, sample_binary_dbd_us, True, 'us'),  # Univariate to Selected
+            'dendiff_gumbel': (learn_discrete_dendiff_gumbel, sample_discrete_dendiff_gumbel, False, None),
+            'dendiff_corruption': (learn_discrete_dendiff_corruption, sample_discrete_dendiff_corruption, False, None),
         }
         
         # Methods that need current population for initialization
@@ -700,6 +707,7 @@ def main():
         print("  Backdrive variants: Backdrive-Random, Backdrive-PerturbBest,")
         print("                      Backdrive-PerturbSelected, Backdrive-Adaptive")
         print("  DbD variants: DbD-CS, DbD-CD, DbD-UC, DbD-US")
+        print("  Dendiff variants: Dendiff-Gumbel, Dendiff-Corruption")
         print("  Traditional EDAs: UMDA, TreeEDA, EBNA, MOA")
         print("  Markov EDAs: MN-FDA, MN-FDAG, MK-EDA1, MK-EDA2, MK-EDA3")
         print("  Mixture EDAs: MT-EDA2, MT-EDA3")
@@ -746,7 +754,7 @@ def main():
     neural_edas = ['VAE', 'VAE-Extended', 'GAN', 'Backdrive', 'Backdrive-Random', 'Backdrive-PerturbBest',
                    'Backdrive-PerturbSelected', 'Backdrive-Adaptive', 'Backdrive-WeightedMSE',
                    'Backdrive-Ranking', 'Backdrive-Huber', 'DAE', 'RBM', 'DbD',
-                   'DbD-CS', 'DbD-CD', 'DbD-UC', 'DbD-US']
+                   'DbD-CS', 'DbD-CD', 'DbD-UC', 'DbD-US', 'Dendiff-Gumbel', 'Dendiff-Corruption']
     traditional_edas = ['UMDA', 'TreeEDA', 'EBNA', 'MOA', 'MN-FDA', 'MN-FDAG',
                        'MK-EDA1', 'MK-EDA2', 'MK-EDA3', 'MT-EDA2', 'MT-EDA3']
     
@@ -773,6 +781,8 @@ def main():
             'DbD-CD': 'dbd_cd',
             'DbD-UC': 'dbd_uc',
             'DbD-US': 'dbd_us',
+            'Dendiff-Gumbel': 'dendiff_gumbel',
+            'Dendiff-Corruption': 'dendiff_corruption',
         }
         
         method_id = method_map[alg]
@@ -880,6 +890,31 @@ def main():
                 'hidden_dims': [16, 8],
                 'num_alpha_samples': 20,
                 'to_take': pop_size * 4,  # Increased training pairs
+            },
+            'dendiff_gumbel': {
+                'epochs': 50,
+                'n_timesteps': 100,  # Number of diffusion steps
+                'beta_schedule': 'linear',
+                'beta_start': 0.0001,
+                'beta_end': 0.3,  # Max bit-flip probability
+                'hidden_dims': [32, 16],  # Smaller to prevent overfitting
+                'time_emb_dim': 16,
+                'batch_size': min(16, pop_size // 4),
+                'learning_rate': 1e-3,
+                'temperature': 1.0,
+                'temperature_decay': 0.99,
+                'min_temperature': 0.5,
+            },
+            'dendiff_corruption': {
+                'epochs': 50,
+                'n_timesteps': 50,  # Fewer steps for corruption approach
+                'schedule': 'linear',
+                'corruption_start': 0.01,
+                'corruption_end': 0.5,
+                'hidden_dims': [32, 16],
+                'time_emb_dim': 16,
+                'batch_size': min(16, pop_size // 4),
+                'learning_rate': 1e-3,
             },
         }
         
