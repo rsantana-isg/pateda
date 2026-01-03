@@ -280,6 +280,7 @@ def sample_discrete_backdrive(
         - 'temperature': Gumbel-Softmax temperature (default: 1.0)
         - 'temperature_decay': temperature decay per iteration (default: 0.99)
         - 'init_noise': noise level for perturbation methods (default: 0.1)
+        - 'bias_strength': strength of initialization bias for perturb methods (default: 5.0)
         - 'current_population': current population for perturb methods (required for 'perturb_best', 'perturb_selected')
         - 'current_fitness': current fitness for perturb methods (required for 'perturb_best', 'perturb_selected')
 
@@ -297,6 +298,7 @@ def sample_discrete_backdrive(
     temperature = params.get('temperature', 1.0)
     temperature_decay = params.get('temperature_decay', 0.99)
     init_noise = params.get('init_noise', 0.1)
+    bias_strength = params.get('bias_strength', 5.0)  # Strength of initialization bias
 
     # Reconstruct network
     n_vars = model['n_vars']
@@ -340,7 +342,10 @@ def sample_discrete_backdrive(
             card = int(cardinality[i])
             # Set logit for the best solution's value high
             value = int(best_solution[i])
-            logits[:, i, value] = 5.0  # High logit for best value
+            # Validate value is within valid range
+            if value < 0 or value >= card:
+                raise ValueError(f"Invalid value {value} for variable {i} with cardinality {card}")
+            logits[:, i, value] = bias_strength  # High logit for best value
             # Add noise to all logits
             logits[:, i, :card] += torch.randn(n_samples, card) * init_noise
     
@@ -367,7 +372,10 @@ def sample_discrete_backdrive(
             card = int(cardinality[i])
             for j in range(n_samples):
                 value = int(repeated[j, i])
-                logits[j, i, value] = 5.0  # High logit for selected value
+                # Validate value is within valid range
+                if value < 0 or value >= card:
+                    raise ValueError(f"Invalid value {value} for variable {i} with cardinality {card}")
+                logits[j, i, value] = bias_strength  # High logit for selected value
                 # Add noise to all logits
                 logits[j, i, :card] += torch.randn(card) * init_noise
     
@@ -517,7 +525,6 @@ def sample_discrete_backdrive_adaptive(
         if n_samples_level > 0:
             # Create params for this level
             level_params = params.copy()
-            level_params['n_samples'] = n_samples_level
             
             # For discrete backdrive, we interpret target levels as initialization diversity
             # Higher target level = more focused initialization (if using perturb methods)
