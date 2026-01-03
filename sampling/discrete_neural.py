@@ -276,9 +276,13 @@ def sample_discrete_backdrive(
         Sampling parameters:
         - 'n_iterations': optimization iterations (default: 100)
         - 'learning_rate': optimization learning rate (default: 0.1)
-        - 'init_method': initialization method: 'random', 'uniform' (default: 'random')
+        - 'init_method': initialization method: 'random', 'uniform', 'perturb_best', 'perturb_selected' (default: 'random')
         - 'temperature': Gumbel-Softmax temperature (default: 1.0)
         - 'temperature_decay': temperature decay per iteration (default: 0.99)
+        - 'init_noise': noise level for perturbation methods (default: 0.1)
+        - 'bias_strength': strength of initialization bias for perturb methods (default: 5.0)
+        - 'current_population': current population for perturb methods (required for 'perturb_best', 'perturb_selected')
+        - 'current_fitness': current fitness for perturb methods (required for 'perturb_best', 'perturb_selected')
 
     Returns
     -------
@@ -293,6 +297,8 @@ def sample_discrete_backdrive(
     init_method = params.get('init_method', 'random')
     temperature = params.get('temperature', 1.0)
     temperature_decay = params.get('temperature_decay', 0.99)
+    init_noise = params.get('init_noise', 0.1)
+    bias_strength = params.get('bias_strength', 5.0)  # Strength of initialization bias
 
     # Reconstruct network
     n_vars = model['n_vars']
@@ -318,8 +324,63 @@ def sample_discrete_backdrive(
         for i in range(n_vars):
             card = int(cardinality[i])
             logits[:, i, :card] = 0.0  # Uniform logits
+    elif init_method == 'perturb_best':
+        # Initialize from best solution with perturbations
+        current_population = params.get('current_population')
+        current_fitness = params.get('current_fitness')
+        
+        if current_population is None or current_fitness is None:
+            raise ValueError("'perturb_best' requires 'current_population' and 'current_fitness' in params")
+        
+        # Find best solution
+        best_idx = np.argmax(current_fitness.flatten())
+        best_solution = current_population[best_idx]
+        
+        # Convert best solution to one-hot logits
+        logits = torch.zeros(n_samples, n_vars, int(np.max(cardinality)))
+        for i in range(n_vars):
+            card = int(cardinality[i])
+            # Set logit for the best solution's value high
+            value = int(best_solution[i])
+            # Validate value is within valid range
+            if value < 0 or value >= card:
+                raise ValueError(f"Invalid value {value} for variable {i} with cardinality {card}")
+            logits[:, i, value] = bias_strength  # High logit for best value
+            # Add noise to all logits
+            logits[:, i, :card] += torch.randn(n_samples, card) * init_noise
+    
+    elif init_method == 'perturb_selected':
+        # Initialize from top solutions with perturbations
+        current_population = params.get('current_population')
+        current_fitness = params.get('current_fitness')
+        
+        if current_population is None or current_fitness is None:
+            raise ValueError("'perturb_selected' requires 'current_population' and 'current_fitness' in params")
+        
+        # Select top solutions
+        n_select = min(n_samples, len(current_population) // 2)
+        top_indices = np.argsort(current_fitness.flatten())[-n_select:]
+        selected_solutions = current_population[top_indices]
+        
+        # Replicate and perturb
+        n_copies = n_samples // n_select + 1
+        repeated = np.tile(selected_solutions, (n_copies, 1))[:n_samples]
+        
+        # Convert to one-hot logits with noise
+        logits = torch.zeros(n_samples, n_vars, int(np.max(cardinality)))
+        for i in range(n_vars):
+            card = int(cardinality[i])
+            for j in range(n_samples):
+                value = int(repeated[j, i])
+                # Validate value is within valid range
+                if value < 0 or value >= card:
+                    raise ValueError(f"Invalid value {value} for variable {i} with cardinality {card}")
+                logits[j, i, value] = bias_strength  # High logit for selected value
+                # Add noise to all logits
+                logits[j, i, :card] += torch.randn(card) * init_noise
+    
     else:
-        # Random initialization
+        # Random initialization (default)
         logits = torch.randn(n_samples, n_vars, int(np.max(cardinality))) * 0.1
 
     logits.requires_grad = True
@@ -403,3 +464,120 @@ def sample_binary_backdrive(
         Binary samples of shape (n_samples, n_vars)
     """
     return sample_discrete_backdrive(model, n_samples, params)
+
+
+def sample_discrete_backdrive_adaptive(
+    model: Dict[str, Any],
+    n_samples: int,
+    params: Optional[Dict[str, Any]] = None
+) -> np.ndarray:
+    """
+    Adaptive discrete backdrive sampling with multiple target fitness levels.
+
+    This variant samples solutions targeting different fitness levels to maintain
+    diversity while still focusing on high-fitness regions. It works by running
+    multiple backdrive sampling operations with different target fitness percentiles.
+
+    Parameters
+    ----------
+    model : dict
+        Model dictionary from learn_discrete_backdrive
+    n_samples : int
+        Number of samples to generate
+    params : dict, optional
+        Sampling parameters (extends sample_discrete_backdrive parameters):
+        - 'target_levels': list of target fitness percentiles to sample from (default: [100, 90, 80])
+        - 'level_fractions': fraction of samples per level (default: [0.5, 0.3, 0.2])
+        - All other parameters from sample_discrete_backdrive
+
+    Returns
+    -------
+    samples : np.ndarray
+        Discrete samples of shape (n_samples, n_vars) with diverse fitness targets
+
+    Notes
+    -----
+    This method helps maintain exploration by targeting multiple fitness levels
+    rather than only the absolute best, which can help avoid premature convergence.
+    
+    Note: For discrete problems, target fitness levels don't have the same direct
+    interpretation as in continuous optimization since we're optimizing discrete
+    categorical logits. The approach still provides diversity by starting from
+    different initial configurations.
+    """
+    if params is None:
+        params = {}
+
+    n_samples_total = n_samples
+    target_levels = params.get('target_levels', [100, 90, 80])
+    level_fractions = params.get('level_fractions', [0.5, 0.3, 0.2])
+
+    # Normalize fractions
+    level_fractions = np.array(level_fractions)
+    level_fractions = level_fractions / level_fractions.sum()
+
+    # Generate samples for each target level
+    all_solutions = []
+
+    for target_level, fraction in zip(target_levels, level_fractions):
+        n_samples_level = int(n_samples_total * fraction)
+
+        if n_samples_level > 0:
+            # Create params for this level
+            level_params = params.copy()
+            
+            # For discrete backdrive, we interpret target levels as initialization diversity
+            # Higher target level = more focused initialization (if using perturb methods)
+            # Lower target level = more diverse/random initialization
+            if target_level < 100:
+                # Add more noise for lower target levels to increase diversity
+                if 'init_noise' in level_params:
+                    level_params['init_noise'] = level_params['init_noise'] * (1.0 + (100 - target_level) / 100.0)
+
+            # Sample
+            solutions = sample_discrete_backdrive(model, n_samples_level, level_params)
+            all_solutions.append(solutions)
+
+    # Concatenate all solutions
+    if len(all_solutions) > 0:
+        all_solutions = np.vstack(all_solutions)
+    else:
+        # Fallback to single sample if no levels generated samples
+        return sample_discrete_backdrive(model, n_samples_total, params)
+
+    # If we have more or fewer samples than needed due to rounding, adjust
+    if len(all_solutions) > n_samples_total:
+        all_solutions = all_solutions[:n_samples_total]
+    elif len(all_solutions) < n_samples_total:
+        # Fill remaining with top-level samples
+        n_remaining = n_samples_total - len(all_solutions)
+        extra_params = params.copy()
+        extra_solutions = sample_discrete_backdrive(model, n_remaining, extra_params)
+        all_solutions = np.vstack([all_solutions, extra_solutions])
+
+    return all_solutions
+
+
+def sample_binary_backdrive_adaptive(
+    model: Dict[str, Any],
+    n_samples: int,
+    params: Optional[Dict[str, Any]] = None
+) -> np.ndarray:
+    """
+    Adaptive binary backdrive sampling (simplified interface)
+
+    Parameters
+    ----------
+    model : dict
+        Model dictionary from learn_binary_backdrive
+    n_samples : int
+        Number of samples
+    params : dict, optional
+        Sampling parameters (same as sample_discrete_backdrive_adaptive)
+
+    Returns
+    -------
+    samples : np.ndarray
+        Binary samples of shape (n_samples, n_vars)
+    """
+    return sample_discrete_backdrive_adaptive(model, n_samples, params)
