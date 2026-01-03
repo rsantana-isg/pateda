@@ -445,8 +445,14 @@ class UnifiedDiscreteNeuralEDA:
                         current_pop = np.random.randint(0, self.cardinality,
                                                       (len(selected_pop), self.n_vars))
                     else:
-                        # Use previous population as current
-                        current_pop = prev_population
+                        # Sample from previous population to match selected population size
+                        # This ensures p0 and p1 have the same size for blending
+                        n_to_sample = len(selected_pop)
+                        if len(prev_population) >= n_to_sample:
+                            indices = np.random.choice(len(prev_population), n_to_sample, replace=False)
+                        else:
+                            indices = np.random.choice(len(prev_population), n_to_sample, replace=True)
+                        current_pop = prev_population[indices]
 
                     # Learn model with current and selected populations
                     model = learn_fn(current_pop, selected_pop, self.learning_params)
