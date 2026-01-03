@@ -266,7 +266,7 @@ def create_blended_binary_samples(
     Returns:
         alpha: Alpha values [n_total, 1]
         x_blended: Blended samples [n_total, n_vars]
-        x1_target: Target samples [n_total, n_vars]
+        diff_target: Difference (x1 - x0) [n_total, n_vars]
     """
     n, m = p0.shape
 
@@ -282,12 +282,16 @@ def create_blended_binary_samples(
     prob_1 = (1 - alpha) * x0 + alpha * x1
     x_blended = (np.random.rand(n * num_alpha_samples, m) < prob_1).astype(float)
 
+    # CRITICAL FIX: Target is now the DIFFERENCE (x1 - x0)
+    # This matches continuous DbD formulation where network learns velocity/direction
+    diff_target = x1 - x0  # Values in {-1, 0, 1} for binary variables
+
     # Convert to tensors
     alpha_tensor = torch.FloatTensor(alpha)
     x_blended_tensor = torch.FloatTensor(x_blended)
-    x1_tensor = torch.FloatTensor(x1)
+    diff_tensor = torch.FloatTensor(diff_target)
 
-    return alpha_tensor, x_blended_tensor, x1_tensor
+    return alpha_tensor, x_blended_tensor, diff_tensor
 
 
 def create_blended_categorical_samples(
@@ -376,13 +380,13 @@ def learn_binary_dbd(
         p1: Target distribution samples [n_samples, n_vars] (binary)
         params: Training parameters:
             - 'hidden_dims': hidden layer dimensions
-              (default: computed from n_vars and n_samples)
+              (default: [16, 8] - reduced to prevent overfitting)
             - 'list_act_functs': list of activation functions for hidden layers
             - 'list_init_functs': list of initialization functions for hidden layers
             - 'epochs': training epochs (default: 100)
             - 'batch_size': batch size (default: max(8, n_vars/50))
             - 'learning_rate': learning rate (default: 0.001)
-            - 'num_alpha_samples': alpha samples per pair (default: 10)
+            - 'num_alpha_samples': alpha samples per pair (default: 20)
 
     Returns:
         model: Model dictionary
@@ -393,8 +397,10 @@ def learn_binary_dbd(
     n_samples = p1.shape[0]
     n_vars = p0.shape[1]
 
-    # Compute defaults based on input dimensions
-    default_hidden_dims = compute_default_hidden_dims(n_vars, n_samples)
+    # CRITICAL FIX: Smaller default network to prevent overfitting
+    # Old default [64, 32] had ~5000 parameters for 30 vars
+    # New default [16, 8] has ~700 parameters
+    default_hidden_dims = [max(16, n_vars // 2), max(8, n_vars // 4)]
     default_batch_size = compute_default_batch_size(n_vars, n_samples)
 
     # Extract parameters with new defaults
@@ -402,21 +408,27 @@ def learn_binary_dbd(
     epochs = params.get('epochs', 100)
     batch_size = params.get('batch_size', default_batch_size)
     learning_rate = params.get('learning_rate', 0.001)
-    num_alpha_samples = params.get('num_alpha_samples', 10)
+    # CRITICAL FIX: Increase training data from 10 to 20 alpha samples
+    num_alpha_samples = params.get('num_alpha_samples', 20)
 
     # Extract activation and initialization function lists
     list_act_functs = params.get('list_act_functs', None)
     list_init_functs = params.get('list_init_functs', None)
 
     # Create training dataset
-    alpha, x_blended, x1_target = create_blended_binary_samples(
+    # CRITICAL FIX: Now returns difference (x1-x0) instead of x1
+    alpha, x_blended, diff_target = create_blended_binary_samples(
         p0, p1, num_alpha_samples
     )
 
     # Create network
     network = BinaryDeblendingNet(n_vars, hidden_dims)
     optimizer = optim.Adam(network.parameters(), lr=learning_rate)
-    criterion = nn.BCEWithLogitsLoss()
+
+    # CRITICAL FIX: Use MSE loss for regression to difference
+    # Old: BCEWithLogitsLoss (for classification)
+    # New: MSELoss (for regression to velocity/direction)
+    criterion = nn.MSELoss()
 
     # Training
     network.train()
@@ -431,13 +443,13 @@ def learn_binary_dbd(
             idx = perm[i:i+batch_size]
             batch_alpha = alpha[idx]
             batch_x = x_blended[idx]
-            batch_target = x1_target[idx]
+            batch_diff_target = diff_target[idx]
 
-            # Predict target distribution
-            logits = network(batch_x, batch_alpha)
+            # Predict difference (x1 - x0)
+            predicted_diff = network(batch_x, batch_alpha)
 
-            # Loss: predict x1 from blended sample
-            loss = criterion(logits, batch_target)
+            # Loss: predict difference from blended sample
+            loss = criterion(predicted_diff, batch_diff_target)
 
             optimizer.zero_grad()
             loss.backward()
