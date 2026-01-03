@@ -52,6 +52,9 @@ import warnings
 from pateda.learning.discrete_vae import learn_binary_vae
 from pateda.learning.discrete_gan import learn_binary_gan
 from pateda.learning.discrete_backdrive import learn_binary_backdrive
+from pateda.learning.discrete_backdrive_weighted_mse import learn_binary_backdrive_weighted_mse
+from pateda.learning.discrete_backdrive_ranking import learn_binary_backdrive_ranking
+from pateda.learning.discrete_backdrive_huber import learn_binary_backdrive_huber
 from pateda.learning.dae import learn_dae
 from pateda.learning.rbm import learn_softmax_rbm
 from pateda.learning.discrete_dbd import (
@@ -375,6 +378,9 @@ class UnifiedDiscreteNeuralEDA:
             'backdrive_perturb_best': (learn_binary_backdrive, sample_binary_backdrive, False, None),
             'backdrive_perturb_selected': (learn_binary_backdrive, sample_binary_backdrive, False, None),
             'backdrive_adaptive': (learn_binary_backdrive, sample_binary_backdrive_adaptive, False, None),
+            'backdrive_weighted_mse': (learn_binary_backdrive_weighted_mse, sample_binary_backdrive, False, None),
+            'backdrive_ranking': (learn_binary_backdrive_ranking, sample_binary_backdrive, False, None),
+            'backdrive_huber': (learn_binary_backdrive_huber, sample_binary_backdrive, False, None),
             'dae': (learn_dae, sample_dae, False, None),
             'rbm': (learn_softmax_rbm, sample_softmax_rbm, True, None),  # Needs cardinality
             'dbd': (learn_binary_dbd, sample_binary_dbd, True, None),  # Needs two populations
@@ -467,7 +473,8 @@ class UnifiedDiscreteNeuralEDA:
                 sampling_params = self.sampling_params.copy()
 
                 # For backdrive perturb methods, add current population and fitness
-                if self.method in ['backdrive_perturb_best', 'backdrive_perturb_selected', 'backdrive_adaptive']:
+                if self.method in ['backdrive_perturb_best', 'backdrive_perturb_selected', 'backdrive_adaptive',
+                                   'backdrive_weighted_mse', 'backdrive_ranking', 'backdrive_huber']:
                     sampling_params['current_population'] = population
                     sampling_params['current_fitness'] = fitness
 
@@ -729,7 +736,8 @@ def main():
     
     # Determine if neural or traditional EDA
     neural_edas = ['VAE', 'GAN', 'Backdrive', 'Backdrive-Random', 'Backdrive-PerturbBest',
-                   'Backdrive-PerturbSelected', 'Backdrive-Adaptive', 'DAE', 'RBM', 'DbD',
+                   'Backdrive-PerturbSelected', 'Backdrive-Adaptive', 'Backdrive-WeightedMSE',
+                   'Backdrive-Ranking', 'Backdrive-Huber', 'DAE', 'RBM', 'DbD',
                    'DbD-CS', 'DbD-CD', 'DbD-UC', 'DbD-US']
     traditional_edas = ['UMDA', 'TreeEDA', 'EBNA', 'MOA', 'MN-FDA', 'MN-FDAG',
                        'MK-EDA1', 'MK-EDA2', 'MK-EDA3', 'MT-EDA2', 'MT-EDA3']
@@ -746,6 +754,9 @@ def main():
             'Backdrive-PerturbBest': 'backdrive_perturb_best',
             'Backdrive-PerturbSelected': 'backdrive_perturb_selected',
             'Backdrive-Adaptive': 'backdrive_adaptive',
+            'Backdrive-WeightedMSE': 'backdrive_weighted_mse',
+            'Backdrive-Ranking': 'backdrive_ranking',
+            'Backdrive-Huber': 'backdrive_huber',
             'DAE': 'dae',
             'RBM': 'rbm',
             'DbD': 'dbd',
@@ -771,27 +782,35 @@ def main():
             },
             'backdrive': {
                 'epochs': 30,
-                'hidden_layers': [64, 32],
+                # Remove fixed hidden_layers to use dynamic computation
                 'batch_size': min(32, pop_size // 2),
             },
             'backdrive_random': {
                 'epochs': 30,
-                'hidden_layers': [64, 32],
                 'batch_size': min(32, pop_size // 2),
             },
             'backdrive_perturb_best': {
                 'epochs': 30,
-                'hidden_layers': [64, 32],
                 'batch_size': min(32, pop_size // 2),
             },
             'backdrive_perturb_selected': {
                 'epochs': 30,
-                'hidden_layers': [64, 32],
                 'batch_size': min(32, pop_size // 2),
             },
             'backdrive_adaptive': {
                 'epochs': 30,
-                'hidden_layers': [64, 32],
+                'batch_size': min(32, pop_size // 2),
+            },
+            'backdrive_weighted_mse': {
+                'epochs': 30,
+                'batch_size': min(32, pop_size // 2),
+            },
+            'backdrive_ranking': {
+                'epochs': 30,
+                'batch_size': min(32, pop_size // 2),
+            },
+            'backdrive_huber': {
+                'epochs': 30,
                 'batch_size': min(32, pop_size // 2),
             },
             'dae': {
@@ -845,30 +864,35 @@ def main():
             sampling_params = {
                 'init_method': 'random',
                 'n_iterations': 100,
-                'learning_rate': 0.1,
+                # Use new improved defaults (learning_rate, gradient_clip, temperature, etc.)
+                # are now set in sampling function
             }
         elif method_id == 'backdrive_perturb_best':
             sampling_params = {
                 'init_method': 'perturb_best',
                 'init_noise': 0.1,
                 'n_iterations': 100,
-                'learning_rate': 0.1,
             }
         elif method_id == 'backdrive_perturb_selected':
             sampling_params = {
                 'init_method': 'perturb_selected',
                 'init_noise': 0.1,
                 'n_iterations': 100,
-                'learning_rate': 0.1,
             }
         elif method_id == 'backdrive_adaptive':
             sampling_params = {
                 'init_method': 'perturb_best',
                 'init_noise': 0.1,
                 'n_iterations': 100,
-                'learning_rate': 0.1,
                 'target_levels': [100, 90, 80],
                 'level_fractions': [0.5, 0.3, 0.2],
+            }
+        elif method_id in ['backdrive_weighted_mse', 'backdrive_ranking', 'backdrive_huber']:
+            # New loss function variants use same sampling as standard backdrive
+            sampling_params = {
+                'init_method': 'perturb_best',
+                'init_noise': 0.1,
+                'n_iterations': 100,
             }
         
         cardinality = np.full(n_vars, 2)
