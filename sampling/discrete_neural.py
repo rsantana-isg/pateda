@@ -263,22 +263,26 @@ def sample_discrete_backdrive(
     """
     Sample from Discrete Backdrive model via network inversion
 
-    Generates solutions by optimizing continuous relaxations to maximize
-    predicted fitness, then projecting back to discrete values.
+    Uses gradient-based optimization in continuous relaxation space (Gumbel-Softmax)
+    to find solutions that maximize predicted fitness, then projects to discrete values.
 
     Parameters
     ----------
     model : dict
         Model dictionary from learn_discrete_backdrive
     n_samples : int
-        Number of samples
+        Number of samples to generate
     params : dict, optional
         Sampling parameters:
-        - 'n_iterations': optimization iterations (default: 100)
-        - 'learning_rate': optimization learning rate (default: 0.1)
-        - 'init_method': initialization method: 'random', 'uniform', 'perturb_best', 'perturb_selected' (default: 'random')
-        - 'temperature': Gumbel-Softmax temperature (default: 1.0)
-        - 'temperature_decay': temperature decay per iteration (default: 0.99)
+        - 'n_iterations': number of optimization iterations (default: 100)
+        - 'learning_rate': learning rate for optimization (default: 0.01)
+        - 'gradient_clip': gradient clipping max_norm (default: 1.0)
+        - 'init_method': initialization method - 'random', 'uniform', 'perturb_best', 'perturb_selected' (default: 'random')
+        - 'temperature': initial Gumbel-Softmax temperature (default: 2.0)
+        - 'temperature_min': minimum temperature (default: 0.1)
+        - 'temperature_schedule': 'cosine' or 'exponential' (default: 'cosine')
+        - 'temperature_decay': temperature decay for exponential schedule (default: 0.99)
+        - 'use_gumbel_noise': whether to use Gumbel noise during optimization (default: False)
         - 'init_noise': noise level for perturbation methods (default: 0.1)
         - 'bias_strength': strength of initialization bias for perturb methods (default: 5.0)
         - 'current_population': current population for perturb methods (required for 'perturb_best', 'perturb_selected')
@@ -293,10 +297,20 @@ def sample_discrete_backdrive(
         params = {}
 
     n_iterations = params.get('n_iterations', 100)
-    learning_rate = params.get('learning_rate', 0.1)
+    # Reduced learning rate from 0.1 to 0.01
+    learning_rate = params.get('learning_rate', 0.01)
+    # Add gradient clipping
+    gradient_clip = params.get('gradient_clip', 1.0)
     init_method = params.get('init_method', 'random')
-    temperature = params.get('temperature', 1.0)
+    # Increased initial temperature from 1.0 to 2.0
+    temperature = params.get('temperature', 2.0)
+    # Add minimum temperature
+    temperature_min = params.get('temperature_min', 0.1)
+    # Add temperature schedule option
+    temperature_schedule = params.get('temperature_schedule', 'cosine')
     temperature_decay = params.get('temperature_decay', 0.99)
+    # Remove Gumbel noise during optimization by default
+    use_gumbel_noise = params.get('use_gumbel_noise', False)
     init_noise = params.get('init_noise', 0.1)
     bias_strength = params.get('bias_strength', 5.0)  # Strength of initialization bias
 
@@ -388,21 +402,35 @@ def sample_discrete_backdrive(
     # Optimizer
     optimizer = optim.Adam([logits], lr=learning_rate)
 
+    # Initial temperature for cosine annealing
     current_temp = temperature
 
     # Optimization loop
     for iteration in range(n_iterations):
         optimizer.zero_grad()
 
-        # Convert logits to soft samples using Gumbel-Softmax
+        # Compute current temperature based on schedule
+        if temperature_schedule == 'cosine':
+            # Cosine annealing: starts at temperature, ends at temperature_min
+            progress = iteration / n_iterations
+            current_temp = temperature_min + 0.5 * (temperature - temperature_min) * (1 + np.cos(np.pi * progress))
+        else:
+            # Exponential decay
+            current_temp = max(temperature_min, current_temp * temperature_decay)
+
+        # Convert logits to soft samples
         soft_samples = []
         for i in range(n_vars):
             card = int(cardinality[i])
             var_logits = logits[:, i, :card]
 
-            # Gumbel-Softmax
-            gumbel = -torch.log(-torch.log(torch.rand_like(var_logits) + 1e-20) + 1e-20)
-            soft_sample = F.softmax((var_logits + gumbel) / current_temp, dim=-1)
+            # Optionally add Gumbel noise (disabled by default per analysis)
+            if use_gumbel_noise:
+                gumbel = -torch.log(-torch.log(torch.rand_like(var_logits) + 1e-20) + 1e-20)
+                soft_sample = F.softmax((var_logits + gumbel) / current_temp, dim=-1)
+            else:
+                # Use deterministic softmax during optimization
+                soft_sample = F.softmax(var_logits / current_temp, dim=-1)
 
             # Get hard index
             hard_sample = torch.zeros_like(soft_sample)
@@ -425,10 +453,11 @@ def sample_discrete_backdrive(
         loss = -predicted_fitness.mean()
 
         loss.backward()
+        
+        # Apply gradient clipping
+        torch.nn.utils.clip_grad_norm_([logits], max_norm=gradient_clip)
+        
         optimizer.step()
-
-        # Decay temperature
-        current_temp = max(0.1, current_temp * temperature_decay)
 
     # Final sampling with hard discretization
     with torch.no_grad():

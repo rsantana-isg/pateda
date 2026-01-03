@@ -100,6 +100,48 @@ from pateda.learning.nn_utils import (
 )
 
 
+def compute_backdrive_hidden_dims(n_vars: int, selection_size: int) -> List[int]:
+    """
+    Compute hidden layer dimensions to avoid overfitting
+    
+    Rule: Total parameters should be ~4-5x the number of training samples
+    For two hidden layers with architecture: n_vars -> h1 -> h2 -> 1
+    Total params ≈ n_vars*h1 + h1*h2 + h2
+    
+    Parameters
+    ----------
+    n_vars : int
+        Number of variables
+    selection_size : int
+        Number of training samples (selected population size)
+    
+    Returns
+    -------
+    hidden_layers : List[int]
+        List of hidden layer sizes [h1, h2]
+    """
+    # Target total parameters = 4.5 * selection_size (middle of 4-5x range)
+    target_params = 4.5 * selection_size
+    
+    # Use two hidden layers with h1 larger than h2
+    # h1 = min(n_vars, selection_size)
+    # h2 = h1 // 2
+    h1 = min(n_vars, selection_size)
+    h2 = max(4, h1 // 2)
+    
+    # Calculate actual parameters
+    actual_params = n_vars * h1 + h1 * h2 + h2
+    
+    # If we're still too large, reduce further
+    if actual_params > target_params * 1.2:  # Allow 20% tolerance
+        # Scale down proportionally
+        scale = np.sqrt(target_params / actual_params)
+        h1 = max(8, int(h1 * scale))
+        h2 = max(4, int(h2 * scale))
+    
+    return [h1, h2]
+
+
 class DiscreteBackdriveNet(nn.Module):
     """
     Neural network for discrete backdrive with embeddings
@@ -110,12 +152,13 @@ class DiscreteBackdriveNet(nn.Module):
 
     def __init__(self, n_vars: int, cardinality: np.ndarray,
                  hidden_layers: list = None, use_embeddings: bool = True,
-                 embedding_dim: int = 8):
+                 embedding_dim: int = 8, dropout: float = 0.2):
         super(DiscreteBackdriveNet, self).__init__()
 
         self.n_vars = n_vars
         self.cardinality = cardinality
         self.use_embeddings = use_embeddings
+        self.dropout = dropout
 
         if hidden_layers is None:
             hidden_layers = [128, 64]
@@ -146,7 +189,7 @@ class DiscreteBackdriveNet(nn.Module):
         for hidden_dim in hidden_layers:
             layers.append(nn.Linear(prev_dim, hidden_dim))
             layers.append(nn.ReLU())
-            layers.append(nn.Dropout(0.2))
+            layers.append(nn.Dropout(self.dropout))
             prev_dim = hidden_dim
 
         # Output layer (single fitness value)
@@ -216,7 +259,7 @@ def learn_discrete_backdrive(
     params : dict, optional
         Training parameters:
         - 'hidden_layers': list of hidden layer sizes
-          (default: computed from n_vars and pop_size)
+          (default: computed dynamically to avoid overfitting)
         - 'list_act_functs': list of activation functions for hidden layers
         - 'list_init_functs': list of initialization functions for hidden layers
         - 'use_embeddings': use embedding layers (default: True if max(card)>2)
@@ -224,7 +267,8 @@ def learn_discrete_backdrive(
         - 'epochs': number of training epochs (default: 100)
         - 'batch_size': batch size (default: max(8, n_vars/50))
         - 'learning_rate': learning rate (default: 0.001)
-        - 'weight_decay': L2 regularization (default: 1e-5)
+        - 'weight_decay': L2 regularization (default: 1e-3)
+        - 'dropout': dropout rate (default: 0.45)
         - 'validation_split': validation fraction (default: 0.2)
         - 'early_stopping': enable early stopping (default: True)
         - 'patience': early stopping patience (default: 10)
@@ -241,7 +285,8 @@ def learn_discrete_backdrive(
     n_vars = population.shape[1]
 
     # Compute defaults based on input dimensions
-    default_hidden_dims = compute_default_hidden_dims(n_vars, pop_size)
+    # Use the new backdrive-specific hidden layer computation
+    default_hidden_dims = compute_backdrive_hidden_dims(n_vars, pop_size)
     default_batch_size = compute_default_batch_size(n_vars, pop_size)
 
     # Extract parameters with new defaults
@@ -251,7 +296,10 @@ def learn_discrete_backdrive(
     epochs = params.get('epochs', 100)
     batch_size = params.get('batch_size', default_batch_size)
     learning_rate = params.get('learning_rate', 0.001)
-    weight_decay = params.get('weight_decay', 1e-5)
+    # Increased weight_decay from 1e-5 to 1e-3 for stronger regularization
+    weight_decay = params.get('weight_decay', 1e-3)
+    # Increased dropout from 0.2 to 0.45 (middle of 0.4-0.5 range)
+    dropout = params.get('dropout', 0.45)
     validation_split = params.get('validation_split', 0.2)
     early_stopping = params.get('early_stopping', True)
     patience = params.get('patience', 10)
@@ -297,7 +345,7 @@ def learn_discrete_backdrive(
 
     # Create network
     network = DiscreteBackdriveNet(
-        n_vars, cardinality, hidden_layers, use_embeddings, embedding_dim
+        n_vars, cardinality, hidden_layers, use_embeddings, embedding_dim, dropout
     )
 
     # Loss and optimizer
