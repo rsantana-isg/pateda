@@ -49,6 +49,9 @@ def sample_binary_vae(
         Sampling parameters:
         - 'sample_from_prior': sample from N(0,I) vs encoding data (default: True)
         - 'temperature': temperature for sampling (default: 0.5)
+        - 'deterministic': use deterministic sampling (argmax) instead of random (default: False)
+        - 'use_fitness_guidance': use fitness predictor for E-VAE sampling (default: False)
+        - 'target_fitness': target fitness for guided sampling (default: None)
 
     Returns
     -------
@@ -60,6 +63,9 @@ def sample_binary_vae(
 
     sample_from_prior = params.get('sample_from_prior', True)
     temperature = params.get('temperature', 0.5)
+    deterministic = params.get('deterministic', False)
+    use_fitness_guidance = params.get('use_fitness_guidance', False)
+    target_fitness = params.get('target_fitness', None)
 
     # Reconstruct decoder
     latent_dim = model['latent_dim']
@@ -70,17 +76,40 @@ def sample_binary_vae(
     decoder.load_state_dict(model['decoder_state'])
     decoder.eval()
 
+    # For E-VAE, optionally use fitness predictor
+    fitness_predictor = None
+    if use_fitness_guidance and model.get('type') == 'binary_evae':
+        from pateda.learning.discrete_vae import FitnessPredictor
+        fitness_predictor = FitnessPredictor(latent_dim, 1, 32)
+        fitness_predictor.load_state_dict(model['fitness_predictor_state'])
+        fitness_predictor.eval()
+
     with torch.no_grad():
-        # Sample from prior
-        z = torch.randn(n_samples, latent_dim)
+        if use_fitness_guidance and fitness_predictor is not None and target_fitness is not None:
+            # Sample multiple latent codes and select based on fitness
+            n_candidates = n_samples * 10
+            z_candidates = torch.randn(n_candidates, latent_dim)
+            pred_fitness = fitness_predictor(z_candidates).squeeze()
+
+            # Select samples closest to target fitness
+            fitness_diff = torch.abs(pred_fitness - target_fitness)
+            _, top_indices = torch.topk(fitness_diff, n_samples, largest=False)
+            z = z_candidates[top_indices]
+        else:
+            # Standard sampling from prior
+            z = torch.randn(n_samples, latent_dim)
 
         # Decode
         logits = decoder(z)
         probs = torch.sigmoid(logits)
 
         # Sample binary values
-        # Use Bernoulli sampling
-        samples = torch.bernoulli(probs).numpy()
+        if deterministic:
+            # Deterministic sampling: use threshold at 0.5 for exploitation
+            samples = (probs > 0.5).float().numpy()
+        else:
+            # Stochastic sampling: use Bernoulli for exploration
+            samples = torch.bernoulli(probs).numpy()
 
     return samples.astype(int)
 

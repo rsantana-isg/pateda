@@ -372,6 +372,7 @@ class UnifiedDiscreteNeuralEDA:
         # Format: (learn_function, sample_function, needs_two_pops, variant)
         self.method_map = {
             'vae': (learn_binary_vae, sample_binary_vae, False, None),
+            'vae_extended': (learn_binary_vae, sample_binary_vae, False, 'extended'),  # E-VAE with fitness guidance
             'gan': (learn_binary_gan, sample_binary_gan, False, None),
             'backdrive': (learn_binary_backdrive, sample_binary_backdrive, False, None),
             'backdrive_random': (learn_binary_backdrive, sample_binary_backdrive, False, None),
@@ -694,7 +695,7 @@ def main():
         print("  FC2, FC3, FC4, FC5")
         print()
         print("Supported algorithms:")
-        print("  Neural EDAs: VAE, GAN, Backdrive, DAE, RBM, DbD")
+        print("  Neural EDAs: VAE, VAE-Extended, GAN, Backdrive, DAE, RBM, DbD")
         print("  Backdrive variants: Backdrive-Random, Backdrive-PerturbBest,")
         print("                      Backdrive-PerturbSelected, Backdrive-Adaptive")
         print("  DbD variants: DbD-CS, DbD-CD, DbD-UC, DbD-US")
@@ -741,7 +742,7 @@ def main():
     print()
     
     # Determine if neural or traditional EDA
-    neural_edas = ['VAE', 'GAN', 'Backdrive', 'Backdrive-Random', 'Backdrive-PerturbBest',
+    neural_edas = ['VAE', 'VAE-Extended', 'GAN', 'Backdrive', 'Backdrive-Random', 'Backdrive-PerturbBest',
                    'Backdrive-PerturbSelected', 'Backdrive-Adaptive', 'Backdrive-WeightedMSE',
                    'Backdrive-Ranking', 'Backdrive-Huber', 'DAE', 'RBM', 'DbD',
                    'DbD-CS', 'DbD-CD', 'DbD-UC', 'DbD-US']
@@ -754,6 +755,7 @@ def main():
         # Run neural EDA
         method_map = {
             'VAE': 'vae',
+            'VAE-Extended': 'vae_extended',
             'GAN': 'gan',
             'Backdrive': 'backdrive',
             'Backdrive-Random': 'backdrive_random',
@@ -780,6 +782,24 @@ def main():
                 'epochs': 30,
                 'latent_dim': max(2, n_vars // 4),
                 'batch_size': min(32, pop_size // 2),
+                # Dynamic hidden layers will be computed in learn_binary_vae
+                # Beta annealing enabled by default
+                'beta_start': 0.0,
+                'beta_end': 1.0,
+                'beta_annealing_epochs': 15,  # Half of epochs
+            },
+            'vae_extended': {
+                'epochs': 30,
+                'latent_dim': max(2, n_vars // 4),
+                'batch_size': min(32, pop_size // 2),
+                # Dynamic hidden layers will be computed in learn_binary_vae
+                # Beta annealing enabled by default
+                'beta_start': 0.0,
+                'beta_end': 1.0,
+                'beta_annealing_epochs': 15,  # Half of epochs
+                # Extended VAE specific parameters
+                'use_extended': True,
+                'fitness_weight': 0.1,
             },
             'gan': {
                 'epochs': 60,

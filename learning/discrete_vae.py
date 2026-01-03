@@ -355,9 +355,9 @@ def learn_binary_vae(
         Training parameters:
         - 'latent_dim': latent space dimension (default: max(2, n_vars/50))
         - 'hidden_dims_enc': encoder hidden dims
-          (default: computed from n_vars and pop_size)
+          (default: computed dynamically to prevent overfitting)
         - 'hidden_dims_dec': decoder hidden dims
-          (default: computed from n_vars and pop_size, reversed)
+          (default: computed dynamically, reversed)
         - 'list_act_functs_enc': list of activation functions for encoder
         - 'list_act_functs_dec': list of activation functions for decoder
         - 'list_init_functs_enc': list of initialization functions for encoder
@@ -365,7 +365,9 @@ def learn_binary_vae(
         - 'epochs': training epochs (default: 100)
         - 'batch_size': batch size (default: max(8, n_vars/50))
         - 'learning_rate': learning rate (default: 0.001)
-        - 'beta': KL divergence weight (default: 1.0)
+        - 'beta_start': initial KL weight for annealing (default: 0.0)
+        - 'beta_end': final KL weight for annealing (default: 1.0)
+        - 'beta_annealing_epochs': epochs for beta annealing (default: epochs // 2)
         - 'use_extended': use fitness predictor (E-VAE) (default: False)
         - 'fitness_weight': weight for fitness prediction loss (default: 0.1)
 
@@ -381,18 +383,34 @@ def learn_binary_vae(
     n_vars = population.shape[1]
 
     # Compute defaults based on input dimensions
-    default_hidden_dims = compute_default_hidden_dims(n_vars, pop_size)
     default_batch_size = compute_default_batch_size(n_vars, pop_size)
     default_latent_dim = compute_default_latent_dim(n_vars)
 
-    # Extract parameters with new defaults
+    # CRITICAL FIX: Dynamic hidden layer computation to prevent overfitting
+    # Target: params ≈ 4-5x training samples
+    # Two hidden layers: h1 = min(n_vars, selection_size), h2 computed dynamically
+    h1 = min(n_vars, pop_size)
+    # Estimate total params: (n_vars * h1) + (h1 * h2) + (h2 * latent_dim) + biases
+    # Simplified: approximately n_vars * h1 + h1 * h2 + h2 * latent_dim
+    # For target_params ≈ 4 * pop_size, solve for h2
     latent_dim = params.get('latent_dim', default_latent_dim)
+    target_params = 4.5 * pop_size
+    # h2 ≈ (target_params - n_vars * h1) / (h1 + latent_dim)
+    h2 = max(4, int((target_params - n_vars * h1) / (h1 + latent_dim)))
+    default_hidden_dims = [h1, h2]
+
+    # Extract parameters with new defaults
     hidden_dims_enc = params.get('hidden_dims_enc', default_hidden_dims)
     hidden_dims_dec = params.get('hidden_dims_dec', list(reversed(default_hidden_dims)))
     epochs = params.get('epochs', 100)
     batch_size = params.get('batch_size', default_batch_size)
     learning_rate = params.get('learning_rate', 0.001)
-    beta = params.get('beta', 1.0)
+
+    # Beta annealing parameters to prevent posterior collapse
+    beta_start = params.get('beta_start', 0.0)
+    beta_end = params.get('beta_end', 1.0)
+    beta_annealing_epochs = params.get('beta_annealing_epochs', epochs // 2)
+
     use_extended = params.get('use_extended', False)
     fitness_weight = params.get('fitness_weight', 0.1)
 
@@ -431,6 +449,12 @@ def learn_binary_vae(
         fitness_predictor.train()
 
     for epoch in range(epochs):
+        # Beta annealing to prevent posterior collapse
+        if epoch < beta_annealing_epochs:
+            beta = beta_start + (beta_end - beta_start) * (epoch / beta_annealing_epochs)
+        else:
+            beta = beta_end
+
         # Shuffle data
         perm = torch.randperm(len(data))
 
@@ -486,10 +510,10 @@ def learn_binary_vae(
             if use_extended:
                 avg_fit = epoch_fit_loss / n_batches
                 print(f"Epoch {epoch+1}/{epochs}: Loss={avg_loss:.4f}, "
-                      f"Recon={avg_recon:.4f}, KL={avg_kl:.4f}, Fit={avg_fit:.4f}")
+                      f"Recon={avg_recon:.4f}, KL={avg_kl:.4f}, Fit={avg_fit:.4f}, Beta={beta:.4f}")
             else:
                 print(f"Epoch {epoch+1}/{epochs}: Loss={avg_loss:.4f}, "
-                      f"Recon={avg_recon:.4f}, KL={avg_kl:.4f}")
+                      f"Recon={avg_recon:.4f}, KL={avg_kl:.4f}, Beta={beta:.4f}")
 
     # Return model
     model = {
