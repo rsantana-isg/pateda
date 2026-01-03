@@ -397,6 +397,7 @@ class UnifiedDiscreteNeuralEDA:
 
         best_fitness = np.max(fitness)
         best_solution = population[np.argmax(fitness)].copy()
+        generation_found = 0  # Track generation where best was found
 
         history = {'best_fitness': [best_fitness]}
 
@@ -453,11 +454,18 @@ class UnifiedDiscreteNeuralEDA:
             if gen_best > best_fitness:
                 best_fitness = gen_best
                 best_solution = population[np.argmax(fitness)].copy()
+                generation_found = gen + 1  # Update generation where best was found
 
             history['best_fitness'].append(best_fitness)
 
             if verbose and (gen + 1) % 10 == 0:
                 print(f"Generation {gen+1}: Best Fitness = {best_fitness:.4f}")
+
+        # Print completion summary (matching traditional EDA format)
+        if verbose:
+            print(f"\nEDA completed after {self.max_generations} generations")
+            print(f"Best fitness found: {best_fitness:.6f}")
+            print(f"  at generation {generation_found}")
 
         return best_fitness, best_solution, history
 
