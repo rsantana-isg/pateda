@@ -543,3 +543,233 @@ def learn_categorical_dbd(
     }
 
     return model
+
+
+# ==============================================================================
+# Helper Functions for DbD Variants
+# ==============================================================================
+
+def find_closest_neighbors_binary(
+    source_matrix: np.ndarray,
+    reference_matrix: np.ndarray
+) -> np.ndarray:
+    """
+    Find closest row in reference_matrix for each row in source_matrix
+    based on Hamming distance (for binary variables)
+
+    Parameters:
+    -----------
+    source_matrix : np.ndarray
+        Source matrix of shape (N, m)
+    reference_matrix : np.ndarray
+        Reference matrix of shape (M, m)
+
+    Returns:
+    --------
+    np.ndarray
+        Closest neighbors matrix of shape (N, m)
+    """
+    N, m = source_matrix.shape
+    M = reference_matrix.shape[0]
+
+    # Compute pairwise Hamming distances
+    # For binary: distance = sum of XOR
+    distances = np.zeros((N, M))
+    for i in range(N):
+        distances[i] = np.sum(source_matrix[i] != reference_matrix, axis=1)
+
+    # Find the index of the closest reference row for each source row
+    closest_indices = np.argmin(distances, axis=1)
+
+    # Retrieve the closest rows from reference_matrix
+    closest_neighbor_matrix = reference_matrix[closest_indices]
+
+    return closest_neighbor_matrix
+
+
+def learn_univariate_binary(population: np.ndarray) -> np.ndarray:
+    """
+    Learn univariate marginal probabilities for binary variables
+
+    Parameters:
+    -----------
+    population : np.ndarray
+        Binary population matrix [n_samples, n_vars]
+
+    Returns:
+    --------
+    np.ndarray
+        Marginal probabilities p(x_i=1) for each variable [n_vars]
+    """
+    return np.mean(population, axis=0)
+
+
+def sample_from_univariate_binary(
+    marginal_probs: np.ndarray,
+    n_samples: int
+) -> np.ndarray:
+    """
+    Sample from univariate marginal distribution
+
+    Parameters:
+    -----------
+    marginal_probs : np.ndarray
+        Marginal probabilities [n_vars]
+    n_samples : int
+        Number of samples to generate
+
+    Returns:
+    --------
+    np.ndarray
+        Sampled binary matrix [n_samples, n_vars]
+    """
+    n_vars = len(marginal_probs)
+    samples = np.random.rand(n_samples, n_vars) < marginal_probs
+    return samples.astype(float)
+
+
+# ==============================================================================
+# DbD Variant Learning Functions
+# ==============================================================================
+
+def learn_binary_dbd_cs(
+    current_pop: np.ndarray,
+    selected_pop: np.ndarray,
+    params: Optional[Dict[str, Any]] = None
+) -> Dict[str, Any]:
+    """
+    Learn DbD-CS (Current to Selected) model
+
+    DbD-CS learns the transition from current population to selected population.
+    This is the standard DbD approach.
+
+    Args:
+        current_pop: Current population samples [n_samples, n_vars] (binary)
+        selected_pop: Selected population samples [n_samples, n_vars] (binary)
+        params: Training parameters
+
+    Returns:
+        model: Model dictionary with 'variant' field set to 'cs'
+    """
+    # DbD-CS is the same as the standard DbD
+    model = learn_binary_dbd(current_pop, selected_pop, params)
+    model['variant'] = 'cs'
+    model['marginal_probs'] = None  # Not used in CS variant
+    return model
+
+
+def learn_binary_dbd_cd(
+    current_pop: np.ndarray,
+    selected_pop: np.ndarray,
+    params: Optional[Dict[str, Any]] = None
+) -> Dict[str, Any]:
+    """
+    Learn DbD-CD (Current to Closest in selected - Distance) model
+
+    DbD-CD pairs each solution in current population with its closest
+    neighbor in the selected population based on Hamming distance.
+
+    Args:
+        current_pop: Current population samples [n_samples, n_vars] (binary)
+        selected_pop: Selected population samples [n_samples, n_vars] (binary)
+        params: Training parameters
+
+    Returns:
+        model: Model dictionary with 'variant' field set to 'cd'
+    """
+    # Find closest neighbors in selected population
+    p1_closest = find_closest_neighbors_binary(current_pop, selected_pop)
+
+    # Learn model from current to closest selected
+    model = learn_binary_dbd(current_pop, p1_closest, params)
+    model['variant'] = 'cd'
+    model['marginal_probs'] = None  # Not used in CD variant
+    return model
+
+
+def learn_binary_dbd_uc(
+    current_pop: np.ndarray,
+    selected_pop: np.ndarray,
+    params: Optional[Dict[str, Any]] = None
+) -> Dict[str, Any]:
+    """
+    Learn DbD-UC (Univariate approximation to Current) model
+
+    DbD-UC learns the transition from a univariate approximation of the
+    current population to the current population. This helps the model
+    learn to recover variable dependencies.
+
+    Args:
+        current_pop: Current population samples [n_samples, n_vars] (binary)
+        selected_pop: Selected population (not used for p1, but needed for consistency)
+        params: Training parameters
+
+    Returns:
+        model: Model dictionary with 'variant' field set to 'uc'
+    """
+    if params is None:
+        params = {}
+
+    n_samples = current_pop.shape[0]
+    n_vars = current_pop.shape[1]
+
+    # Learn univariate marginals from current population
+    marginal_probs = learn_univariate_binary(current_pop)
+
+    # Sample from univariate distribution
+    to_take = params.get('to_take', n_samples * 2)
+    p0_univariate = sample_from_univariate_binary(marginal_probs, to_take)
+
+    # Sample from current population
+    p1_indices = np.random.randint(0, n_samples, size=to_take)
+    p1_samples = current_pop[p1_indices, :]
+
+    # Learn model from univariate to current
+    model = learn_binary_dbd(p0_univariate, p1_samples, params)
+    model['variant'] = 'uc'
+    model['marginal_probs'] = marginal_probs
+    return model
+
+
+def learn_binary_dbd_us(
+    current_pop: np.ndarray,
+    selected_pop: np.ndarray,
+    params: Optional[Dict[str, Any]] = None
+) -> Dict[str, Any]:
+    """
+    Learn DbD-US (Univariate approximation to Selected) model
+
+    DbD-US learns the transition from a univariate approximation of the
+    current population to the selected population. This learns both
+    variable dependencies and fitness-improving changes.
+
+    Args:
+        current_pop: Current population samples [n_samples, n_vars] (binary)
+        selected_pop: Selected population samples [n_samples, n_vars] (binary)
+        params: Training parameters
+
+    Returns:
+        model: Model dictionary with 'variant' field set to 'us'
+    """
+    if params is None:
+        params = {}
+
+    n_current = current_pop.shape[0]
+    n_selected = selected_pop.shape[0]
+
+    # Learn univariate marginals from current population
+    marginal_probs = learn_univariate_binary(current_pop)
+
+    # Sample from univariate distribution
+    to_take = params.get('to_take', n_current * 2)
+    p0_univariate = sample_from_univariate_binary(marginal_probs, to_take)
+
+    # Sample from selected population
+    p1_indices = np.random.randint(0, n_selected, size=to_take)
+    p1_samples = selected_pop[p1_indices, :]
+
+    # Learn model from univariate to selected
+    model = learn_binary_dbd(p0_univariate, p1_samples, params)
+    model['variant'] = 'us'
+    model['marginal_probs'] = marginal_probs
+    return model

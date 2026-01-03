@@ -219,3 +219,243 @@ def sample_binary_dbd_from_seeds(
             x = torch.bernoulli(probs)
 
     return x.numpy().astype(int)
+
+
+# ==============================================================================
+# Sampling Functions for DbD Variants
+# ==============================================================================
+
+def sample_binary_dbd_cs(
+    model: Dict[str, Any],
+    n_samples: int,
+    selected_pop: np.ndarray,
+    params: Optional[Dict[str, Any]] = None
+) -> np.ndarray:
+    """
+    Sample from Binary DbD-CS model (Current to Selected)
+
+    DbD-CS starts from selected population samples and refines them
+    toward higher fitness solutions.
+
+    Args:
+        model: Model dictionary from learn_binary_dbd_cs
+        n_samples: Number of samples to generate
+        selected_pop: Selected population for initialization
+        params: Sampling parameters:
+            - 'n_steps': denoising steps (default: 10)
+            - 'temperature': softmax temperature (default: 1.0)
+
+    Returns:
+        samples: Binary samples [n_samples, n_vars]
+    """
+    if params is None:
+        params = {}
+
+    n_steps = params.get('n_steps', 10)
+    temperature = params.get('temperature', 1.0)
+
+    # Reconstruct network
+    n_vars = model['n_vars']
+    hidden_dims = model['hidden_dims']
+
+    network = BinaryDeblendingNet(n_vars, hidden_dims)
+    network.load_state_dict(model['network_state'])
+    network.eval()
+
+    with torch.no_grad():
+        # Initialize from selected population
+        sel_indices = np.random.randint(0, len(selected_pop), size=n_samples)
+        x = torch.FloatTensor(selected_pop[sel_indices])
+
+        # Iterative denoising
+        alphas = np.linspace(0, 1, n_steps + 1)[1:]
+
+        for alpha_val in alphas:
+            alpha = torch.full((n_samples,), alpha_val)
+
+            # Predict target distribution
+            logits = network(x, alpha)
+            probs = torch.sigmoid(logits / temperature)
+
+            # Sample new x
+            x = torch.bernoulli(probs)
+
+    return x.numpy().astype(int)
+
+
+def sample_binary_dbd_cd(
+    model: Dict[str, Any],
+    n_samples: int,
+    current_pop: np.ndarray,
+    params: Optional[Dict[str, Any]] = None
+) -> np.ndarray:
+    """
+    Sample from Binary DbD-CD model (Current to Closest in selected - Distance)
+
+    DbD-CD starts from current population samples and refines them.
+
+    Args:
+        model: Model dictionary from learn_binary_dbd_cd
+        n_samples: Number of samples to generate
+        current_pop: Current population for initialization
+        params: Sampling parameters:
+            - 'n_steps': denoising steps (default: 10)
+            - 'temperature': softmax temperature (default: 1.0)
+
+    Returns:
+        samples: Binary samples [n_samples, n_vars]
+    """
+    if params is None:
+        params = {}
+
+    n_steps = params.get('n_steps', 10)
+    temperature = params.get('temperature', 1.0)
+
+    # Reconstruct network
+    n_vars = model['n_vars']
+    hidden_dims = model['hidden_dims']
+
+    network = BinaryDeblendingNet(n_vars, hidden_dims)
+    network.load_state_dict(model['network_state'])
+    network.eval()
+
+    with torch.no_grad():
+        # Initialize from current population
+        cur_indices = np.random.randint(0, len(current_pop), size=n_samples)
+        x = torch.FloatTensor(current_pop[cur_indices])
+
+        # Iterative denoising
+        alphas = np.linspace(0, 1, n_steps + 1)[1:]
+
+        for alpha_val in alphas:
+            alpha = torch.full((n_samples,), alpha_val)
+
+            # Predict target distribution
+            logits = network(x, alpha)
+            probs = torch.sigmoid(logits / temperature)
+
+            # Sample new x
+            x = torch.bernoulli(probs)
+
+    return x.numpy().astype(int)
+
+
+def sample_binary_dbd_uc(
+    model: Dict[str, Any],
+    n_samples: int,
+    current_pop: np.ndarray,
+    params: Optional[Dict[str, Any]] = None
+) -> np.ndarray:
+    """
+    Sample from Binary DbD-UC model (Univariate to Current)
+
+    DbD-UC starts from univariate marginal samples and learns to
+    recover variable dependencies by denoising toward current population.
+
+    Args:
+        model: Model dictionary from learn_binary_dbd_uc
+        n_samples: Number of samples to generate
+        current_pop: Current population (not used, included for API consistency)
+        params: Sampling parameters:
+            - 'n_steps': denoising steps (default: 10)
+            - 'temperature': softmax temperature (default: 1.0)
+
+    Returns:
+        samples: Binary samples [n_samples, n_vars]
+    """
+    if params is None:
+        params = {}
+
+    n_steps = params.get('n_steps', 10)
+    temperature = params.get('temperature', 1.0)
+
+    # Reconstruct network
+    n_vars = model['n_vars']
+    hidden_dims = model['hidden_dims']
+    marginal_probs = model['marginal_probs']
+
+    network = BinaryDeblendingNet(n_vars, hidden_dims)
+    network.load_state_dict(model['network_state'])
+    network.eval()
+
+    with torch.no_grad():
+        # Initialize from univariate marginal distribution
+        from pateda.learning.discrete_dbd import sample_from_univariate_binary
+        x_init = sample_from_univariate_binary(marginal_probs, n_samples)
+        x = torch.FloatTensor(x_init)
+
+        # Iterative denoising
+        alphas = np.linspace(0, 1, n_steps + 1)[1:]
+
+        for alpha_val in alphas:
+            alpha = torch.full((n_samples,), alpha_val)
+
+            # Predict target distribution
+            logits = network(x, alpha)
+            probs = torch.sigmoid(logits / temperature)
+
+            # Sample new x
+            x = torch.bernoulli(probs)
+
+    return x.numpy().astype(int)
+
+
+def sample_binary_dbd_us(
+    model: Dict[str, Any],
+    n_samples: int,
+    selected_pop: np.ndarray,
+    params: Optional[Dict[str, Any]] = None
+) -> np.ndarray:
+    """
+    Sample from Binary DbD-US model (Univariate to Selected)
+
+    DbD-US starts from univariate marginal samples and learns to
+    both recover variable dependencies and improve fitness by
+    denoising toward selected population.
+
+    Args:
+        model: Model dictionary from learn_binary_dbd_us
+        n_samples: Number of samples to generate
+        selected_pop: Selected population (not used, included for API consistency)
+        params: Sampling parameters:
+            - 'n_steps': denoising steps (default: 10)
+            - 'temperature': softmax temperature (default: 1.0)
+
+    Returns:
+        samples: Binary samples [n_samples, n_vars]
+    """
+    if params is None:
+        params = {}
+
+    n_steps = params.get('n_steps', 10)
+    temperature = params.get('temperature', 1.0)
+
+    # Reconstruct network
+    n_vars = model['n_vars']
+    hidden_dims = model['hidden_dims']
+    marginal_probs = model['marginal_probs']
+
+    network = BinaryDeblendingNet(n_vars, hidden_dims)
+    network.load_state_dict(model['network_state'])
+    network.eval()
+
+    with torch.no_grad():
+        # Initialize from univariate marginal distribution
+        from pateda.learning.discrete_dbd import sample_from_univariate_binary
+        x_init = sample_from_univariate_binary(marginal_probs, n_samples)
+        x = torch.FloatTensor(x_init)
+
+        # Iterative denoising
+        alphas = np.linspace(0, 1, n_steps + 1)[1:]
+
+        for alpha_val in alphas:
+            alpha = torch.full((n_samples,), alpha_val)
+
+            # Predict target distribution
+            logits = network(x, alpha)
+            probs = torch.sigmoid(logits / temperature)
+
+            # Sample new x
+            x = torch.bernoulli(probs)
+
+    return x.numpy().astype(int)

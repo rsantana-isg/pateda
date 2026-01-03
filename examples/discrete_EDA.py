@@ -54,7 +54,10 @@ from pateda.learning.discrete_gan import learn_binary_gan
 from pateda.learning.discrete_backdrive import learn_binary_backdrive
 from pateda.learning.dae import learn_dae
 from pateda.learning.rbm import learn_softmax_rbm
-from pateda.learning.discrete_dbd import learn_binary_dbd
+from pateda.learning.discrete_dbd import (
+    learn_binary_dbd, learn_binary_dbd_cs, learn_binary_dbd_cd,
+    learn_binary_dbd_uc, learn_binary_dbd_us
+)
 
 # Neural sampling modules
 from pateda.sampling.discrete_neural import (
@@ -63,7 +66,10 @@ from pateda.sampling.discrete_neural import (
 )
 from pateda.sampling.dae import sample_dae
 from pateda.sampling.rbm import sample_softmax_rbm
-from pateda.sampling.discrete_dbd import sample_binary_dbd
+from pateda.sampling.discrete_dbd import (
+    sample_binary_dbd, sample_binary_dbd_cs, sample_binary_dbd_cd,
+    sample_binary_dbd_uc, sample_binary_dbd_us
+)
 
 # Traditional EDA modules
 from pateda.core.eda import EDA, EDAComponents
@@ -360,17 +366,22 @@ class UnifiedDiscreteNeuralEDA:
             np.random.seed(random_seed)
 
         # Map methods to functions
+        # Format: (learn_function, sample_function, needs_two_pops, variant)
         self.method_map = {
-            'vae': (learn_binary_vae, sample_binary_vae, False),
-            'gan': (learn_binary_gan, sample_binary_gan, False),
-            'backdrive': (learn_binary_backdrive, sample_binary_backdrive, False),
-            'backdrive_random': (learn_binary_backdrive, sample_binary_backdrive, False),
-            'backdrive_perturb_best': (learn_binary_backdrive, sample_binary_backdrive, False),
-            'backdrive_perturb_selected': (learn_binary_backdrive, sample_binary_backdrive, False),
-            'backdrive_adaptive': (learn_binary_backdrive, sample_binary_backdrive_adaptive, False),
-            'dae': (learn_dae, sample_dae, False),
-            'rbm': (learn_softmax_rbm, sample_softmax_rbm, True),  # Needs cardinality
-            'dbd': (learn_binary_dbd, sample_binary_dbd, True),  # Needs two populations
+            'vae': (learn_binary_vae, sample_binary_vae, False, None),
+            'gan': (learn_binary_gan, sample_binary_gan, False, None),
+            'backdrive': (learn_binary_backdrive, sample_binary_backdrive, False, None),
+            'backdrive_random': (learn_binary_backdrive, sample_binary_backdrive, False, None),
+            'backdrive_perturb_best': (learn_binary_backdrive, sample_binary_backdrive, False, None),
+            'backdrive_perturb_selected': (learn_binary_backdrive, sample_binary_backdrive, False, None),
+            'backdrive_adaptive': (learn_binary_backdrive, sample_binary_backdrive_adaptive, False, None),
+            'dae': (learn_dae, sample_dae, False, None),
+            'rbm': (learn_softmax_rbm, sample_softmax_rbm, True, None),  # Needs cardinality
+            'dbd': (learn_binary_dbd, sample_binary_dbd, True, None),  # Needs two populations
+            'dbd_cs': (learn_binary_dbd_cs, sample_binary_dbd_cs, True, 'cs'),  # Current to Selected
+            'dbd_cd': (learn_binary_dbd_cd, sample_binary_dbd_cd, True, 'cd'),  # Current to Distance
+            'dbd_uc': (learn_binary_dbd_uc, sample_binary_dbd_uc, True, 'uc'),  # Univariate to Current
+            'dbd_us': (learn_binary_dbd_us, sample_binary_dbd_us, True, 'us'),  # Univariate to Selected
         }
 
     def run(self, fitness_func, verbose=True):
@@ -393,7 +404,7 @@ class UnifiedDiscreteNeuralEDA:
         history : dict
             History dictionary
         """
-        learn_fn, sample_fn, special = self.method_map[self.method]
+        learn_fn, sample_fn, needs_two_pops, variant = self.method_map[self.method]
 
         # Initialize population
         population = np.random.randint(0, self.cardinality, (self.pop_size, self.n_vars))
@@ -410,8 +421,9 @@ class UnifiedDiscreteNeuralEDA:
         if verbose:
             print(f"Generation 0: Best Fitness = {best_fitness:.4f}")
 
-        # Keep track of previous population for DbD
+        # Keep track of previous population for DbD variants
         prev_population = None
+        prev_selected_pop = None
 
         for gen in range(self.max_generations):
             # Selection
@@ -425,34 +437,47 @@ class UnifiedDiscreteNeuralEDA:
                 if self.method == 'rbm':
                     model = learn_fn(selected_pop, selected_fitness, self.cardinality,
                                    self.learning_params)
-                elif self.method == 'dbd':
-                    # DbD needs two populations (source and target)
+                elif self.method in ['dbd', 'dbd_cs', 'dbd_cd', 'dbd_uc', 'dbd_us']:
+                    # DbD variants need two populations (source and target)
+                    # Determine p0 (source) and p1 (target) based on variant
                     if prev_population is None:
-                        # First generation: use random as source
-                        p0 = np.random.randint(0, self.cardinality,
-                                             (len(selected_pop), self.n_vars))
+                        # First generation: use random as current population
+                        current_pop = np.random.randint(0, self.cardinality,
+                                                      (len(selected_pop), self.n_vars))
                     else:
-                        # Use previous selected population as source
-                        p0 = prev_population
+                        # Use previous population as current
+                        current_pop = prev_population
 
-                    p1 = selected_pop
-                    model = learn_fn(p0, p1, self.learning_params)
+                    # Learn model with current and selected populations
+                    model = learn_fn(current_pop, selected_pop, self.learning_params)
 
                     # Save for next iteration
-                    prev_population = selected_pop.copy()
+                    prev_population = population.copy()
+                    prev_selected_pop = selected_pop.copy()
                 else:
                     model = learn_fn(selected_pop, selected_fitness, self.learning_params)
 
                 # Prepare sampling parameters
                 sampling_params = self.sampling_params.copy()
-                
+
                 # For backdrive perturb methods, add current population and fitness
                 if self.method in ['backdrive_perturb_best', 'backdrive_perturb_selected', 'backdrive_adaptive']:
                     sampling_params['current_population'] = population
                     sampling_params['current_fitness'] = fitness
-                
-                # Sample new population
-                population = sample_fn(model, self.pop_size, sampling_params)
+
+                # Sample new population based on method
+                if self.method in ['dbd_cs', 'dbd_us']:
+                    # DbD-CS and DbD-US: initialize from selected population
+                    population = sample_fn(model, self.pop_size, selected_pop, sampling_params)
+                elif self.method in ['dbd_cd', 'dbd_uc']:
+                    # DbD-CD and DbD-UC: initialize from current population
+                    population = sample_fn(model, self.pop_size, population, sampling_params)
+                elif self.method == 'dbd':
+                    # Original DbD: use default sampling
+                    population = sample_fn(model, self.pop_size, sampling_params)
+                else:
+                    # Other methods
+                    population = sample_fn(model, self.pop_size, sampling_params)
 
             except Exception as e:
                 if verbose:
@@ -653,6 +678,7 @@ def main():
         print("  Neural EDAs: VAE, GAN, Backdrive, DAE, RBM, DbD")
         print("  Backdrive variants: Backdrive-Random, Backdrive-PerturbBest,")
         print("                      Backdrive-PerturbSelected, Backdrive-Adaptive")
+        print("  DbD variants: DbD-CS, DbD-CD, DbD-UC, DbD-US")
         print("  Traditional EDAs: UMDA, TreeEDA, EBNA, MOA")
         print("  Markov EDAs: MN-FDA, MN-FDAG, MK-EDA1, MK-EDA2, MK-EDA3")
         print("  Mixture EDAs: MT-EDA2, MT-EDA3")
@@ -696,8 +722,9 @@ def main():
     print()
     
     # Determine if neural or traditional EDA
-    neural_edas = ['VAE', 'GAN', 'Backdrive', 'Backdrive-Random', 'Backdrive-PerturbBest', 
-                   'Backdrive-PerturbSelected', 'Backdrive-Adaptive', 'DAE', 'RBM', 'DbD']
+    neural_edas = ['VAE', 'GAN', 'Backdrive', 'Backdrive-Random', 'Backdrive-PerturbBest',
+                   'Backdrive-PerturbSelected', 'Backdrive-Adaptive', 'DAE', 'RBM', 'DbD',
+                   'DbD-CS', 'DbD-CD', 'DbD-UC', 'DbD-US']
     traditional_edas = ['UMDA', 'TreeEDA', 'EBNA', 'MOA', 'MN-FDA', 'MN-FDAG',
                        'MK-EDA1', 'MK-EDA2', 'MK-EDA3', 'MT-EDA2', 'MT-EDA3']
     
@@ -716,6 +743,10 @@ def main():
             'DAE': 'dae',
             'RBM': 'rbm',
             'DbD': 'dbd',
+            'DbD-CS': 'dbd_cs',
+            'DbD-CD': 'dbd_cd',
+            'DbD-UC': 'dbd_uc',
+            'DbD-US': 'dbd_us',
         }
         
         method_id = method_map[alg]
@@ -771,6 +802,28 @@ def main():
                 'epochs': 50,
                 'hidden_dims': [64, 32],
                 'num_alpha_samples': 5,
+            },
+            'dbd_cs': {
+                'epochs': 50,
+                'hidden_dims': [64, 32],
+                'num_alpha_samples': 5,
+            },
+            'dbd_cd': {
+                'epochs': 50,
+                'hidden_dims': [64, 32],
+                'num_alpha_samples': 5,
+            },
+            'dbd_uc': {
+                'epochs': 50,
+                'hidden_dims': [64, 32],
+                'num_alpha_samples': 5,
+                'to_take': pop_size * 2,  # Number of samples for training
+            },
+            'dbd_us': {
+                'epochs': 50,
+                'hidden_dims': [64, 32],
+                'num_alpha_samples': 5,
+                'to_take': pop_size * 2,  # Number of samples for training
             },
         }
         
