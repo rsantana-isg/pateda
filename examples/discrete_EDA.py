@@ -896,19 +896,19 @@ def main():
             }
         elif method_id == 'backdrive_perturb_best':
             sampling_params = {
-                'init_method': 'perturb_best',
+                'init_method': 'random', #'perturb_best',
                 'init_noise': 0.1,
                 'n_iterations': 100,
             }
         elif method_id == 'backdrive_perturb_selected':
             sampling_params = {
-                'init_method': 'perturb_selected',
+                'init_method': 'random', #'perturb_selected',
                 'init_noise': 0.1,
                 'n_iterations': 100,
             }
         elif method_id == 'backdrive_adaptive':
             sampling_params = {
-                'init_method': 'perturb_best',
+                'init_method': 'random', #'perturb_best',
                 'init_noise': 0.1,
                 'n_iterations': 100,
                 'target_levels': [100, 90, 80],
@@ -917,7 +917,7 @@ def main():
         elif method_id in ['backdrive_weighted_mse', 'backdrive_ranking', 'backdrive_huber']:
             # New loss function variants use same sampling as standard backdrive
             sampling_params = {
-                'init_method': 'perturb_best',
+                'init_method': 'random', #'perturb_best',
                 'init_noise': 0.1,
                 'n_iterations': 100,
             }
