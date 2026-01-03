@@ -445,8 +445,14 @@ class UnifiedDiscreteNeuralEDA:
                         current_pop = np.random.randint(0, self.cardinality,
                                                       (len(selected_pop), self.n_vars))
                     else:
-                        # Use previous population as current
-                        current_pop = prev_population
+                        # Sample from previous population to match selected population size
+                        # This ensures p0 and p1 have the same size for blending
+                        n_to_sample = len(selected_pop)
+                        if len(prev_population) >= n_to_sample:
+                            indices = np.random.choice(len(prev_population), n_to_sample, replace=False)
+                        else:
+                            indices = np.random.choice(len(prev_population), n_to_sample, replace=True)
+                        current_pop = prev_population[indices]
 
                     # Learn model with current and selected populations
                     model = learn_fn(current_pop, selected_pop, self.learning_params)
@@ -800,30 +806,34 @@ def main():
             },
             'dbd': {
                 'epochs': 50,
-                'hidden_dims': [64, 32],
-                'num_alpha_samples': 5,
+                # CRITICAL FIX: Reduced network size to prevent overfitting
+                # Old: [64, 32] = ~5000 params, New: [16, 8] = ~700 params
+                'hidden_dims': [16, 8],
+                # CRITICAL FIX: Increased training data
+                # Old: 5 alpha samples = 375 total, New: 20 = 1500 total
+                'num_alpha_samples': 20,
             },
             'dbd_cs': {
                 'epochs': 50,
-                'hidden_dims': [64, 32],
-                'num_alpha_samples': 5,
+                'hidden_dims': [16, 8],
+                'num_alpha_samples': 20,
             },
             'dbd_cd': {
                 'epochs': 50,
-                'hidden_dims': [64, 32],
-                'num_alpha_samples': 5,
+                'hidden_dims': [16, 8],
+                'num_alpha_samples': 20,
             },
             'dbd_uc': {
                 'epochs': 50,
-                'hidden_dims': [64, 32],
-                'num_alpha_samples': 5,
-                'to_take': pop_size * 2,  # Number of samples for training
+                'hidden_dims': [16, 8],
+                'num_alpha_samples': 20,
+                'to_take': pop_size * 4,  # Increased training pairs
             },
             'dbd_us': {
                 'epochs': 50,
-                'hidden_dims': [64, 32],
-                'num_alpha_samples': 5,
-                'to_take': pop_size * 2,  # Number of samples for training
+                'hidden_dims': [16, 8],
+                'num_alpha_samples': 20,
+                'to_take': pop_size * 4,  # Increased training pairs
             },
         }
         

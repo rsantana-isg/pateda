@@ -35,7 +35,7 @@ def sample_binary_dbd(
         model: Model dictionary from learn_binary_dbd
         n_samples: Number of samples to generate
         params: Sampling parameters:
-            - 'n_steps': number of denoising steps (default: 10)
+            - 'n_steps': number of denoising steps (default: 20)
             - 'temperature': softmax temperature (default: 1.0)
             - 'init_method': 'random' or 'uniform' (default: 'random')
 
@@ -45,7 +45,8 @@ def sample_binary_dbd(
     if params is None:
         params = {}
 
-    n_steps = params.get('n_steps', 10)
+    # CRITICAL FIX: More denoising steps for smoother transitions
+    n_steps = params.get('n_steps', 20)
     temperature = params.get('temperature', 1.0)
     init_method = params.get('init_method', 'random')
 
@@ -67,14 +68,22 @@ def sample_binary_dbd(
         # Iterative denoising
         alphas = np.linspace(0, 1, n_steps + 1)[1:]  # From 0 to 1
 
-        for alpha_val in alphas:
+        for i, alpha_val in enumerate(alphas):
+            alpha_current = alphas[i - 1] if i > 0 else 0.0
             alpha = torch.full((n_samples,), alpha_val)
 
-            # Predict target distribution
-            logits = network(x, alpha)
-            probs = torch.sigmoid(logits / temperature)
+            # CRITICAL FIX: Network now predicts DIFFERENCE
+            # Use it as velocity to update x
+            predicted_diff = network(x, alpha)
 
-            # Sample new x
+            # Update: x_new = x + (alpha_t+1 - alpha_t) * diff
+            delta_alpha = alpha_val - alpha_current
+            x = x + delta_alpha * predicted_diff
+
+            # Clip to [0, 1] range and sample
+            x = torch.clamp(x, 0.0, 1.0)
+            probs = x / temperature if temperature != 1.0 else x
+            probs = torch.clamp(probs, 0.0, 1.0)
             x = torch.bernoulli(probs)
 
     return x.numpy().astype(int)
@@ -242,7 +251,7 @@ def sample_binary_dbd_cs(
         n_samples: Number of samples to generate
         selected_pop: Selected population for initialization
         params: Sampling parameters:
-            - 'n_steps': denoising steps (default: 10)
+            - 'n_steps': denoising steps (default: 20)
             - 'temperature': softmax temperature (default: 1.0)
 
     Returns:
@@ -251,7 +260,7 @@ def sample_binary_dbd_cs(
     if params is None:
         params = {}
 
-    n_steps = params.get('n_steps', 10)
+    n_steps = params.get('n_steps', 20)
     temperature = params.get('temperature', 1.0)
 
     # Reconstruct network
@@ -270,14 +279,21 @@ def sample_binary_dbd_cs(
         # Iterative denoising
         alphas = np.linspace(0, 1, n_steps + 1)[1:]
 
-        for alpha_val in alphas:
+        for i, alpha_val in enumerate(alphas):
+            alpha_current = alphas[i - 1] if i > 0 else 0.0
             alpha = torch.full((n_samples,), alpha_val)
 
-            # Predict target distribution
-            logits = network(x, alpha)
-            probs = torch.sigmoid(logits / temperature)
+            # Network predicts difference (velocity)
+            predicted_diff = network(x, alpha)
 
-            # Sample new x
+            # Update using difference
+            delta_alpha = alpha_val - alpha_current
+            x = x + delta_alpha * predicted_diff
+
+            # Clip and sample
+            x = torch.clamp(x, 0.0, 1.0)
+            probs = x / temperature if temperature != 1.0 else x
+            probs = torch.clamp(probs, 0.0, 1.0)
             x = torch.bernoulli(probs)
 
     return x.numpy().astype(int)
@@ -299,7 +315,7 @@ def sample_binary_dbd_cd(
         n_samples: Number of samples to generate
         current_pop: Current population for initialization
         params: Sampling parameters:
-            - 'n_steps': denoising steps (default: 10)
+            - 'n_steps': denoising steps (default: 20)
             - 'temperature': softmax temperature (default: 1.0)
 
     Returns:
@@ -308,7 +324,7 @@ def sample_binary_dbd_cd(
     if params is None:
         params = {}
 
-    n_steps = params.get('n_steps', 10)
+    n_steps = params.get('n_steps', 20)
     temperature = params.get('temperature', 1.0)
 
     # Reconstruct network
@@ -327,14 +343,21 @@ def sample_binary_dbd_cd(
         # Iterative denoising
         alphas = np.linspace(0, 1, n_steps + 1)[1:]
 
-        for alpha_val in alphas:
+        for i, alpha_val in enumerate(alphas):
+            alpha_current = alphas[i - 1] if i > 0 else 0.0
             alpha = torch.full((n_samples,), alpha_val)
 
-            # Predict target distribution
-            logits = network(x, alpha)
-            probs = torch.sigmoid(logits / temperature)
+            # Network predicts difference (velocity)
+            predicted_diff = network(x, alpha)
 
-            # Sample new x
+            # Update using difference
+            delta_alpha = alpha_val - alpha_current
+            x = x + delta_alpha * predicted_diff
+
+            # Clip and sample
+            x = torch.clamp(x, 0.0, 1.0)
+            probs = x / temperature if temperature != 1.0 else x
+            probs = torch.clamp(probs, 0.0, 1.0)
             x = torch.bernoulli(probs)
 
     return x.numpy().astype(int)
@@ -357,7 +380,7 @@ def sample_binary_dbd_uc(
         n_samples: Number of samples to generate
         current_pop: Current population (not used, included for API consistency)
         params: Sampling parameters:
-            - 'n_steps': denoising steps (default: 10)
+            - 'n_steps': denoising steps (default: 20)
             - 'temperature': softmax temperature (default: 1.0)
 
     Returns:
@@ -366,7 +389,7 @@ def sample_binary_dbd_uc(
     if params is None:
         params = {}
 
-    n_steps = params.get('n_steps', 10)
+    n_steps = params.get('n_steps', 20)
     temperature = params.get('temperature', 1.0)
 
     # Reconstruct network
@@ -387,14 +410,21 @@ def sample_binary_dbd_uc(
         # Iterative denoising
         alphas = np.linspace(0, 1, n_steps + 1)[1:]
 
-        for alpha_val in alphas:
+        for i, alpha_val in enumerate(alphas):
+            alpha_current = alphas[i - 1] if i > 0 else 0.0
             alpha = torch.full((n_samples,), alpha_val)
 
-            # Predict target distribution
-            logits = network(x, alpha)
-            probs = torch.sigmoid(logits / temperature)
+            # Network predicts difference (velocity)
+            predicted_diff = network(x, alpha)
 
-            # Sample new x
+            # Update using difference
+            delta_alpha = alpha_val - alpha_current
+            x = x + delta_alpha * predicted_diff
+
+            # Clip and sample
+            x = torch.clamp(x, 0.0, 1.0)
+            probs = x / temperature if temperature != 1.0 else x
+            probs = torch.clamp(probs, 0.0, 1.0)
             x = torch.bernoulli(probs)
 
     return x.numpy().astype(int)
@@ -418,7 +448,7 @@ def sample_binary_dbd_us(
         n_samples: Number of samples to generate
         selected_pop: Selected population (not used, included for API consistency)
         params: Sampling parameters:
-            - 'n_steps': denoising steps (default: 10)
+            - 'n_steps': denoising steps (default: 20)
             - 'temperature': softmax temperature (default: 1.0)
 
     Returns:
@@ -427,7 +457,7 @@ def sample_binary_dbd_us(
     if params is None:
         params = {}
 
-    n_steps = params.get('n_steps', 10)
+    n_steps = params.get('n_steps', 20)
     temperature = params.get('temperature', 1.0)
 
     # Reconstruct network
@@ -448,14 +478,21 @@ def sample_binary_dbd_us(
         # Iterative denoising
         alphas = np.linspace(0, 1, n_steps + 1)[1:]
 
-        for alpha_val in alphas:
+        for i, alpha_val in enumerate(alphas):
+            alpha_current = alphas[i - 1] if i > 0 else 0.0
             alpha = torch.full((n_samples,), alpha_val)
 
-            # Predict target distribution
-            logits = network(x, alpha)
-            probs = torch.sigmoid(logits / temperature)
+            # Network predicts difference (velocity)
+            predicted_diff = network(x, alpha)
 
-            # Sample new x
+            # Update using difference
+            delta_alpha = alpha_val - alpha_current
+            x = x + delta_alpha * predicted_diff
+
+            # Clip and sample
+            x = torch.clamp(x, 0.0, 1.0)
+            probs = x / temperature if temperature != 1.0 else x
+            probs = torch.clamp(probs, 0.0, 1.0)
             x = torch.bernoulli(probs)
 
     return x.numpy().astype(int)
