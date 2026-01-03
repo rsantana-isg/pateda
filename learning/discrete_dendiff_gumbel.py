@@ -32,9 +32,9 @@ from pateda.learning.nn_utils import (
 )
 
 
-def sample_gumbel(shape, eps=1e-20):
+def sample_gumbel(shape, device=None, eps=1e-20):
     """Sample from Gumbel(0, 1)"""
-    U = torch.rand(shape)
+    U = torch.rand(shape, device=device)
     return -torch.log(-torch.log(U + eps) + eps)
 
 
@@ -56,7 +56,7 @@ def gumbel_softmax(logits, temperature, hard=False):
     samples : torch.Tensor
         Samples from Gumbel-Softmax
     """
-    y = logits + sample_gumbel(logits.size())
+    y = logits + sample_gumbel(logits.size(), device=logits.device)
     y = F.softmax(y / temperature, dim=-1)
     
     if hard:
@@ -446,10 +446,10 @@ def learn_discrete_dendiff_gumbel(
         # Temperature annealing
         current_temp = max(min_temperature, current_temp * temperature_decay)
         
-        # Print progress
-        if (epoch + 1) % 10 == 0 or epoch == 0:
-            avg_loss = epoch_loss / n_batches
-            #print(f'Epoch {epoch+1}/{epochs}, Loss: {avg_loss:.6f}, Temp: {current_temp:.3f}')
+        # Print progress (optional logging)
+        # if (epoch + 1) % 10 == 0 or epoch == 0:
+        #     avg_loss = epoch_loss / n_batches
+        #     print(f'Epoch {epoch+1}/{epochs}, Loss: {avg_loss:.6f}, Temp: {current_temp:.3f}')
     
     # Return model with all configuration
     return {

@@ -338,10 +338,10 @@ def learn_discrete_dendiff_corruption(
             epoch_loss += loss.item()
             n_batches += 1
         
-        # Print progress
-        if (epoch + 1) % 10 == 0 or epoch == 0:
-            avg_loss = epoch_loss / n_batches
-            #print(f'Epoch {epoch+1}/{epochs}, Loss: {avg_loss:.6f}')
+        # Print progress (optional logging)
+        # if (epoch + 1) % 10 == 0 or epoch == 0:
+        #     avg_loss = epoch_loss / n_batches
+        #     print(f'Epoch {epoch+1}/{epochs}, Loss: {avg_loss:.6f}')
     
     # Return model
     return {

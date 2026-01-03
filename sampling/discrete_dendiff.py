@@ -112,7 +112,8 @@ def sample_discrete_dendiff_gumbel(
             if t_idx > 0:
                 # Corruption level at this timestep
                 alpha_bar_t = alphas_cumprod[t_idx]
-                alpha_bar_prev = alphas_cumprod[t_idx - 1] if t_idx > 0 else torch.tensor(1.0)
+                # Safe access: only access t_idx - 1 when t_idx > 0
+                alpha_bar_prev = alphas_cumprod[t_idx - 1]
                 
                 # Mix: move toward predicted clean data
                 # Use probabilistic mixing
@@ -217,7 +218,8 @@ def sample_discrete_dendiff_corruption(
             if t_idx > 0:
                 # Current corruption rate
                 corruption_t = corruption_rates[t_idx]
-                corruption_prev = corruption_rates[t_idx - 1] if t_idx > 0 else 0.0
+                # Safe access: only access t_idx - 1 when t_idx > 0
+                corruption_prev = corruption_rates[t_idx - 1]
                 
                 # Mixing factor: as corruption decreases, trust prediction more
                 trust_factor = 1.0 - corruption_prev / (corruption_t + 1e-8)
