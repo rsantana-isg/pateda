@@ -471,7 +471,8 @@ class BackdriveEDA:
                 new_population = sample_fn(model, self.pop_size, sampling_params)
                 
                 # Surrogate filtering (optional)
-                if self.surrogate_filtering:
+                # Note: Not supported for backdrive_descriptors variant
+                if self.surrogate_filtering and self.variant != 'backdrive_descriptors':
                     # Use the model to pre-filter solutions
                     # Evaluate with surrogate, then select promising ones
                     import torch
@@ -498,6 +499,12 @@ class BackdriveEDA:
                     # Select top predicted solutions
                     top_indices = np.argsort(pred_fitness)[-self.pop_size:]
                     population = candidate_pop[top_indices]
+                elif self.surrogate_filtering and self.variant == 'backdrive_descriptors':
+                    # Surrogate filtering not supported for descriptor variant
+                    # Use the sampled population directly
+                    if verbose and gen == 0:
+                        print("  Note: Surrogate filtering not supported for backdrive_descriptors variant")
+                    population = new_population
                 else:
                     population = new_population
 

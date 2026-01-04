@@ -720,19 +720,25 @@ def sample_discrete_backdrive_descriptors(
         desc_mean = np.mean(pop_descriptors, axis=0)
         desc_cov = np.cov(pop_descriptors, rowvar=False)
         
-        # Ensure covariance is positive definite
-        desc_cov += np.eye(3) * 1e-6
+        # Regularization constant for ensuring positive definite covariance
+        COV_REGULARIZATION = 1e-6
+        desc_cov += np.eye(3) * COV_REGULARIZATION
         
         target_descriptors = np.random.multivariate_normal(desc_mean, desc_cov, size=n_samples)
         
-        # Clip to reasonable ranges
-        # Fitness and mean should be in [0, 1] for binary problems
+        # Clip to reasonable ranges based on actual population data
+        # Fitness range from population
         target_descriptors[:, 0] = np.clip(target_descriptors[:, 0], 
                                            np.min(pop_descriptors[:, 0]), 
                                            np.max(pop_descriptors[:, 0]))
-        target_descriptors[:, 1] = np.clip(target_descriptors[:, 1], 0, 1)
-        # Std should be non-negative
-        target_descriptors[:, 2] = np.clip(target_descriptors[:, 2], 0, 0.5)
+        # Mean range from population (for binary: 0 to 1)
+        target_descriptors[:, 1] = np.clip(target_descriptors[:, 1], 
+                                           max(0, np.min(pop_descriptors[:, 1])), 
+                                           min(1, np.max(pop_descriptors[:, 1])))
+        # Std range from population (non-negative, max is theoretical max for binary)
+        target_descriptors[:, 2] = np.clip(target_descriptors[:, 2], 
+                                           0, 
+                                           min(0.5, np.max(pop_descriptors[:, 2])))
         
     elif descriptor_sampling == 'uniform':
         # Uniform sampling in descriptor ranges
