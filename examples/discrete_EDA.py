@@ -533,7 +533,7 @@ class UnifiedDiscreteNeuralEDA:
 
             history['best_fitness'].append(best_fitness)
 
-            if verbose and (gen + 1) % 10 == 0:
+            if verbose and (gen + 1) % 1 == 0:
                 print(f"Generation {gen+1}: Best Fitness = {best_fitness:.4f}")
 
         # Print completion summary (matching traditional EDA format)
