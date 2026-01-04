@@ -8,6 +8,7 @@ variants on benchmark problems with different seeds for cluster execution.
 Supports configurable Backdrive-EDA variants:
 - Backdrive: Standard network inversion approach
 - Backdrive-Adaptive: Adaptive sampling with multiple target fitness levels
+- Backdrive-Descriptors: Multi-descriptor variant predicting (fitness, mean, std)
 
 Configurable Parameters:
 - Weight Transfer: Transfer neural network weights between generations
@@ -48,11 +49,13 @@ from pateda.learning.discrete_backdrive import learn_binary_backdrive
 from pateda.learning.discrete_backdrive_weighted_mse import learn_binary_backdrive_weighted_mse
 from pateda.learning.discrete_backdrive_ranking import learn_binary_backdrive_ranking
 from pateda.learning.discrete_backdrive_huber import learn_binary_backdrive_huber
+from pateda.learning.discrete_backdrive_descriptors import learn_binary_backdrive_descriptors
 
 # Backdrive sampling modules
 from pateda.sampling.discrete_neural import (
     sample_binary_backdrive,
-    sample_binary_backdrive_adaptive
+    sample_binary_backdrive_adaptive,
+    sample_binary_backdrive_descriptors
 )
 
 # Benchmark functions
@@ -298,7 +301,7 @@ class BackdriveEDA:
         Parameters
         ----------
         variant : str
-            Backdrive variant: 'backdrive', 'backdrive_adaptive'
+            Backdrive variant: 'backdrive', 'backdrive_adaptive', 'backdrive_descriptors'
         n_vars : int
             Number of variables
         cardinality : np.ndarray
@@ -349,7 +352,7 @@ class BackdriveEDA:
             np.random.seed(random_seed)
 
         # Validate parameters
-        valid_variants = ['backdrive', 'backdrive_adaptive']
+        valid_variants = ['backdrive', 'backdrive_adaptive', 'backdrive_descriptors']
         if variant not in valid_variants:
             raise ValueError(f"Invalid variant: {variant}. Must be one of {valid_variants}")
         
@@ -367,12 +370,14 @@ class BackdriveEDA:
             'weighted_mse': learn_binary_backdrive_weighted_mse,
             'ranking': learn_binary_backdrive_ranking,
             'huber': learn_binary_backdrive_huber,
+            'descriptors': learn_binary_backdrive_descriptors,
         }
 
         # Map variant to sampling function
         self.sampling_function_map = {
             'backdrive': sample_binary_backdrive,
             'backdrive_adaptive': sample_binary_backdrive_adaptive,
+            'backdrive_descriptors': sample_binary_backdrive_descriptors,
         }
 
         # Store model for weight transfer
@@ -399,7 +404,11 @@ class BackdriveEDA:
             History dictionary
         """
         # Get learning and sampling functions
-        learn_fn = self.loss_function_map[self.loss_function]
+        # Special case for backdrive_descriptors variant
+        if self.variant == 'backdrive_descriptors':
+            learn_fn = self.loss_function_map['descriptors']
+        else:
+            learn_fn = self.loss_function_map[self.loss_function]
         sample_fn = self.sampling_function_map[self.variant]
 
         # Initialize population
@@ -448,6 +457,11 @@ class BackdriveEDA:
                 sampling_params = self.sampling_params.copy()
                 sampling_params['init_method'] = self.init_method
                 
+                # For backdrive_descriptors variant, pass selected population
+                if self.variant == 'backdrive_descriptors':
+                    sampling_params['selected_population'] = selected_pop
+                    sampling_params['selected_fitness'] = selected_fitness
+                
                 # For perturb methods, add current population and fitness
                 if self.init_method in ['perturb_best', 'perturb_selected']:
                     sampling_params['current_population'] = selected_pop
@@ -457,7 +471,8 @@ class BackdriveEDA:
                 new_population = sample_fn(model, self.pop_size, sampling_params)
                 
                 # Surrogate filtering (optional)
-                if self.surrogate_filtering:
+                # Note: Not supported for backdrive_descriptors variant
+                if self.surrogate_filtering and self.variant != 'backdrive_descriptors':
                     # Use the model to pre-filter solutions
                     # Evaluate with surrogate, then select promising ones
                     import torch
@@ -484,6 +499,12 @@ class BackdriveEDA:
                     # Select top predicted solutions
                     top_indices = np.argsort(pred_fitness)[-self.pop_size:]
                     population = candidate_pop[top_indices]
+                elif self.surrogate_filtering and self.variant == 'backdrive_descriptors':
+                    # Surrogate filtering not supported for descriptor variant
+                    # Use the sampled population directly
+                    if verbose and gen == 0:
+                        print("  Note: Surrogate filtering not supported for backdrive_descriptors variant")
+                    population = new_population
                 else:
                     population = new_population
 
@@ -558,7 +579,7 @@ Examples:
     
     # Optional configuration arguments
     parser.add_argument('--variant', type=str, default='backdrive',
-                        choices=['backdrive', 'backdrive_adaptive'],
+                        choices=['backdrive', 'backdrive_adaptive', 'backdrive_descriptors'],
                         help='Backdrive variant (default: backdrive)')
     parser.add_argument('--weight-transfer', action='store_true',
                         help='Transfer neural network weights between generations')
@@ -643,6 +664,10 @@ Examples:
     if args.variant == 'backdrive_adaptive':
         sampling_params['target_levels'] = [100, 90, 80]
         sampling_params['level_fractions'] = [0.5, 0.3, 0.2]
+    
+    if args.variant == 'backdrive_descriptors':
+        # For descriptor variant, specify how to sample descriptors
+        sampling_params['descriptor_sampling'] = 'from_population'  # or 'gaussian', 'uniform'
     
     cardinality = np.full(n_vars, 2)
     

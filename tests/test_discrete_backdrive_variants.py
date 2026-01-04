@@ -10,7 +10,8 @@ from pateda.learning.discrete_backdrive import learn_binary_backdrive
 from pateda.learning.discrete_backdrive_weighted_mse import learn_binary_backdrive_weighted_mse
 from pateda.learning.discrete_backdrive_ranking import learn_binary_backdrive_ranking
 from pateda.learning.discrete_backdrive_huber import learn_binary_backdrive_huber
-from pateda.sampling.discrete_neural import sample_binary_backdrive
+from pateda.learning.discrete_backdrive_descriptors import learn_binary_backdrive_descriptors
+from pateda.sampling.discrete_neural import sample_binary_backdrive, sample_binary_backdrive_descriptors
 
 
 class TestDiscreteBacdriveVariants:
@@ -204,6 +205,55 @@ class TestDiscreteBacdriveVariants:
         
         assert samples.shape == (10, n_vars)
         assert np.all((samples == 0) | (samples == 1))
+
+    def test_descriptors_backdrive(self):
+        """Test backdrive with descriptor-based learning"""
+        np.random.seed(42)
+        torch.manual_seed(42)
+        
+        n_vars = 20
+        pop_size = 50
+        population = np.random.randint(0, 2, size=(pop_size, n_vars))
+        fitness = population.sum(axis=1, keepdims=True).astype(float)
+        
+        # Learn model with descriptor-based approach
+        model = learn_binary_backdrive_descriptors(population, fitness, params={'epochs': 10})
+        
+        # Check model structure
+        assert model['type'] == 'discrete_backdrive_descriptors'
+        assert model['n_vars'] == n_vars
+        assert model['n_descriptors'] == 3
+        assert 'descriptor_stats' in model
+        
+        # Sample new solutions using the descriptor-based approach
+        n_samples = 20
+        samples = sample_binary_backdrive_descriptors(
+            model, 
+            n_samples,
+            params={
+                'selected_population': population,
+                'selected_fitness': fitness,
+                'descriptor_sampling': 'from_population'
+            }
+        )
+        
+        # Validate samples
+        assert samples.shape == (n_samples, n_vars)
+        assert np.all((samples == 0) | (samples == 1))
+        
+        # Test different descriptor sampling methods
+        for method in ['from_population', 'gaussian', 'uniform']:
+            samples = sample_binary_backdrive_descriptors(
+                model,
+                10,
+                params={
+                    'selected_population': population,
+                    'selected_fitness': fitness,
+                    'descriptor_sampling': method
+                }
+            )
+            assert samples.shape == (10, n_vars)
+            assert np.all((samples == 0) | (samples == 1))
 
 
 if __name__ == '__main__':

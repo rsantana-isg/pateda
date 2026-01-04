@@ -11,6 +11,7 @@ The program supports the following configurable parameters for Backdrive-EDA:
 ### Algorithm Variants
 - **backdrive**: Standard Backdrive-EDA with network inversion
 - **backdrive_adaptive**: Adaptive sampling with multiple target fitness levels for better diversity
+- **backdrive_descriptors**: Multi-descriptor variant that predicts solutions from (fitness, mean, std)
 
 ### Configuration Parameters
 
@@ -68,7 +69,7 @@ python discrete_Backdrive_EDA.py <seed> <obj_func> <n> <pop_size> <n_gen> <trunc
 ### Optional Arguments
 
 ```
---variant {backdrive,backdrive_adaptive}
+--variant {backdrive,backdrive_adaptive,backdrive_descriptors}
                       Backdrive variant (default: backdrive)
 --weight-transfer     Transfer neural network weights between generations
 --early-stopping      Use early stopping during training
@@ -79,6 +80,7 @@ python discrete_Backdrive_EDA.py <seed> <obj_func> <n> <pop_size> <n_gen> <trunc
 --activation ACT      Activation function (default: relu)
 --surrogate-filtering
                       Use surrogate model for pre-filtering solutions
+                      Note: Not supported for backdrive_descriptors variant
 ```
 
 ## Examples
@@ -102,6 +104,15 @@ python discrete_Backdrive_EDA.py 0 Deceptive3 30 100 30 0.5 --init perturb_best 
 ### Adaptive Variant with Custom Settings
 ```bash
 python discrete_Backdrive_EDA.py 0 HIFF 64 200 50 0.5 --variant backdrive_adaptive --activation tanh
+```
+
+### Descriptor-based Variant
+```bash
+# Use the multi-descriptor variant
+python discrete_Backdrive_EDA.py 0 OneMax 20 80 20 0.5 --variant backdrive_descriptors
+
+# With early stopping
+python discrete_Backdrive_EDA.py 0 Deceptive3 30 100 30 0.5 --variant backdrive_descriptors --early-stopping
 ```
 
 ### With Surrogate Filtering
@@ -160,10 +171,11 @@ The program outputs:
 
 ## Implementation Details
 
-### Backdrive vs Backdrive-Adaptive
+### Backdrive vs Backdrive-Adaptive vs Backdrive-Descriptors
 
 - **Backdrive**: Standard implementation samples all solutions targeting maximum fitness
 - **Backdrive-Adaptive**: Samples solutions at different target fitness levels (100%, 90%, 80%) with fractions (50%, 30%, 20%) to maintain diversity
+- **Backdrive-Descriptors**: Learns to generate solutions from descriptors (fitness, mean, std). Instead of predicting fitness from solutions, the network predicts solutions from target descriptors sampled from the selected population. This gives the model more information about the desired solution characteristics.
 
 ### Initialization Methods
 
@@ -184,7 +196,12 @@ The program outputs:
 
 2. Weight transfer between generations stores the entire model state and uses it for initialization in the next generation, but the pretrained_model parameter support would need to be implemented in the learning functions.
 
-3. Surrogate filtering increases computational cost (generates 3x population) but can improve solution quality by pre-screening with the fitness model.
+3. Surrogate filtering increases computational cost (generates 3x population) but can improve solution quality by pre-screening with the fitness model. **Note**: Surrogate filtering is not supported for the `backdrive_descriptors` variant because the descriptor-based network has a different architecture (descriptors → solutions rather than solutions → fitness).
+
+4. The `backdrive_descriptors` variant supports three descriptor sampling methods (configured in sampling_params):
+   - `from_population`: Randomly sample descriptors from selected population (default)
+   - `gaussian`: Fit Gaussian to descriptors and sample
+   - `uniform`: Uniform sampling in descriptor ranges
 
 ## Comparison with discrete_EDA.py
 
