@@ -59,7 +59,9 @@ from pateda.learning.dae import learn_dae
 from pateda.learning.rbm import learn_softmax_rbm
 from pateda.learning.discrete_dbd import (
     learn_binary_dbd, learn_binary_dbd_cs, learn_binary_dbd_cd,
-    learn_binary_dbd_uc, learn_binary_dbd_us
+    learn_binary_dbd_uc, learn_binary_dbd_us,
+    learn_binary_dbd_cs_t, learn_binary_dbd_cd_t,
+    learn_binary_dbd_uc_t, learn_binary_dbd_us_t
 )
 from pateda.learning.discrete_dendiff_gumbel import learn_discrete_dendiff_gumbel
 from pateda.learning.discrete_dendiff_corruption import learn_discrete_dendiff_corruption
@@ -73,7 +75,9 @@ from pateda.sampling.dae import sample_dae
 from pateda.sampling.rbm import sample_softmax_rbm
 from pateda.sampling.discrete_dbd import (
     sample_binary_dbd, sample_binary_dbd_cs, sample_binary_dbd_cd,
-    sample_binary_dbd_uc, sample_binary_dbd_us
+    sample_binary_dbd_uc, sample_binary_dbd_us,
+    sample_binary_dbd_cs_t, sample_binary_dbd_cd_t,
+    sample_binary_dbd_uc_t, sample_binary_dbd_us_t
 )
 from pateda.sampling.discrete_dendiff import (
     sample_discrete_dendiff_gumbel, sample_discrete_dendiff_corruption
@@ -394,6 +398,9 @@ class UnifiedDiscreteNeuralEDA:
             'dbd_cd': (learn_binary_dbd_cd, sample_binary_dbd_cd, True, 'cd'),  # Current to Distance
             'dbd_uc': (learn_binary_dbd_uc, sample_binary_dbd_uc, True, 'uc'),  # Univariate to Current
             'dbd_us': (learn_binary_dbd_us, sample_binary_dbd_us, True, 'us'),  # Univariate to Selected
+            'dbd_cs_t_k0': (learn_binary_dbd_cs_t, sample_binary_dbd_cs_t, True, 'cs_t'),  # CS with Transformation K=0
+            'dbd_cs_t_k1': (learn_binary_dbd_cs_t, sample_binary_dbd_cs_t, True, 'cs_t'),  # CS with Transformation K=1
+            'dbd_cs_t_k2': (learn_binary_dbd_cs_t, sample_binary_dbd_cs_t, True, 'cs_t'),  # CS with Transformation K=2
             'dendiff_gumbel': (learn_discrete_dendiff_gumbel, sample_discrete_dendiff_gumbel, False, None),
             'dendiff_corruption': (learn_discrete_dendiff_corruption, sample_discrete_dendiff_corruption, False, None),
         }
@@ -458,7 +465,8 @@ class UnifiedDiscreteNeuralEDA:
                 if self.method == 'rbm':
                     model = learn_fn(selected_pop, selected_fitness, self.cardinality,
                                    self.learning_params)
-                elif self.method in ['dbd', 'dbd_cs', 'dbd_cd', 'dbd_uc', 'dbd_us']:
+                elif self.method in ['dbd', 'dbd_cs', 'dbd_cd', 'dbd_uc', 'dbd_us',
+                                     'dbd_cs_t_k0', 'dbd_cs_t_k1', 'dbd_cs_t_k2']:
                     # DbD variants need two populations (source and target)
                     # Determine p0 (source) and p1 (target) based on variant
                     if prev_population is None:
@@ -494,8 +502,8 @@ class UnifiedDiscreteNeuralEDA:
                     sampling_params['current_fitness'] = selected_fitness
 
                 # Sample new population based on method
-                if self.method in ['dbd_cs', 'dbd_us']:
-                    # DbD-CS and DbD-US: initialize from selected population
+                if self.method in ['dbd_cs', 'dbd_us', 'dbd_cs_t_k0', 'dbd_cs_t_k1', 'dbd_cs_t_k2']:
+                    # DbD-CS and DbD-US variants: initialize from selected population
                     population = sample_fn(model, self.pop_size, selected_pop, sampling_params)
                 elif self.method in ['dbd_cd', 'dbd_uc']:
                     # DbD-CD and DbD-UC: initialize from current population
@@ -707,6 +715,7 @@ def main():
         print("  Backdrive variants: Backdrive-Random, Backdrive-PerturbBest,")
         print("                      Backdrive-PerturbSelected, Backdrive-Adaptive")
         print("  DbD variants: DbD-CS, DbD-CD, DbD-UC, DbD-US")
+        print("  DbD-T variants: DbD-CS-T-K0, DbD-CS-T-K1, DbD-CS-T-K2")
         print("  Dendiff variants: Dendiff-Gumbel, Dendiff-Corruption")
         print("  Traditional EDAs: UMDA, TreeEDA, EBNA, MOA")
         print("  Markov EDAs: MN-FDA, MN-FDAG, MK-EDA1, MK-EDA2, MK-EDA3")
@@ -754,7 +763,9 @@ def main():
     neural_edas = ['VAE', 'VAE-Extended', 'GAN', 'Backdrive', 'Backdrive-Random', 'Backdrive-PerturbBest',
                    'Backdrive-PerturbSelected', 'Backdrive-Adaptive', 'Backdrive-WeightedMSE',
                    'Backdrive-Ranking', 'Backdrive-Huber', 'DAE', 'RBM', 'DbD',
-                   'DbD-CS', 'DbD-CD', 'DbD-UC', 'DbD-US', 'Dendiff-Gumbel', 'Dendiff-Corruption']
+                   'DbD-CS', 'DbD-CD', 'DbD-UC', 'DbD-US', 
+                   'DbD-CS-T-K0', 'DbD-CS-T-K1', 'DbD-CS-T-K2',
+                   'Dendiff-Gumbel', 'Dendiff-Corruption']
     traditional_edas = ['UMDA', 'TreeEDA', 'EBNA', 'MOA', 'MN-FDA', 'MN-FDAG',
                        'MK-EDA1', 'MK-EDA2', 'MK-EDA3', 'MT-EDA2', 'MT-EDA3']
     
@@ -781,6 +792,9 @@ def main():
             'DbD-CD': 'dbd_cd',
             'DbD-UC': 'dbd_uc',
             'DbD-US': 'dbd_us',
+            'DbD-CS-T-K0': 'dbd_cs_t_k0',
+            'DbD-CS-T-K1': 'dbd_cs_t_k1',
+            'DbD-CS-T-K2': 'dbd_cs_t_k2',
             'Dendiff-Gumbel': 'dendiff_gumbel',
             'Dendiff-Corruption': 'dendiff_corruption',
         }
@@ -890,6 +904,30 @@ def main():
                 'hidden_dims': [16, 8],
                 'num_alpha_samples': 20,
                 'to_take': pop_size * 4,  # Increased training pairs
+            },
+            'dbd_cs_t_k0': {
+                'epochs': 50,
+                'k': 0,  # No conditioning (marginal probabilities only)
+                'alpha': 0.1,  # Smoothing parameter
+                'num_alpha_samples': 10,  # For continuous DbD
+                'hidden_dims': [64, 64],  # Continuous DbD network
+                'normalize': True,  # Normalize continuous values
+            },
+            'dbd_cs_t_k1': {
+                'epochs': 50,
+                'k': 1,  # First-order Markov chain
+                'alpha': 0.1,
+                'num_alpha_samples': 10,
+                'hidden_dims': [64, 64],
+                'normalize': True,
+            },
+            'dbd_cs_t_k2': {
+                'epochs': 50,
+                'k': 2,  # Second-order Markov chain
+                'alpha': 0.1,
+                'num_alpha_samples': 10,
+                'hidden_dims': [64, 64],
+                'normalize': True,
             },
             'dendiff_gumbel': {
                 'epochs': 50,

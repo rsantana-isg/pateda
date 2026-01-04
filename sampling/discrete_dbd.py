@@ -496,3 +496,258 @@ def sample_binary_dbd_us(
             x = torch.bernoulli(probs)
 
     return x.numpy().astype(int)
+
+
+# ==============================================================================
+# Sampling Functions for DbD-T Variants
+# ==============================================================================
+
+def sample_from_continuous_probabilities(
+    continuous_values: np.ndarray,
+    conditional_probs: list,
+    k: int,
+    prob_min: float = 0.01,
+    prob_max: float = 0.99
+) -> np.ndarray:
+    """
+    Sample binary values from continuous probability values using conditional probabilities
+    
+    The continuous values represent probabilities and should be bounded to ensure diversity.
+    
+    Parameters:
+    -----------
+    continuous_values : np.ndarray
+        Continuous values [n_samples, n_vars] representing probabilities
+    conditional_probs : list
+        List of conditional probability tables for each variable
+    k : int
+        Order of Markov chain used
+    prob_min : float
+        Minimum probability bound (default: 0.01)
+    prob_max : float
+        Maximum probability bound (default: 0.99)
+        
+    Returns:
+    --------
+    np.ndarray
+        Binary samples [n_samples, n_vars]
+    """
+    n_samples, n_vars = continuous_values.shape
+    binary_samples = np.zeros((n_samples, n_vars), dtype=int)
+    
+    # Bound probabilities to ensure diversity
+    bounded_probs = np.clip(continuous_values, prob_min, prob_max)
+    
+    for var in range(n_vars):
+        cpd = conditional_probs[var]
+        
+        if var < k:
+            # For first k variables, sample directly from probability
+            # The continuous value represents P(X_i = 1)
+            # We need to convert to P(X_i = x_i | X_{i-1}, ..., X_0)
+            # For marginal case, just use the probability
+            for sample_idx in range(n_samples):
+                prob_1 = bounded_probs[sample_idx, var]
+                binary_samples[sample_idx, var] = 1 if np.random.rand() < prob_1 else 0
+        else:
+            # For remaining variables, use conditional probabilities
+            n_parents = min(k, var)
+            parent_vars = list(range(var - n_parents, var))
+            
+            for sample_idx in range(n_samples):
+                # Calculate parent configuration index
+                config_idx = 0
+                for i, parent_var in enumerate(parent_vars):
+                    config_idx += int(binary_samples[sample_idx, parent_var]) * (2 ** i)
+                
+                # Get conditional probability P(X_i = 1 | parents)
+                prob_1_given_parents = cpd[config_idx, 1]
+                
+                # Use the continuous value as a modulation factor
+                # This allows the denoising process to influence the sampling
+                modulated_prob = bounded_probs[sample_idx, var]
+                
+                # Blend between conditional probability and modulated probability
+                # Give more weight to the denoised continuous value
+                final_prob = 0.7 * modulated_prob + 0.3 * prob_1_given_parents
+                final_prob = np.clip(final_prob, prob_min, prob_max)
+                
+                binary_samples[sample_idx, var] = 1 if np.random.rand() < final_prob else 0
+    
+    return binary_samples
+
+
+def sample_binary_dbd_cs_t(
+    model: Dict[str, Any],
+    n_samples: int,
+    selected_pop: np.ndarray,
+    params: Optional[Dict[str, Any]] = None
+) -> np.ndarray:
+    """
+    Sample from Binary DbD-CS-T model (Current to Selected with Transformation)
+    
+    Args:
+        model: Model dictionary from learn_binary_dbd_cs_t
+        n_samples: Number of samples to generate
+        selected_pop: Selected population for initialization
+        params: Sampling parameters:
+            - 'n_steps': denoising steps (default: 20)
+            - 'temperature': sampling temperature (default: 1.0)
+            - 'prob_min': minimum probability bound (default: 0.01)
+            - 'prob_max': maximum probability bound (default: 0.99)
+    
+    Returns:
+        samples: Binary samples [n_samples, n_vars]
+    """
+    if params is None:
+        params = {}
+    
+    n_steps = params.get('n_steps', 20)
+    temperature = params.get('temperature', 1.0)
+    prob_min = params.get('prob_min', 0.01)
+    prob_max = params.get('prob_max', 0.99)
+    
+    k = model['k']
+    conditional_probs = model['conditional_probs']
+    
+    # Use continuous DbD sampling to get continuous values
+    from pateda.sampling.dbd import sample_dbd
+    
+    # Sample continuous values
+    continuous_samples = sample_dbd(model, n_samples, {'n_steps': n_steps, 'temperature': temperature})
+    
+    # Clip to [0, 1] range (they should already be, but ensure)
+    continuous_samples = np.clip(continuous_samples, 0.0, 1.0)
+    
+    # Convert continuous values to binary using conditional probabilities
+    binary_samples = sample_from_continuous_probabilities(
+        continuous_samples, conditional_probs, k, prob_min, prob_max
+    )
+    
+    return binary_samples
+
+
+def sample_binary_dbd_cd_t(
+    model: Dict[str, Any],
+    n_samples: int,
+    current_pop: np.ndarray,
+    params: Optional[Dict[str, Any]] = None
+) -> np.ndarray:
+    """
+    Sample from Binary DbD-CD-T model (Current to Closest with Transformation)
+    
+    Args:
+        model: Model dictionary from learn_binary_dbd_cd_t
+        n_samples: Number of samples to generate
+        current_pop: Current population for initialization
+        params: Sampling parameters
+    
+    Returns:
+        samples: Binary samples [n_samples, n_vars]
+    """
+    if params is None:
+        params = {}
+    
+    n_steps = params.get('n_steps', 20)
+    temperature = params.get('temperature', 1.0)
+    prob_min = params.get('prob_min', 0.01)
+    prob_max = params.get('prob_max', 0.99)
+    
+    k = model['k']
+    conditional_probs = model['conditional_probs']
+    
+    # Use continuous DbD sampling
+    from pateda.sampling.dbd import sample_dbd
+    continuous_samples = sample_dbd(model, n_samples, {'n_steps': n_steps, 'temperature': temperature})
+    continuous_samples = np.clip(continuous_samples, 0.0, 1.0)
+    
+    # Convert to binary
+    binary_samples = sample_from_continuous_probabilities(
+        continuous_samples, conditional_probs, k, prob_min, prob_max
+    )
+    
+    return binary_samples
+
+
+def sample_binary_dbd_uc_t(
+    model: Dict[str, Any],
+    n_samples: int,
+    current_pop: np.ndarray,
+    params: Optional[Dict[str, Any]] = None
+) -> np.ndarray:
+    """
+    Sample from Binary DbD-UC-T model (Univariate to Current with Transformation)
+    
+    Args:
+        model: Model dictionary from learn_binary_dbd_uc_t
+        n_samples: Number of samples to generate
+        current_pop: Current population (not used, included for API consistency)
+        params: Sampling parameters
+    
+    Returns:
+        samples: Binary samples [n_samples, n_vars]
+    """
+    if params is None:
+        params = {}
+    
+    n_steps = params.get('n_steps', 20)
+    temperature = params.get('temperature', 1.0)
+    prob_min = params.get('prob_min', 0.01)
+    prob_max = params.get('prob_max', 0.99)
+    
+    k = model['k']
+    conditional_probs = model['conditional_probs']
+    
+    # Use continuous DbD sampling
+    from pateda.sampling.dbd import sample_dbd
+    continuous_samples = sample_dbd(model, n_samples, {'n_steps': n_steps, 'temperature': temperature})
+    continuous_samples = np.clip(continuous_samples, 0.0, 1.0)
+    
+    # Convert to binary
+    binary_samples = sample_from_continuous_probabilities(
+        continuous_samples, conditional_probs, k, prob_min, prob_max
+    )
+    
+    return binary_samples
+
+
+def sample_binary_dbd_us_t(
+    model: Dict[str, Any],
+    n_samples: int,
+    selected_pop: np.ndarray,
+    params: Optional[Dict[str, Any]] = None
+) -> np.ndarray:
+    """
+    Sample from Binary DbD-US-T model (Univariate to Selected with Transformation)
+    
+    Args:
+        model: Model dictionary from learn_binary_dbd_us_t
+        n_samples: Number of samples to generate
+        selected_pop: Selected population (not used, included for API consistency)
+        params: Sampling parameters
+    
+    Returns:
+        samples: Binary samples [n_samples, n_vars]
+    """
+    if params is None:
+        params = {}
+    
+    n_steps = params.get('n_steps', 20)
+    temperature = params.get('temperature', 1.0)
+    prob_min = params.get('prob_min', 0.01)
+    prob_max = params.get('prob_max', 0.99)
+    
+    k = model['k']
+    conditional_probs = model['conditional_probs']
+    
+    # Use continuous DbD sampling
+    from pateda.sampling.dbd import sample_dbd
+    continuous_samples = sample_dbd(model, n_samples, {'n_steps': n_steps, 'temperature': temperature})
+    continuous_samples = np.clip(continuous_samples, 0.0, 1.0)
+    
+    # Convert to binary
+    binary_samples = sample_from_continuous_probabilities(
+        continuous_samples, conditional_probs, k, prob_min, prob_max
+    )
+    
+    return binary_samples
