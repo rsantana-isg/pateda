@@ -793,3 +793,294 @@ def sample_binary_backdrive_descriptors(
         Binary samples of shape (n_samples, n_vars)
     """
     return sample_discrete_backdrive_descriptors(model, n_samples, params)
+
+
+# ==============================================================================
+# GAN Variant Sampling Functions
+# ==============================================================================
+
+def sample_binary_gan_cond_fit(
+    model: Dict[str, Any],
+    n_samples: int,
+    params: Optional[Dict[str, Any]] = None
+) -> np.ndarray:
+    """
+    Sample from Conditional Fitness GAN
+    
+    Allows sampling at specific fitness percentiles to control
+    exploration vs exploitation trade-off.
+    
+    Parameters
+    ----------
+    model : dict
+        Model dictionary from learn_binary_gan_cond_fit
+    n_samples : int
+        Number of samples
+    params : dict, optional
+        Sampling parameters:
+        - 'target_percentile': target fitness percentile in [0, 1] (default: 1.0 for best)
+        - 'selected_fitness': selected population fitness for computing percentiles
+        - 'hard_sample': use hard 0/1 samples (default: True)
+        - 'threshold': probability threshold for hard sampling (default: 0.5)
+        
+    Returns
+    -------
+    samples : np.ndarray
+        Binary samples of shape (n_samples, n_vars)
+    """
+    if params is None:
+        params = {}
+    
+    from pateda.learning.discrete_gan import ConditionalBinaryGANGenerator
+    
+    target_percentile = params.get('target_percentile', 1.0)
+    hard_sample = params.get('hard_sample', True)
+    threshold = params.get('threshold', 0.5)
+    selected_fitness = params.get('selected_fitness', None)
+    
+    # Reconstruct generator
+    latent_dim = model['latent_dim']
+    n_vars = model['n_vars']
+    hidden_dims_g = model['hidden_dims_g']
+    list_act_functs_g = model.get('list_act_functs_g', None)
+    list_init_functs_g = model.get('list_init_functs_g', None)
+    
+    generator = ConditionalBinaryGANGenerator(
+        latent_dim, n_vars, condition_dim=1,
+        hidden_dims=hidden_dims_g,
+        list_act_functs=list_act_functs_g,
+        list_init_functs=list_init_functs_g
+    )
+    generator.load_state_dict(model['generator_state'])
+    generator.eval()
+    
+    with torch.no_grad():
+        # Sample latent noise
+        z = torch.randn(n_samples, latent_dim)
+        
+        # Create condition tensor (all samples at target percentile)
+        condition = torch.full((n_samples, 1), target_percentile)
+        
+        # Generate
+        if hard_sample:
+            probs = generator(z, condition, hard_sample=False)
+            samples = (probs > threshold).float().numpy()
+        else:
+            probs = generator(z, condition, hard_sample=True)
+            samples = probs.numpy()
+    
+    return samples.astype(int)
+
+
+def sample_binary_gan_aux(
+    model: Dict[str, Any],
+    n_samples: int,
+    params: Optional[Dict[str, Any]] = None
+) -> np.ndarray:
+    """
+    Sample from Auxiliary GAN with optional surrogate filtering
+    
+    Can use the fitness prediction head to pre-filter solutions
+    and select the most promising ones.
+    
+    Parameters
+    ----------
+    model : dict
+        Model dictionary from learn_binary_gan_aux
+    n_samples : int
+        Number of samples
+    params : dict, optional
+        Sampling parameters:
+        - 'use_surrogate': use fitness head for filtering (default: False)
+        - 'surrogate_factor': generate this many times more samples for filtering (default: 3)
+        - 'hard_sample': use hard 0/1 samples (default: True)
+        - 'threshold': probability threshold for hard sampling (default: 0.5)
+        
+    Returns
+    -------
+    samples : np.ndarray
+        Binary samples of shape (n_samples, n_vars)
+    """
+    if params is None:
+        params = {}
+    
+    from pateda.learning.discrete_gan import BinaryGANGenerator, BinaryAuxGANDiscriminator
+    
+    use_surrogate = params.get('use_surrogate', False)
+    surrogate_factor = params.get('surrogate_factor', 3)
+    hard_sample = params.get('hard_sample', True)
+    threshold = params.get('threshold', 0.5)
+    
+    # Reconstruct generator
+    latent_dim = model['latent_dim']
+    n_vars = model['n_vars']
+    hidden_dims_g = model['hidden_dims_g']
+    list_act_functs_g = model.get('list_act_functs_g', None)
+    list_init_functs_g = model.get('list_init_functs_g', None)
+    
+    generator = BinaryGANGenerator(
+        latent_dim, n_vars, hidden_dims_g,
+        list_act_functs=list_act_functs_g,
+        list_init_functs=list_init_functs_g
+    )
+    generator.load_state_dict(model['generator_state'])
+    generator.eval()
+    
+    if use_surrogate:
+        # Reconstruct discriminator with fitness head
+        hidden_dims_d = model['hidden_dims_d']
+        list_act_functs_d = model.get('list_act_functs_d', None)
+        list_init_functs_d = model.get('list_init_functs_d', None)
+        dropout = model.get('dropout', 0.5)
+        
+        discriminator = BinaryAuxGANDiscriminator(
+            n_vars, hidden_dims_d,
+            list_act_functs=list_act_functs_d,
+            list_init_functs=list_init_functs_d,
+            dropout=dropout
+        )
+        discriminator.load_state_dict(model['discriminator_state'])
+        discriminator.eval()
+        
+        with torch.no_grad():
+            # Generate more samples than needed
+            n_candidates = n_samples * surrogate_factor
+            z = torch.randn(n_candidates, latent_dim)
+            probs = generator(z, hard_sample=False)
+            
+            # Predict fitness for all candidates
+            _, fitness_pred = discriminator(probs, return_fitness=True)
+            fitness_pred = fitness_pred.squeeze().numpy()
+            
+            # Select top predicted fitness samples
+            top_indices = np.argsort(fitness_pred)[-n_samples:]
+            
+            if hard_sample:
+                selected_probs = probs[top_indices]
+                samples = (selected_probs > threshold).float().numpy()
+            else:
+                samples = probs[top_indices].numpy()
+    else:
+        # Standard sampling without surrogate filtering
+        with torch.no_grad():
+            z = torch.randn(n_samples, latent_dim)
+            
+            if hard_sample:
+                probs = generator(z, hard_sample=False)
+                samples = (probs > threshold).float().numpy()
+            else:
+                probs = generator(z, hard_sample=True)
+                samples = probs.numpy()
+    
+    return samples.astype(int)
+
+
+def sample_binary_gan_hybrid_vae(
+    model: Dict[str, Any],
+    n_samples: int,
+    params: Optional[Dict[str, Any]] = None
+) -> np.ndarray:
+    """
+    Sample from Hybrid GAN-VAE (BiGAN) with Encoder
+    
+    Can use encoder for latent space operations like crossover and interpolation.
+    
+    Parameters
+    ----------
+    model : dict
+        Model dictionary from learn_binary_gan_hybrid_vae
+    n_samples : int
+        Number of samples
+    params : dict, optional
+        Sampling parameters:
+        - 'use_latent_crossover': use latent space crossover (default: False)
+        - 'parent_population': parent solutions for crossover (required if use_latent_crossover=True)
+        - 'crossover_prob': probability of crossover vs new random sample (default: 0.8)
+        - 'hard_sample': use hard 0/1 samples (default: True)
+        - 'threshold': probability threshold for hard sampling (default: 0.5)
+        
+    Returns
+    -------
+    samples : np.ndarray
+        Binary samples of shape (n_samples, n_vars)
+    """
+    if params is None:
+        params = {}
+    
+    from pateda.learning.discrete_gan import BinaryGANGenerator, BinaryGANEncoder
+    
+    use_latent_crossover = params.get('use_latent_crossover', False)
+    parent_population = params.get('parent_population', None)
+    crossover_prob = params.get('crossover_prob', 0.8)
+    hard_sample = params.get('hard_sample', True)
+    threshold = params.get('threshold', 0.5)
+    
+    # Reconstruct generator
+    latent_dim = model['latent_dim']
+    n_vars = model['n_vars']
+    hidden_dims_g = model['hidden_dims_g']
+    list_act_functs_g = model.get('list_act_functs_g', None)
+    list_init_functs_g = model.get('list_init_functs_g', None)
+    
+    generator = BinaryGANGenerator(
+        latent_dim, n_vars, hidden_dims_g,
+        list_act_functs=list_act_functs_g,
+        list_init_functs=list_init_functs_g
+    )
+    generator.load_state_dict(model['generator_state'])
+    generator.eval()
+    
+    if use_latent_crossover and parent_population is not None:
+        # Reconstruct encoder
+        hidden_dims_e = model['hidden_dims_e']
+        list_act_functs_e = model.get('list_act_functs_e', None)
+        list_init_functs_e = model.get('list_init_functs_e', None)
+        
+        encoder = BinaryGANEncoder(
+            n_vars, latent_dim, hidden_dims_e,
+            list_act_functs=list_act_functs_e,
+            list_init_functs=list_init_functs_e
+        )
+        encoder.load_state_dict(model['encoder_state'])
+        encoder.eval()
+        
+        with torch.no_grad():
+            # Encode parent population to latent space
+            parent_tensor = torch.FloatTensor(parent_population)
+            parent_z = encoder(parent_tensor)
+            
+            # Generate latent codes via crossover or random
+            latent_codes = []
+            for _ in range(n_samples):
+                if np.random.rand() < crossover_prob:
+                    # Crossover: blend two random parents in latent space
+                    idx1, idx2 = np.random.choice(len(parent_z), 2, replace=False)
+                    alpha = np.random.rand()
+                    z_child = alpha * parent_z[idx1] + (1 - alpha) * parent_z[idx2]
+                    latent_codes.append(z_child)
+                else:
+                    # Random new sample
+                    latent_codes.append(torch.randn(latent_dim))
+            
+            z = torch.stack(latent_codes)
+            
+            # Generate from latent codes
+            if hard_sample:
+                probs = generator(z, hard_sample=False)
+                samples = (probs > threshold).float().numpy()
+            else:
+                probs = generator(z, hard_sample=True)
+                samples = probs.numpy()
+    else:
+        # Standard sampling from prior
+        with torch.no_grad():
+            z = torch.randn(n_samples, latent_dim)
+            
+            if hard_sample:
+                probs = generator(z, hard_sample=False)
+                samples = (probs > threshold).float().numpy()
+            else:
+                probs = generator(z, hard_sample=True)
+                samples = probs.numpy()
+    
+    return samples.astype(int)
