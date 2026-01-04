@@ -614,6 +614,7 @@ def sample_binary_dbd_cs_t(
             - 'temperature': sampling temperature (default: 1.0)
             - 'prob_min': minimum probability bound (default: 0.01)
             - 'prob_max': maximum probability bound (default: 0.99)
+            - 'num_iterations': number of deblending iterations (default: 10)
     
     Returns:
         samples: Binary samples [n_samples, n_vars]
@@ -625,15 +626,22 @@ def sample_binary_dbd_cs_t(
     temperature = params.get('temperature', 1.0)
     prob_min = params.get('prob_min', 0.01)
     prob_max = params.get('prob_max', 0.99)
+    num_iterations = params.get('num_iterations', 10)
     
     k = model['k']
     conditional_probs = model['conditional_probs']
     
+    # Transform selected population to continuous using conditional probabilities
+    # This provides the p0 source distribution for continuous DbD sampling
+    from pateda.learning.discrete_dbd import transform_binary_to_continuous
+    p0_continuous = transform_binary_to_continuous(selected_pop, conditional_probs, k)
+    
     # Use continuous DbD sampling to get continuous values
     from pateda.sampling.dbd import sample_dbd
     
-    # Sample continuous values
-    continuous_samples = sample_dbd(model, n_samples, {'n_steps': n_steps, 'temperature': temperature})
+    # Sample continuous values - note: sample_dbd expects (model, p0, n_samples, bounds, params, rng)
+    continuous_samples = sample_dbd(model, p0_continuous, n_samples, bounds=None, 
+                                   params={'num_iterations': num_iterations}, rng=None)
     
     # Clip to [0, 1] range (they should already be, but ensure)
     continuous_samples = np.clip(continuous_samples, 0.0, 1.0)
@@ -659,7 +667,10 @@ def sample_binary_dbd_cd_t(
         model: Model dictionary from learn_binary_dbd_cd_t
         n_samples: Number of samples to generate
         current_pop: Current population for initialization
-        params: Sampling parameters
+        params: Sampling parameters:
+            - 'num_iterations': number of deblending iterations (default: 10)
+            - 'prob_min': minimum probability bound (default: 0.01)
+            - 'prob_max': maximum probability bound (default: 0.99)
     
     Returns:
         samples: Binary samples [n_samples, n_vars]
@@ -667,17 +678,21 @@ def sample_binary_dbd_cd_t(
     if params is None:
         params = {}
     
-    n_steps = params.get('n_steps', 20)
-    temperature = params.get('temperature', 1.0)
+    num_iterations = params.get('num_iterations', 10)
     prob_min = params.get('prob_min', 0.01)
     prob_max = params.get('prob_max', 0.99)
     
     k = model['k']
     conditional_probs = model['conditional_probs']
     
+    # Transform current population to continuous using conditional probabilities
+    from pateda.learning.discrete_dbd import transform_binary_to_continuous
+    p0_continuous = transform_binary_to_continuous(current_pop, conditional_probs, k)
+    
     # Use continuous DbD sampling
     from pateda.sampling.dbd import sample_dbd
-    continuous_samples = sample_dbd(model, n_samples, {'n_steps': n_steps, 'temperature': temperature})
+    continuous_samples = sample_dbd(model, p0_continuous, n_samples, bounds=None,
+                                   params={'num_iterations': num_iterations}, rng=None)
     continuous_samples = np.clip(continuous_samples, 0.0, 1.0)
     
     # Convert to binary
@@ -701,7 +716,10 @@ def sample_binary_dbd_uc_t(
         model: Model dictionary from learn_binary_dbd_uc_t
         n_samples: Number of samples to generate
         current_pop: Current population (not used, included for API consistency)
-        params: Sampling parameters
+        params: Sampling parameters:
+            - 'num_iterations': number of deblending iterations (default: 10)
+            - 'prob_min': minimum probability bound (default: 0.01)
+            - 'prob_max': maximum probability bound (default: 0.99)
     
     Returns:
         samples: Binary samples [n_samples, n_vars]
@@ -709,17 +727,32 @@ def sample_binary_dbd_uc_t(
     if params is None:
         params = {}
     
-    n_steps = params.get('n_steps', 20)
-    temperature = params.get('temperature', 1.0)
+    num_iterations = params.get('num_iterations', 10)
     prob_min = params.get('prob_min', 0.01)
     prob_max = params.get('prob_max', 0.99)
     
     k = model['k']
     conditional_probs = model['conditional_probs']
+    marginal_probs = model['marginal_probs']
+    
+    # Sample from univariate distribution and transform to continuous
+    from pateda.learning.discrete_dbd import sample_from_univariate_binary, compute_conditional_probabilities, transform_binary_to_continuous
+    
+    # Generate more samples for p0 to have a diverse source distribution
+    n_p0_samples = max(n_samples, 500)
+    p0_binary = sample_from_univariate_binary(marginal_probs, n_p0_samples)
+    
+    # Compute conditional probabilities for the p0 samples
+    alpha_smooth = model.get('alpha_smooth', 0.1)
+    conditional_probs_p0 = compute_conditional_probabilities(p0_binary.astype(int), k, alpha_smooth)
+    
+    # Transform to continuous
+    p0_continuous = transform_binary_to_continuous(p0_binary.astype(int), conditional_probs_p0, k)
     
     # Use continuous DbD sampling
     from pateda.sampling.dbd import sample_dbd
-    continuous_samples = sample_dbd(model, n_samples, {'n_steps': n_steps, 'temperature': temperature})
+    continuous_samples = sample_dbd(model, p0_continuous, n_samples, bounds=None,
+                                   params={'num_iterations': num_iterations}, rng=None)
     continuous_samples = np.clip(continuous_samples, 0.0, 1.0)
     
     # Convert to binary
@@ -743,7 +776,10 @@ def sample_binary_dbd_us_t(
         model: Model dictionary from learn_binary_dbd_us_t
         n_samples: Number of samples to generate
         selected_pop: Selected population (not used, included for API consistency)
-        params: Sampling parameters
+        params: Sampling parameters:
+            - 'num_iterations': number of deblending iterations (default: 10)
+            - 'prob_min': minimum probability bound (default: 0.01)
+            - 'prob_max': maximum probability bound (default: 0.99)
     
     Returns:
         samples: Binary samples [n_samples, n_vars]
@@ -751,17 +787,32 @@ def sample_binary_dbd_us_t(
     if params is None:
         params = {}
     
-    n_steps = params.get('n_steps', 20)
-    temperature = params.get('temperature', 1.0)
+    num_iterations = params.get('num_iterations', 10)
     prob_min = params.get('prob_min', 0.01)
     prob_max = params.get('prob_max', 0.99)
     
     k = model['k']
     conditional_probs = model['conditional_probs']
+    marginal_probs = model['marginal_probs']
+    
+    # Sample from univariate distribution and transform to continuous
+    from pateda.learning.discrete_dbd import sample_from_univariate_binary, compute_conditional_probabilities, transform_binary_to_continuous
+    
+    # Generate more samples for p0 to have a diverse source distribution
+    n_p0_samples = max(n_samples, 500)
+    p0_binary = sample_from_univariate_binary(marginal_probs, n_p0_samples)
+    
+    # Compute conditional probabilities for the p0 samples
+    alpha_smooth = model.get('alpha_smooth', 0.1)
+    conditional_probs_p0 = compute_conditional_probabilities(p0_binary.astype(int), k, alpha_smooth)
+    
+    # Transform to continuous
+    p0_continuous = transform_binary_to_continuous(p0_binary.astype(int), conditional_probs_p0, k)
     
     # Use continuous DbD sampling
     from pateda.sampling.dbd import sample_dbd
-    continuous_samples = sample_dbd(model, n_samples, {'n_steps': n_steps, 'temperature': temperature})
+    continuous_samples = sample_dbd(model, p0_continuous, n_samples, bounds=None,
+                                   params={'num_iterations': num_iterations}, rng=None)
     continuous_samples = np.clip(continuous_samples, 0.0, 1.0)
     
     # Convert to binary
