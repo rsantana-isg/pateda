@@ -533,7 +533,7 @@ class UnifiedDiscreteNeuralEDA:
 
             history['best_fitness'].append(best_fitness)
 
-            if verbose and (gen + 1) % 10 == 0:
+            if verbose and (gen + 1) % 1 == 0:
                 print(f"Generation {gen+1}: Best Fitness = {best_fitness:.4f}")
 
         # Print completion summary (matching traditional EDA format)
@@ -801,12 +801,18 @@ def main():
         
         method_id = method_map[alg]
         
+        # Compute common parameters based on pop_size and n_vars
+        selection_ratio = 0.5
+        selected_pop_size = int(pop_size * selection_ratio)
+        adaptive_hidden_dims = [max(10, n_vars // 2), max(10, n_vars // 4)]
+        batch_s =  min(32, int(selected_pop_size/10))
+        
         # Configure learning parameters
         params_map = {
             'vae': {
                 'epochs': 30,
                 'latent_dim': max(2, n_vars // 4),
-                'batch_size': min(32, int(pop_size * 0.5) // 2),
+                'batch_size': batch_s,
                 # Dynamic hidden layers will be computed in learn_binary_vae
                 # Beta annealing enabled by default
                 'beta_start': 0.0,
@@ -816,7 +822,7 @@ def main():
             'vae_extended': {
                 'epochs': 30,
                 'latent_dim': max(2, n_vars // 4),
-                'batch_size': min(32, int(pop_size * 0.5) // 2),
+                'batch_size':  batch_s,
                 # Dynamic hidden layers will be computed in learn_binary_vae
                 # Beta annealing enabled by default
                 'beta_start': 0.0,
@@ -829,47 +835,47 @@ def main():
             'gan': {
                 'epochs': 60,
                 'latent_dim': max(10, n_vars // 2),
-                'batch_size': min(32, int(pop_size * 0.5) // 2),
+                'batch_size':  batch_s,
             },
             'backdrive': {
                 'epochs': 30,
-                'hidden_dims': [max(10, n_vars // 2), max(10, n_vars // 4)],
-                'batch_size': min(32, int(pop_size * 0.5) // 2),
+                'hidden_dims': adaptive_hidden_dims,
+                'batch_size':  batch_s,
             },
             'backdrive_random': {
                 'epochs': 30,
-                'hidden_dims': [max(10, n_vars // 2), max(10, n_vars // 4)],
-                'batch_size': min(32, int(pop_size * 0.5) // 2),
+                'hidden_dims': adaptive_hidden_dims,
+                'batch_size':  batch_s,
             },
             'backdrive_perturb_best': {
                 'epochs': 30,
-                'hidden_dims': [max(10, n_vars // 2), max(10, n_vars // 4)],
-                'batch_size': min(32, int(pop_size * 0.5) // 2),
+                'hidden_dims': adaptive_hidden_dims,
+                'batch_size':  batch_s,
             },
             'backdrive_perturb_selected': {
                 'epochs': 30,
-                'hidden_dims': [max(10, n_vars // 2), max(10, n_vars // 4)],
-                'batch_size': min(32, int(pop_size * 0.5) // 2),
+                'hidden_dims': adaptive_hidden_dims,
+                'batch_size':  batch_s,
             },
             'backdrive_adaptive': {
                 'epochs': 30,
-                'hidden_dims': [max(10, n_vars // 2), max(10, n_vars // 4)],
-                'batch_size': min(32, int(pop_size * 0.5) // 2),
+                'hidden_dims': adaptive_hidden_dims,
+                'batch_size':  batch_s,
             },
             'backdrive_weighted_mse': {
                 'epochs': 30,
-                'hidden_dims': [max(10, n_vars // 2), max(10, n_vars // 4)],
-                'batch_size': min(32, int(pop_size * 0.5) // 2),
+                'hidden_dims': adaptive_hidden_dims,
+                'batch_size':  batch_s,
             },
             'backdrive_ranking': {
                 'epochs': 30,
-                'hidden_dims': [max(10, n_vars // 2), max(10, n_vars // 4)],
-                'batch_size': min(32, int(pop_size * 0.5) // 2),
+                'hidden_dims': adaptive_hidden_dims,
+                'batch_size':  batch_s,
             },
             'backdrive_huber': {
                 'epochs': 30,
-                'hidden_dims': [max(10, n_vars // 2), max(10, n_vars // 4)],
-                'batch_size': min(32, int(pop_size * 0.5) // 2),
+                'hidden_dims': adaptive_hidden_dims,
+                'batch_size':  batch_s,
             },
             'dae': {
                 'epochs': 30,
@@ -883,32 +889,30 @@ def main():
             },
             'dbd': {
                 'epochs': 50,
-                # CRITICAL FIX: Reduced network size to prevent overfitting
-                # Old: [64, 32] = ~5000 params, New: [16, 8] = ~700 params
-                'hidden_dims': [max(10, n_vars // 2), max(10, n_vars // 4)],
+                'hidden_dims': adaptive_hidden_dims,
                 # CRITICAL FIX: Increased training data
                 # Old: 5 alpha samples = 375 total, New: 20 = 1500 total
                 'num_alpha_samples': 20,
             },
             'dbd_cs': {
                 'epochs': 50,
-                'hidden_dims': [max(10, n_vars // 2), max(10, n_vars // 4)],
+                'hidden_dims': adaptive_hidden_dims,
                 'num_alpha_samples': 20,
             },
             'dbd_cd': {
                 'epochs': 50,
-                'hidden_dims': [max(10, n_vars // 2), max(10, n_vars // 4)],
+                'hidden_dims': adaptive_hidden_dims,
                 'num_alpha_samples': 20,
             },
             'dbd_uc': {
                 'epochs': 50,
-                'hidden_dims': [max(10, n_vars // 2), max(10, n_vars // 4)],
+                'hidden_dims': adaptive_hidden_dims,
                 'num_alpha_samples': 20,
                 'to_take': pop_size * 4,  # Increased training pairs
             },
             'dbd_us': {
                 'epochs': 50,
-                'hidden_dims': [max(10, n_vars // 2), max(10, n_vars // 4)],
+                'hidden_dims': adaptive_hidden_dims,
                 'num_alpha_samples': 20,
                 'to_take': pop_size * 4,  # Increased training pairs
             },
@@ -917,7 +921,7 @@ def main():
                 'k': 0,  # No conditioning (marginal probabilities only)
                 'alpha': 0.1,  # Smoothing parameter
                 'num_alpha_samples': 10,  # For continuous DbD
-                'hidden_dims': [max(10, n_vars // 2), max(10, n_vars // 4)],  # Continuous DbD network
+                'hidden_dims': adaptive_hidden_dims,
                 'normalize': True,  # Normalize continuous values
             },
             'dbd_cs_t_k1': {
@@ -925,7 +929,7 @@ def main():
                 'k': 1,  # First-order Markov chain
                 'alpha': 0.1,
                 'num_alpha_samples': 10,
-                'hidden_dims': [max(10, n_vars // 2), max(10, n_vars // 4)],
+                'hidden_dims': adaptive_hidden_dims,
                 'normalize': True,
             },
             'dbd_cs_t_k2': {
@@ -933,7 +937,7 @@ def main():
                 'k': 2,  # Second-order Markov chain
                 'alpha': 0.1,
                 'num_alpha_samples': 10,
-                'hidden_dims': [max(10, n_vars // 2), max(10, n_vars // 4)],
+                'hidden_dims': adaptive_hidden_dims,
                 'normalize': True,
             },
             'dendiff_gumbel': {
@@ -942,9 +946,9 @@ def main():
                 'beta_schedule': 'linear',
                 'beta_start': 0.0001,
                 'beta_end': 0.3,  # Max bit-flip probability
-                'hidden_dims': [max(10, n_vars // 2), max(10, n_vars // 4)],  # Smaller to prevent overfitting
+                'hidden_dims': adaptive_hidden_dims,
                 'time_emb_dim': 4,
-                'batch_size': min(16, int(pop_size * 0.5) // 4),
+                'batch_size':  batch_s,
                 'learning_rate': 1e-3,
                 'temperature': 1.0,
                 'temperature_decay': 0.99,
@@ -956,9 +960,9 @@ def main():
                 'schedule': 'linear',
                 'corruption_start': 0.01,
                 'corruption_end': 0.5,
-                'hidden_dims': [max(10, n_vars // 2), max(10, n_vars // 4)],
+                'hidden_dims': adaptive_hidden_dims,
                 'time_emb_dim': 4,
-                'batch_size': min(16, int(pop_size * 0.5) // 4),
+                'batch_size':  batch_s,
                 'learning_rate': 1e-3,
             },
         }

@@ -2,10 +2,6 @@ import sys
 import os
 import numpy as np
 
-n_gen = 50
-n = 30 
-p_size = 150
- 
 if __name__ == '__main__':
 	#obj_functions = ['OneMax', 'KDeceptive3', 'Deceptive3', 'HIFF', 'KDeceptive5', 'FC5']       
         obj_functions = ['OneMax']
@@ -20,3 +16,4 @@ if __name__ == '__main__':
                     p_size = n*5        
                     A = "sbatch slurm_pateda.sh examples/discrete_EDA.py " +str(seed)+" "+obj_functions[i]+" "+str(n)+" "+str(p_size)+" "+str(n_gen) +" "+alg
                     print(A)
+
