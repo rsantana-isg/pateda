@@ -128,7 +128,7 @@ def sample_discrete_dendiff_gumbel(
     
     # Convert to numpy and ensure binary
     samples = x_t.numpy()
-    samples = (samples > 0.5).astype(np.float32)
+    samples = (samples > 0.5).astype(int)
     
     return samples
 
@@ -234,7 +234,7 @@ def sample_discrete_dendiff_corruption(
     
     # Convert to numpy
     samples = x_t.numpy()
-    samples = (samples > 0.5).astype(np.float32)
+    samples = (samples > 0.5).astype(int)
     
     return samples
 
