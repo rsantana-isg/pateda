@@ -427,7 +427,10 @@ class BackdriveEDA:
             # Prepare learning parameters
             learning_params = self.learning_params.copy()
             learning_params['early_stopping'] = self.early_stopping
-            learning_params['activation'] = self.activation
+            # Pass activation as a list for all hidden layers
+            if 'hidden_dims' in learning_params:
+                n_hidden = len(learning_params['hidden_dims'])
+                learning_params['list_act_functs'] = [self.activation] * n_hidden
             
             # For weight transfer, initialize from previous model
             if self.weight_transfer and self.previous_model is not None:
@@ -625,7 +628,7 @@ Examples:
         'hidden_dims': adaptive_hidden_dims,
         'batch_size': batch_s,
         'early_stopping': args.early_stopping,
-        'activation': args.activation,
+        # Activation will be passed as list_act_functs in the run method
     }
     
     # Configure sampling parameters based on variant and initialization
