@@ -805,13 +805,14 @@ def main():
         selection_ratio = 0.5
         selected_pop_size = int(pop_size * selection_ratio)
         adaptive_hidden_dims = [max(10, n_vars // 2), max(10, n_vars // 4)]
+        batch_s =  min(32, int(selected_pop_size/10))
         
         # Configure learning parameters
         params_map = {
             'vae': {
                 'epochs': 30,
                 'latent_dim': max(2, n_vars // 4),
-                'batch_size': min(32, selected_pop_size),
+                'batch_size': batch_s,
                 # Dynamic hidden layers will be computed in learn_binary_vae
                 # Beta annealing enabled by default
                 'beta_start': 0.0,
@@ -821,7 +822,7 @@ def main():
             'vae_extended': {
                 'epochs': 30,
                 'latent_dim': max(2, n_vars // 4),
-                'batch_size': min(32, selected_pop_size),
+                'batch_size':  batch_s,
                 # Dynamic hidden layers will be computed in learn_binary_vae
                 # Beta annealing enabled by default
                 'beta_start': 0.0,
@@ -834,47 +835,47 @@ def main():
             'gan': {
                 'epochs': 60,
                 'latent_dim': max(10, n_vars // 2),
-                'batch_size': min(32, selected_pop_size),
+                'batch_size':  batch_s,
             },
             'backdrive': {
                 'epochs': 30,
                 'hidden_dims': adaptive_hidden_dims,
-                'batch_size': min(32, selected_pop_size),
+                'batch_size':  batch_s,
             },
             'backdrive_random': {
                 'epochs': 30,
                 'hidden_dims': adaptive_hidden_dims,
-                'batch_size': min(32, selected_pop_size),
+                'batch_size':  batch_s,
             },
             'backdrive_perturb_best': {
                 'epochs': 30,
                 'hidden_dims': adaptive_hidden_dims,
-                'batch_size': min(32, selected_pop_size),
+                'batch_size':  batch_s,
             },
             'backdrive_perturb_selected': {
                 'epochs': 30,
                 'hidden_dims': adaptive_hidden_dims,
-                'batch_size': min(32, selected_pop_size),
+                'batch_size':  batch_s,
             },
             'backdrive_adaptive': {
                 'epochs': 30,
                 'hidden_dims': adaptive_hidden_dims,
-                'batch_size': min(32, selected_pop_size),
+                'batch_size':  batch_s,
             },
             'backdrive_weighted_mse': {
                 'epochs': 30,
                 'hidden_dims': adaptive_hidden_dims,
-                'batch_size': min(32, selected_pop_size),
+                'batch_size':  batch_s,
             },
             'backdrive_ranking': {
                 'epochs': 30,
                 'hidden_dims': adaptive_hidden_dims,
-                'batch_size': min(32, selected_pop_size),
+                'batch_size':  batch_s,
             },
             'backdrive_huber': {
                 'epochs': 30,
                 'hidden_dims': adaptive_hidden_dims,
-                'batch_size': min(32, selected_pop_size),
+                'batch_size':  batch_s,
             },
             'dae': {
                 'epochs': 30,
@@ -947,7 +948,7 @@ def main():
                 'beta_end': 0.3,  # Max bit-flip probability
                 'hidden_dims': adaptive_hidden_dims,
                 'time_emb_dim': 4,
-                'batch_size': min(16, selected_pop_size),
+                'batch_size':  batch_s,
                 'learning_rate': 1e-3,
                 'temperature': 1.0,
                 'temperature_decay': 0.99,
@@ -961,7 +962,7 @@ def main():
                 'corruption_end': 0.5,
                 'hidden_dims': adaptive_hidden_dims,
                 'time_emb_dim': 4,
-                'batch_size': min(16, selected_pop_size),
+                'batch_size':  batch_s,
                 'learning_rate': 1e-3,
             },
         }
