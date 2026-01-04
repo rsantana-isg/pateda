@@ -502,12 +502,20 @@ def sample_binary_dbd_us(
 # Sampling Functions for DbD-T Variants
 # ==============================================================================
 
+# Blending weights for combining denoised probability with conditional probability
+# These control how much influence the denoising process has vs the learned conditional structure
+DENOISED_WEIGHT = 0.7  # Weight for denoised continuous probability
+CONDITIONAL_WEIGHT = 0.3  # Weight for conditional probability from learned structure
+
+
 def sample_from_continuous_probabilities(
     continuous_values: np.ndarray,
     conditional_probs: list,
     k: int,
     prob_min: float = 0.01,
-    prob_max: float = 0.99
+    prob_max: float = 0.99,
+    denoised_weight: float = DENOISED_WEIGHT,
+    conditional_weight: float = CONDITIONAL_WEIGHT
 ) -> np.ndarray:
     """
     Sample binary values from continuous probability values using conditional probabilities
@@ -526,6 +534,10 @@ def sample_from_continuous_probabilities(
         Minimum probability bound (default: 0.01)
     prob_max : float
         Maximum probability bound (default: 0.99)
+    denoised_weight : float
+        Weight for denoised probability (default: 0.7)
+    conditional_weight : float
+        Weight for conditional probability (default: 0.3)
         
     Returns:
     --------
@@ -542,13 +554,21 @@ def sample_from_continuous_probabilities(
         cpd = conditional_probs[var]
         
         if var < k:
-            # For first k variables, sample directly from probability
-            # The continuous value represents P(X_i = 1)
-            # We need to convert to P(X_i = x_i | X_{i-1}, ..., X_0)
-            # For marginal case, just use the probability
+            # For first k variables, use marginal probabilities
+            # cpd is stored as [P(X=0), P(X=1)]
+            # Blend with the denoised continuous value
             for sample_idx in range(n_samples):
-                prob_1 = bounded_probs[sample_idx, var]
-                binary_samples[sample_idx, var] = 1 if np.random.rand() < prob_1 else 0
+                # Get marginal P(X_i = 1) from learned distribution
+                marginal_prob_1 = cpd[1]
+                
+                # Get denoised probability
+                denoised_prob_1 = bounded_probs[sample_idx, var]
+                
+                # Blend the two probabilities
+                final_prob = denoised_weight * denoised_prob_1 + conditional_weight * marginal_prob_1
+                final_prob = np.clip(final_prob, prob_min, prob_max)
+                
+                binary_samples[sample_idx, var] = 1 if np.random.rand() < final_prob else 0
         else:
             # For remaining variables, use conditional probabilities
             n_parents = min(k, var)
@@ -568,8 +588,7 @@ def sample_from_continuous_probabilities(
                 modulated_prob = bounded_probs[sample_idx, var]
                 
                 # Blend between conditional probability and modulated probability
-                # Give more weight to the denoised continuous value
-                final_prob = 0.7 * modulated_prob + 0.3 * prob_1_given_parents
+                final_prob = denoised_weight * modulated_prob + conditional_weight * prob_1_given_parents
                 final_prob = np.clip(final_prob, prob_min, prob_max)
                 
                 binary_samples[sample_idx, var] = 1 if np.random.rand() < final_prob else 0

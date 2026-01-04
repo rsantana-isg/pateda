@@ -791,6 +791,27 @@ def learn_binary_dbd_us(
 # DbD-T: Binary DbD with Markov Transformation
 # ==============================================================================
 
+def _prepare_dbd_params_for_continuous(params: Dict[str, Any]) -> Dict[str, Any]:
+    """
+    Helper function to prepare parameters for continuous DbD learning.
+    Removes parameters specific to the transformation step.
+    
+    Parameters:
+    -----------
+    params : dict
+        Original parameters dictionary
+        
+    Returns:
+    --------
+    dict
+        Parameters suitable for continuous DbD learning
+    """
+    dbd_params = params.copy()
+    dbd_params.pop('k', None)  # Remove k as it's not used by continuous DbD
+    dbd_params.pop('alpha', None)  # Remove alpha to avoid confusion with continuous learning rate
+    return dbd_params
+
+
 def compute_conditional_probabilities(
     population: np.ndarray,
     k: int,
@@ -820,12 +841,12 @@ def compute_conditional_probabilities(
     
     # For first k variables, use marginal probabilities (no conditioning)
     for var in range(min(k, n_vars)):
-        # Compute marginal P(X_i = 1)
-        prob_1 = np.mean(population[:, var]) + alpha
-        prob_0 = 1 - np.mean(population[:, var]) + alpha
-        total = prob_0 + prob_1
-        prob_0 /= total
-        prob_1 /= total
+        # Compute marginal P(X_i = 1) with smoothing
+        count_0 = np.sum(population[:, var] == 0) + alpha
+        count_1 = np.sum(population[:, var] == 1) + alpha
+        total = count_0 + count_1
+        prob_0 = count_0 / total
+        prob_1 = count_1 / total
         
         # Store as a simple array [P(X=0), P(X=1)]
         marginal = np.array([prob_0, prob_1])
@@ -956,9 +977,7 @@ def learn_binary_dbd_cs_t(
     
     # Step 4: Learn continuous DbD model
     from pateda.learning.dbd import learn_dbd
-    dbd_params = params.copy()
-    dbd_params.pop('k', None)  # Remove k as it's not used by continuous DbD
-    dbd_params.pop('alpha', None)  # Remove alpha to avoid confusion
+    dbd_params = _prepare_dbd_params_for_continuous(params)
     
     model = learn_dbd(p0_continuous, p1_continuous, dbd_params)
     
@@ -1006,9 +1025,7 @@ def learn_binary_dbd_cd_t(
     
     # Learn continuous DbD model
     from pateda.learning.dbd import learn_dbd
-    dbd_params = params.copy()
-    dbd_params.pop('k', None)
-    dbd_params.pop('alpha', None)
+    dbd_params = _prepare_dbd_params_for_continuous(params)
     
     model = learn_dbd(p0_continuous, p1_continuous, dbd_params)
     
@@ -1065,9 +1082,7 @@ def learn_binary_dbd_uc_t(
     
     # Learn continuous DbD model
     from pateda.learning.dbd import learn_dbd
-    dbd_params = params.copy()
-    dbd_params.pop('k', None)
-    dbd_params.pop('alpha', None)
+    dbd_params = _prepare_dbd_params_for_continuous(params)
     
     model = learn_dbd(p0_continuous, p1_continuous, dbd_params)
     
@@ -1125,9 +1140,7 @@ def learn_binary_dbd_us_t(
     
     # Learn continuous DbD model
     from pateda.learning.dbd import learn_dbd
-    dbd_params = params.copy()
-    dbd_params.pop('k', None)
-    dbd_params.pop('alpha', None)
+    dbd_params = _prepare_dbd_params_for_continuous(params)
     
     model = learn_dbd(p0_continuous, p1_continuous, dbd_params)
     
