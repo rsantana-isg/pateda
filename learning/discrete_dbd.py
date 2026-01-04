@@ -785,3 +785,369 @@ def learn_binary_dbd_us(
     model['variant'] = 'us'
     model['marginal_probs'] = marginal_probs
     return model
+
+
+# ==============================================================================
+# DbD-T: Binary DbD with Markov Transformation
+# ==============================================================================
+
+def _prepare_dbd_params_for_continuous(params: Dict[str, Any]) -> Dict[str, Any]:
+    """
+    Helper function to prepare parameters for continuous DbD learning.
+    Removes parameters specific to the transformation step.
+    
+    Parameters:
+    -----------
+    params : dict
+        Original parameters dictionary
+        
+    Returns:
+    --------
+    dict
+        Parameters suitable for continuous DbD learning
+    """
+    dbd_params = params.copy()
+    dbd_params.pop('k', None)  # Remove k as it's not used by continuous DbD
+    dbd_params.pop('alpha', None)  # Remove alpha to avoid confusion with continuous learning rate
+    return dbd_params
+
+
+def compute_conditional_probabilities(
+    population: np.ndarray,
+    k: int,
+    alpha: float = 0.1
+) -> list:
+    """
+    Compute conditional probabilities P(X_i | X_{i-1}, ..., X_{i-k}) for binary variables
+    
+    Parameters:
+    -----------
+    population : np.ndarray
+        Binary population matrix [n_samples, n_vars]
+    k : int
+        Number of previous variables to condition on (order of Markov chain)
+    alpha : float
+        Smoothing parameter (Laplace smoothing)
+        
+    Returns:
+    --------
+    list of np.ndarray
+        List of conditional probability tables, one per variable
+        For variable i with k parents: cpd[parent_config, var_value]
+        where parent_config is an index from 0 to 2^k - 1
+    """
+    n_samples, n_vars = population.shape
+    conditional_probs = []
+    
+    # For first k variables, use marginal probabilities (no conditioning)
+    for var in range(min(k, n_vars)):
+        # Compute marginal P(X_i = 1) with smoothing
+        count_0 = np.sum(population[:, var] == 0) + alpha
+        count_1 = np.sum(population[:, var] == 1) + alpha
+        total = count_0 + count_1
+        prob_0 = count_0 / total
+        prob_1 = count_1 / total
+        
+        # Store as a simple array [P(X=0), P(X=1)]
+        marginal = np.array([prob_0, prob_1])
+        conditional_probs.append(marginal)
+    
+    # For remaining variables, compute conditional probabilities
+    for var in range(k, n_vars):
+        # Number of previous variables to condition on
+        n_parents = min(k, var)
+        parent_vars = list(range(var - n_parents, var))
+        n_parent_configs = 2 ** n_parents  # For binary variables
+        
+        # Count conditional occurrences
+        # cpd[parent_config, var_value] = count
+        cpd = np.zeros((n_parent_configs, 2))
+        
+        for sample_idx in range(n_samples):
+            # Calculate parent configuration index (binary encoding)
+            config_idx = 0
+            for i, parent_var in enumerate(parent_vars):
+                config_idx += int(population[sample_idx, parent_var]) * (2 ** i)
+            
+            var_value = int(population[sample_idx, var])
+            cpd[config_idx, var_value] += 1
+        
+        # Apply smoothing
+        cpd += alpha
+        
+        # Normalize each row to get conditional probabilities
+        row_sums = cpd.sum(axis=1, keepdims=True)
+        cpd = cpd / row_sums
+        
+        conditional_probs.append(cpd)
+    
+    return conditional_probs
+
+
+def transform_binary_to_continuous(
+    population: np.ndarray,
+    conditional_probs: list,
+    k: int
+) -> np.ndarray:
+    """
+    Transform binary population to continuous using conditional probabilities
+    
+    For each variable X_i with value x_i, the continuous value is
+    P(X_i = x_i | X_{i-1} = x_{i-1}, ..., X_{i-k} = x_{i-k})
+    
+    Parameters:
+    -----------
+    population : np.ndarray
+        Binary population matrix [n_samples, n_vars]
+    conditional_probs : list
+        List of conditional probability tables from compute_conditional_probabilities
+    k : int
+        Number of previous variables used for conditioning
+        
+    Returns:
+    --------
+    np.ndarray
+        Continuous population [n_samples, n_vars] with values in [0, 1]
+    """
+    n_samples, n_vars = population.shape
+    continuous_pop = np.zeros_like(population, dtype=float)
+    
+    for var in range(n_vars):
+        cpd = conditional_probs[var]
+        
+        if var < k:
+            # For first k variables, use marginal probabilities
+            for sample_idx in range(n_samples):
+                var_value = int(population[sample_idx, var])
+                continuous_pop[sample_idx, var] = cpd[var_value]
+        else:
+            # For remaining variables, use conditional probabilities
+            n_parents = min(k, var)
+            parent_vars = list(range(var - n_parents, var))
+            
+            for sample_idx in range(n_samples):
+                # Calculate parent configuration index
+                config_idx = 0
+                for i, parent_var in enumerate(parent_vars):
+                    config_idx += int(population[sample_idx, parent_var]) * (2 ** i)
+                
+                var_value = int(population[sample_idx, var])
+                continuous_pop[sample_idx, var] = cpd[config_idx, var_value]
+    
+    return continuous_pop
+
+
+def learn_binary_dbd_cs_t(
+    current_pop: np.ndarray,
+    selected_pop: np.ndarray,
+    params: Optional[Dict[str, Any]] = None
+) -> Dict[str, Any]:
+    """
+    Learn DbD-CS-T (Current to Selected with Transformation) model
+    
+    This variant transforms binary populations to continuous using conditional
+    probabilities, then applies continuous DbD learning.
+    
+    Args:
+        current_pop: Current population samples [n_samples, n_vars] (binary)
+        selected_pop: Selected population samples [n_samples, n_vars] (binary)
+        params: Training parameters including:
+            - 'k': order of Markov chain for conditional probabilities (default: 1)
+            - 'alpha': smoothing parameter (default: 0.1)
+            - All other params from learn_dbd (continuous)
+    
+    Returns:
+        model: Model dictionary with 'variant' field set to 'cs_t'
+    """
+    if params is None:
+        params = {}
+    
+    k = params.get('k', 1)
+    alpha_smooth = params.get('alpha', 0.1)
+    
+    # Step 1: Compute conditional probabilities for source population
+    conditional_probs_p0 = compute_conditional_probabilities(current_pop, k, alpha_smooth)
+    
+    # Step 2: Compute conditional probabilities for target population
+    conditional_probs_p1 = compute_conditional_probabilities(selected_pop, k, alpha_smooth)
+    
+    # Step 3: Transform binary populations to continuous
+    p0_continuous = transform_binary_to_continuous(current_pop, conditional_probs_p0, k)
+    p1_continuous = transform_binary_to_continuous(selected_pop, conditional_probs_p1, k)
+    
+    # Step 4: Learn continuous DbD model
+    from pateda.learning.dbd import learn_dbd
+    dbd_params = _prepare_dbd_params_for_continuous(params)
+    
+    model = learn_dbd(p0_continuous, p1_continuous, dbd_params)
+    
+    # Step 5: Add transformation info to model
+    model['variant'] = 'cs_t'
+    model['k'] = k
+    model['alpha_smooth'] = alpha_smooth
+    model['conditional_probs'] = conditional_probs_p1  # Store target conditional probs for sampling
+    
+    return model
+
+
+def learn_binary_dbd_cd_t(
+    current_pop: np.ndarray,
+    selected_pop: np.ndarray,
+    params: Optional[Dict[str, Any]] = None
+) -> Dict[str, Any]:
+    """
+    Learn DbD-CD-T (Current to Closest in selected - Distance with Transformation)
+    
+    Args:
+        current_pop: Current population samples [n_samples, n_vars] (binary)
+        selected_pop: Selected population samples [n_samples, n_vars] (binary)
+        params: Training parameters
+    
+    Returns:
+        model: Model dictionary with 'variant' field set to 'cd_t'
+    """
+    if params is None:
+        params = {}
+    
+    k = params.get('k', 1)
+    alpha_smooth = params.get('alpha', 0.1)
+    
+    # Find closest neighbors in selected population
+    p1_closest = find_closest_neighbors_binary(current_pop, selected_pop)
+    
+    # Compute conditional probabilities
+    conditional_probs_p0 = compute_conditional_probabilities(current_pop, k, alpha_smooth)
+    conditional_probs_p1 = compute_conditional_probabilities(p1_closest, k, alpha_smooth)
+    
+    # Transform to continuous
+    p0_continuous = transform_binary_to_continuous(current_pop, conditional_probs_p0, k)
+    p1_continuous = transform_binary_to_continuous(p1_closest, conditional_probs_p1, k)
+    
+    # Learn continuous DbD model
+    from pateda.learning.dbd import learn_dbd
+    dbd_params = _prepare_dbd_params_for_continuous(params)
+    
+    model = learn_dbd(p0_continuous, p1_continuous, dbd_params)
+    
+    model['variant'] = 'cd_t'
+    model['k'] = k
+    model['alpha_smooth'] = alpha_smooth
+    model['conditional_probs'] = conditional_probs_p1
+    
+    return model
+
+
+def learn_binary_dbd_uc_t(
+    current_pop: np.ndarray,
+    selected_pop: np.ndarray,
+    params: Optional[Dict[str, Any]] = None
+) -> Dict[str, Any]:
+    """
+    Learn DbD-UC-T (Univariate to Current with Transformation)
+    
+    Args:
+        current_pop: Current population samples [n_samples, n_vars] (binary)
+        selected_pop: Selected population (not used for p1, but needed for consistency)
+        params: Training parameters
+    
+    Returns:
+        model: Model dictionary with 'variant' field set to 'uc_t'
+    """
+    if params is None:
+        params = {}
+    
+    k = params.get('k', 1)
+    alpha_smooth = params.get('alpha', 0.1)
+    n_samples = current_pop.shape[0]
+    n_vars = current_pop.shape[1]
+    
+    # Learn univariate marginals from current population
+    marginal_probs = learn_univariate_binary(current_pop)
+    
+    # Sample from univariate distribution
+    to_take = params.get('to_take', n_samples * 2)
+    p0_univariate = sample_from_univariate_binary(marginal_probs, to_take)
+    
+    # Sample from current population
+    p1_indices = np.random.randint(0, n_samples, size=to_take)
+    p1_samples = current_pop[p1_indices, :]
+    
+    # Compute conditional probabilities
+    conditional_probs_p0 = compute_conditional_probabilities(p0_univariate, k, alpha_smooth)
+    conditional_probs_p1 = compute_conditional_probabilities(p1_samples, k, alpha_smooth)
+    
+    # Transform to continuous
+    p0_continuous = transform_binary_to_continuous(p0_univariate, conditional_probs_p0, k)
+    p1_continuous = transform_binary_to_continuous(p1_samples, conditional_probs_p1, k)
+    
+    # Learn continuous DbD model
+    from pateda.learning.dbd import learn_dbd
+    dbd_params = _prepare_dbd_params_for_continuous(params)
+    
+    model = learn_dbd(p0_continuous, p1_continuous, dbd_params)
+    
+    model['variant'] = 'uc_t'
+    model['k'] = k
+    model['alpha_smooth'] = alpha_smooth
+    model['marginal_probs'] = marginal_probs
+    model['conditional_probs'] = conditional_probs_p1
+    
+    return model
+
+
+def learn_binary_dbd_us_t(
+    current_pop: np.ndarray,
+    selected_pop: np.ndarray,
+    params: Optional[Dict[str, Any]] = None
+) -> Dict[str, Any]:
+    """
+    Learn DbD-US-T (Univariate to Selected with Transformation)
+    
+    Args:
+        current_pop: Current population samples [n_samples, n_vars] (binary)
+        selected_pop: Selected population samples [n_samples, n_vars] (binary)
+        params: Training parameters
+    
+    Returns:
+        model: Model dictionary with 'variant' field set to 'us_t'
+    """
+    if params is None:
+        params = {}
+    
+    k = params.get('k', 1)
+    alpha_smooth = params.get('alpha', 0.1)
+    n_current = current_pop.shape[0]
+    n_selected = selected_pop.shape[0]
+    
+    # Learn univariate marginals from current population
+    marginal_probs = learn_univariate_binary(current_pop)
+    
+    # Sample from univariate distribution
+    to_take = params.get('to_take', n_current * 2)
+    p0_univariate = sample_from_univariate_binary(marginal_probs, to_take)
+    
+    # Sample from selected population
+    p1_indices = np.random.randint(0, n_selected, size=to_take)
+    p1_samples = selected_pop[p1_indices, :]
+    
+    # Compute conditional probabilities
+    conditional_probs_p0 = compute_conditional_probabilities(p0_univariate, k, alpha_smooth)
+    conditional_probs_p1 = compute_conditional_probabilities(p1_samples, k, alpha_smooth)
+    
+    # Transform to continuous
+    p0_continuous = transform_binary_to_continuous(p0_univariate, conditional_probs_p0, k)
+    p1_continuous = transform_binary_to_continuous(p1_samples, conditional_probs_p1, k)
+    
+    # Learn continuous DbD model
+    from pateda.learning.dbd import learn_dbd
+    dbd_params = _prepare_dbd_params_for_continuous(params)
+    
+    model = learn_dbd(p0_continuous, p1_continuous, dbd_params)
+    
+    model['variant'] = 'us_t'
+    model['k'] = k
+    model['alpha_smooth'] = alpha_smooth
+    model['marginal_probs'] = marginal_probs
+    model['conditional_probs'] = conditional_probs_p1
+    
+    return model
