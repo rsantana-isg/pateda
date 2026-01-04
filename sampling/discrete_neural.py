@@ -29,6 +29,7 @@ from pateda.learning.discrete_gan import (
     BinaryGANGenerator, CategoricalGANGenerator, gumbel_softmax as gan_gumbel_softmax
 )
 from pateda.learning.discrete_backdrive import DiscreteBackdriveNet
+from pateda.learning.discrete_backdrive_descriptors import DescriptorBackdriveNet
 
 
 def sample_binary_vae(
@@ -642,3 +643,147 @@ def sample_binary_backdrive_adaptive(
         Binary samples of shape (n_samples, n_vars)
     """
     return sample_discrete_backdrive_adaptive(model, n_samples, params)
+
+
+def sample_discrete_backdrive_descriptors(
+    model: Dict[str, Any],
+    n_samples: int,
+    params: Optional[Dict[str, Any]] = None
+) -> np.ndarray:
+    """
+    Sample from Descriptor-based Backdrive model
+    
+    Generates solutions by sampling descriptors from the selected population
+    distribution and feeding them through the learned network.
+    
+    Parameters
+    ----------
+    model : dict
+        Model dictionary from learn_discrete_backdrive_descriptors
+    n_samples : int
+        Number of samples to generate
+    params : dict, optional
+        Sampling parameters:
+        - 'selected_population': selected population for descriptor sampling (required)
+        - 'selected_fitness': selected fitness for descriptor sampling (required)
+        - 'descriptor_sampling': how to sample descriptors:
+            * 'from_population': sample from actual selected population (default)
+            * 'gaussian': fit Gaussian to descriptors and sample from it
+            * 'uniform': uniform sampling in descriptor ranges
+        - 'temperature': temperature for sigmoid sampling (default: 0.5)
+        - 'deterministic': use deterministic thresholding (default: False)
+        
+    Returns
+    -------
+    samples : np.ndarray
+        Binary samples of shape (n_samples, n_vars)
+    """
+    if params is None:
+        params = {}
+    
+    # Get required population data
+    selected_population = params.get('selected_population')
+    selected_fitness = params.get('selected_fitness')
+    
+    if selected_population is None or selected_fitness is None:
+        raise ValueError("'selected_population' and 'selected_fitness' required in params for descriptor sampling")
+    
+    descriptor_sampling = params.get('descriptor_sampling', 'from_population')
+    temperature = params.get('temperature', 0.5)
+    deterministic = params.get('deterministic', False)
+    
+    # Reconstruct network
+    n_vars = model['n_vars']
+    n_descriptors = model['n_descriptors']
+    hidden_layers = model['hidden_layers']
+    descriptor_means, descriptor_stds = model['descriptor_stats']
+    
+    network = DescriptorBackdriveNet(n_vars, n_descriptors, hidden_layers)
+    network.load_state_dict(model['network_state'])
+    network.eval()
+    
+    # Compute descriptors from selected population
+    fitness_1d = selected_fitness.flatten()
+    pop_descriptors = np.zeros((len(selected_population), 3))
+    pop_descriptors[:, 0] = fitness_1d
+    pop_descriptors[:, 1] = np.mean(selected_population, axis=1)
+    pop_descriptors[:, 2] = np.std(selected_population, axis=1)
+    
+    # Sample target descriptors based on method
+    if descriptor_sampling == 'from_population':
+        # Randomly sample descriptors from the selected population
+        indices = np.random.choice(len(pop_descriptors), size=n_samples, replace=True)
+        target_descriptors = pop_descriptors[indices]
+        
+    elif descriptor_sampling == 'gaussian':
+        # Fit Gaussian to descriptors and sample
+        desc_mean = np.mean(pop_descriptors, axis=0)
+        desc_cov = np.cov(pop_descriptors, rowvar=False)
+        
+        # Ensure covariance is positive definite
+        desc_cov += np.eye(3) * 1e-6
+        
+        target_descriptors = np.random.multivariate_normal(desc_mean, desc_cov, size=n_samples)
+        
+        # Clip to reasonable ranges
+        # Fitness and mean should be in [0, 1] for binary problems
+        target_descriptors[:, 0] = np.clip(target_descriptors[:, 0], 
+                                           np.min(pop_descriptors[:, 0]), 
+                                           np.max(pop_descriptors[:, 0]))
+        target_descriptors[:, 1] = np.clip(target_descriptors[:, 1], 0, 1)
+        # Std should be non-negative
+        target_descriptors[:, 2] = np.clip(target_descriptors[:, 2], 0, 0.5)
+        
+    elif descriptor_sampling == 'uniform':
+        # Uniform sampling in descriptor ranges
+        target_descriptors = np.zeros((n_samples, 3))
+        for i in range(3):
+            min_val = np.min(pop_descriptors[:, i])
+            max_val = np.max(pop_descriptors[:, i])
+            target_descriptors[:, i] = np.random.uniform(min_val, max_val, size=n_samples)
+    else:
+        raise ValueError(f"Unknown descriptor_sampling method: {descriptor_sampling}")
+    
+    # Normalize descriptors using stored statistics
+    normalized_descriptors = (target_descriptors - descriptor_means) / descriptor_stds
+    
+    # Generate solutions from descriptors
+    with torch.no_grad():
+        desc_tensor = torch.FloatTensor(normalized_descriptors)
+        logits = network(desc_tensor)
+        probs = torch.sigmoid(logits)
+        
+        # Sample binary values
+        if deterministic:
+            # Deterministic: threshold at 0.5
+            samples = (probs > 0.5).float().numpy()
+        else:
+            # Stochastic: Bernoulli sampling
+            samples = torch.bernoulli(probs).numpy()
+    
+    return samples.astype(int)
+
+
+def sample_binary_backdrive_descriptors(
+    model: Dict[str, Any],
+    n_samples: int,
+    params: Optional[Dict[str, Any]] = None
+) -> np.ndarray:
+    """
+    Sample from Binary Descriptor-based Backdrive model (simplified interface)
+    
+    Parameters
+    ----------
+    model : dict
+        Model dictionary from learn_binary_backdrive_descriptors
+    n_samples : int
+        Number of samples
+    params : dict, optional
+        Sampling parameters (same as sample_discrete_backdrive_descriptors)
+        
+    Returns
+    -------
+    samples : np.ndarray
+        Binary samples of shape (n_samples, n_vars)
+    """
+    return sample_discrete_backdrive_descriptors(model, n_samples, params)
