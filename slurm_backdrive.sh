@@ -34,8 +34,8 @@
 # $8: variant, $9: init, $10: loss, $11: activation
 # $12: weight_transfer, $13: early_stopping, $14: surrogate_filtering
 
-echo   "bnd -exec python3 $1 $2 $3 $4 $5 $6 $7 $8 $9 ${10} ${11} ${12} ${13} ${14} > results_discrete_backdrive_$3_$4_$5_$6_$7_$2_$8_$9_${10}_${11}_${12}_${13}_${14}.dat"
-        bnd -exec python3 $1 $2 $3 $4 $5 $6 $7 $8 $9 ${10} ${11} ${12} ${13} ${14} > results_discrete_backdrive_$3_$4_$5_$6_$7_$2_$8_$9_${10}_${11}_${12}_${13}_${14}.dat
+echo "bnd -exec python3 $1 $2 $3 $4 $5 $6 $7 $8 $9 ${10} ${11} ${12} ${13} ${14} > results_discrete_backdrive_$3_$4_$5_$6_$7_$2_$8_$9_${10}_${11}_${12}_${13}_${14}.dat"
+bnd -exec python3 $1 $2 $3 $4 $5 $6 $7 $8 $9 ${10} ${11} ${12} ${13} ${14} > results_discrete_backdrive_$3_$4_$5_$6_$7_$2_$8_$9_${10}_${11}_${12}_${13}_${14}.dat
 
 
 # sbatch slurm_backdrive.sh examples/discrete_Backdrive_EDA.py 111 OneMax 30 150 250 0.5 backdrive random mse relu 0 0 0
