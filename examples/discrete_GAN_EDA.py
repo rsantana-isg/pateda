@@ -28,12 +28,11 @@ Configurable Parameters:
 
 Usage:
     python discrete_GAN_EDA.py <seed> <obj_func> <n> <pop_size> <n_gen> <trunc> <variant> \\
-        [--activation-g ACT] [--activation-d ACT] [--activation-e ACT] \\
-        [--dropout RATE] [--temperature TEMP]
+        <activation_g> <activation_d> <activation_e> <dropout> <temperature> <use_surrogate>
 
 Example:
-    python discrete_GAN_EDA.py 0 OneMax 20 80 20 0.5 WGAN-GP
-    python discrete_GAN_EDA.py 1 Deceptive3 30 100 30 0.5 Aux-GAN --activation-g relu --activation-d leaky_relu
+    python discrete_GAN_EDA.py 0 OneMax 20 80 20 0.5 WGAN-GP relu leaky_relu relu 0.5 1.0 0
+    python discrete_GAN_EDA.py 1 Deceptive3 30 100 30 0.5 Aux-GAN relu leaky_relu relu 0.5 1.0 0
 
 ==============================================================================
 """
@@ -518,17 +517,17 @@ def main():
         epilog="""
 Examples:
   # Basic usage with WGAN-GP variant
-  python discrete_GAN_EDA.py 0 OneMax 20 80 20 0.5 WGAN-GP
+  python discrete_GAN_EDA.py 0 OneMax 20 80 20 0.5 WGAN-GP relu leaky_relu relu 0.5 1.0 0
 
   # Cond-Fit-GAN with custom activations
-  python discrete_GAN_EDA.py 0 Deceptive3 30 100 30 0.5 Cond-Fit-GAN --activation-g tanh --activation-d leaky_relu
+  python discrete_GAN_EDA.py 0 Deceptive3 30 100 30 0.5 Cond-Fit-GAN tanh leaky_relu relu 0.5 1.0 0
 
   # Aux-GAN with surrogate filtering
-  python discrete_GAN_EDA.py 0 HIFF 64 200 50 0.5 Aux-GAN --use-surrogate
+  python discrete_GAN_EDA.py 0 HIFF 64 200 50 0.5 Aux-GAN relu leaky_relu relu 0.5 1.0 1
         """
     )
 
-    # Required positional arguments
+    # All positional arguments
     parser.add_argument('seed', type=int, help='Random seed')
     parser.add_argument('obj_func', type=str, help='Objective function name')
     parser.add_argument('n', type=int, help='Number of variables')
@@ -539,23 +538,24 @@ Examples:
                        choices=['GAN', 'WGAN-GP', 'Cond-Fit-GAN', 'Aux-GAN',
                                'Repulsion-GAN', 'Weighted-D-GAN', 'Statistic-Match', 'Hybrid-GAN-VAE'],
                        help='GAN variant to use')
-
-    # Optional configuration arguments
-    parser.add_argument('--activation-g', type=str, default='relu',
-                       help='Activation function for Generator (default: relu). Options: relu, tanh, sigmoid, leaky_relu, elu, selu, gelu, etc.')
-    parser.add_argument('--activation-d', type=str, default='leaky_relu',
-                       help='Activation function for Discriminator (default: leaky_relu)')
-    parser.add_argument('--activation-e', type=str, default='relu',
-                       help='Activation function for Encoder (Hybrid-GAN-VAE only, default: relu)')
-    parser.add_argument('--dropout', type=float, default=0.5,
-                       help='Dropout rate for discriminator (default: 0.5)')
-    parser.add_argument('--temperature', type=float, default=1.0,
-                       help='Gumbel-Softmax temperature (default: 1.0)')
-    parser.add_argument('--use-surrogate', action='store_true',
-                       help='Use surrogate model for pre-filtering solutions (Aux-GAN only)')
+    parser.add_argument('activation_g', type=str,
+                       help='Activation function for Generator. Options: relu, tanh, sigmoid, leaky_relu, elu, selu, gelu, etc.')
+    parser.add_argument('activation_d', type=str,
+                       help='Activation function for Discriminator')
+    parser.add_argument('activation_e', type=str,
+                       help='Activation function for Encoder (Hybrid-GAN-VAE only)')
+    parser.add_argument('dropout', type=float,
+                       help='Dropout rate for discriminator')
+    parser.add_argument('temperature', type=float,
+                       help='Gumbel-Softmax temperature')
+    parser.add_argument('use_surrogate', type=int, choices=[0, 1],
+                       help='Use surrogate model for pre-filtering solutions (1=yes, 0=no, Aux-GAN only)')
 
     # Parse arguments
     args = parser.parse_args()
+
+    # Convert integer flags to boolean
+    args.use_surrogate = bool(args.use_surrogate)
 
     # Validate truncation percent
     if args.trunc <= 0 or args.trunc > 1:
