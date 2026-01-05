@@ -69,11 +69,15 @@ from typing import Dict, Any, Optional
 import warnings
 
 # Backdrive learning modules
-from pateda.learning.discrete_backdrive import learn_binary_backdrive
+from pateda.learning.discrete_backdrive import learn_binary_backdrive, DiscreteBackdriveNet
 from pateda.learning.discrete_backdrive_weighted_mse import learn_binary_backdrive_weighted_mse
 from pateda.learning.discrete_backdrive_ranking import learn_binary_backdrive_ranking
 from pateda.learning.discrete_backdrive_huber import learn_binary_backdrive_huber
-from pateda.learning.discrete_backdrive_descriptors import learn_binary_backdrive_descriptors
+from pateda.learning.discrete_backdrive_descriptors import (
+    learn_binary_backdrive_descriptors,
+    FitnessPredictor,
+    DEFAULT_FITNESS_PREDICTOR_HIDDEN_DIM
+)
 
 # Backdrive sampling modules
 from pateda.sampling.discrete_neural import (
@@ -551,12 +555,10 @@ class BackdriveEDA:
                 new_population = sample_fn(model, self.pop_size, sampling_params)
                 
                 # Surrogate filtering (optional)
-                # Note: Not supported for backdrive_descriptors variant
                 if self.surrogate_filtering and self.variant != 'backdrive_descriptors':
                     # Use the model to pre-filter solutions
                     # Evaluate with surrogate, then select promising ones
                     import torch
-                    from pateda.learning.discrete_backdrive import DiscreteBackdriveNet
 
                     # Reconstruct network for predictions with same configuration as training
                     network = DiscreteBackdriveNet(
@@ -584,14 +586,17 @@ class BackdriveEDA:
                 elif self.surrogate_filtering and self.variant == 'backdrive_descriptors':
                     # Use auxiliary fitness predictor for surrogate filtering
                     import torch
-                    from pateda.learning.discrete_backdrive_descriptors import FitnessPredictor
                     
                     # Check if fitness predictor is available in the model
                     if 'fitness_predictor_state' in model:
+                        # Get hidden dim from model or use default
+                        hidden_dim = model.get('fitness_predictor_hidden_dim',
+                                             max(DEFAULT_FITNESS_PREDICTOR_HIDDEN_DIM, model['n_vars']))
+                        
                         # Reconstruct fitness predictor
                         fitness_predictor = FitnessPredictor(
                             model['n_vars'],
-                            hidden_dim=max(32, model['n_vars']),
+                            hidden_dim=hidden_dim,
                             dropout=0.0  # No dropout during evaluation
                         )
                         fitness_predictor.load_state_dict(model['fitness_predictor_state'])

@@ -93,6 +93,9 @@ from pateda.learning.discrete_backdrive_huber import huber_loss
 # Constants for numerical stability
 EPSILON = 1e-10  # Small constant to prevent division by zero
 
+# Default hidden dimension for fitness predictor
+DEFAULT_FITNESS_PREDICTOR_HIDDEN_DIM = 64
+
 
 def descriptor_weighted_mse_loss(predictions: torch.Tensor, targets: torch.Tensor,
                                  fitness_values: torch.Tensor) -> torch.Tensor:
@@ -540,17 +543,21 @@ def learn_discrete_backdrive_descriptors(
     # Train auxiliary fitness predictor for surrogate filtering (if enabled)
     # This predictor learns: solution → fitness
     fitness_predictor_state = None
+    fitness_predictor_hidden_dim = None
     
     if train_fitness_predictor:
         print("Training auxiliary fitness predictor for surrogate filtering...")
         
-        fitness_predictor = FitnessPredictor(n_vars, hidden_dim=max(32, n_vars), dropout=dropout)
+        # Calculate hidden dimension for fitness predictor
+        fitness_predictor_hidden_dim = max(DEFAULT_FITNESS_PREDICTOR_HIDDEN_DIM, n_vars)
+        fitness_predictor = FitnessPredictor(n_vars, hidden_dim=fitness_predictor_hidden_dim, dropout=dropout)
         fitness_optimizer = optim.Adam(fitness_predictor.parameters(), lr=learning_rate, weight_decay=weight_decay)
         fitness_criterion = nn.MSELoss()
         
         # Use same train/val split but with reversed inputs/outputs
         # X is solutions (normalized_population), y is fitness (normalized)
-        fitness_y = torch.FloatTensor(normalized_descriptors[:, 0:1])  # fitness is first descriptor
+        # Note: fitness is always the first descriptor by design (index 0)
+        fitness_y = torch.FloatTensor(normalized_descriptors[:, 0:1])
         fitness_X = torch.FloatTensor(normalized_population)
         
         if n_val > 0:
@@ -618,9 +625,10 @@ def learn_discrete_backdrive_descriptors(
         'type': 'discrete_backdrive_descriptors'
     }
     
-    # Add fitness predictor state if trained
+    # Add fitness predictor state and configuration if trained
     if fitness_predictor_state is not None:
         model['fitness_predictor_state'] = fitness_predictor_state
+        model['fitness_predictor_hidden_dim'] = fitness_predictor_hidden_dim
 
     return model
 
