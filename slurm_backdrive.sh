@@ -29,8 +29,11 @@
 
 
 
+# Extract positional parameters for filename
+# $1: script, $2: seed, $3: obj_func, $4: n, $5: pop_size, $6: n_gen, $7: trunc
+# Additional parameters are optional flags
 echo "bnd -exec python3 $@"
-bnd -exec python3 "$@"
+bnd -exec python3 "$@" > results_discrete_backdrive_$3_$4_$5_$6_$7_$2.dat
 
 
 # sbatch slurm_backdrive.sh examples/discrete_Backdrive_EDA.py 111 OneMax 30 150 250 0.5 --variant backdrive --init random --loss mse --activation relu
