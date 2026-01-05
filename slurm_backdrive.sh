@@ -32,7 +32,7 @@
 # Extract positional parameters for filename
 # $1: script, $2: seed, $3: obj_func, $4: n, $5: pop_size, $6: n_gen, $7: trunc
 # Additional parameters are optional flags
-echo "bnd -exec python3 $@ > results_discrete_backdrive_${3}_${4}_${5}_${6}_${7}_${2}.dat"
+echo "bnd -exec python3 \"\$@\" > results_discrete_backdrive_${3}_${4}_${5}_${6}_${7}_${2}.dat"
 bnd -exec python3 "$@" > "results_discrete_backdrive_${3}_${4}_${5}_${6}_${7}_${2}.dat"
 
 
