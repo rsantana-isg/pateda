@@ -257,6 +257,42 @@ class DescriptorBackdriveNet(nn.Module):
         return self.network(descriptors)
 
 
+class FitnessPredictor(nn.Module):
+    """
+    Auxiliary fitness predictor for surrogate filtering
+    
+    Architecture: solution → fitness
+    
+    This predictor is trained alongside the main descriptor model
+    and is used for surrogate-based filtering during sampling.
+    """
+    
+    def __init__(self, n_vars: int, hidden_dim: int = 64, dropout: float = 0.2):
+        super(FitnessPredictor, self).__init__()
+        
+        self.predictor = nn.Sequential(
+            nn.Linear(n_vars, hidden_dim),
+            nn.ReLU(),
+            nn.Dropout(dropout),
+            nn.Linear(hidden_dim, hidden_dim // 2),
+            nn.ReLU(),
+            nn.Dropout(dropout),
+            nn.Linear(hidden_dim // 2, 1)
+        )
+    
+    def forward(self, solutions):
+        """
+        Forward pass: solutions → predicted fitness
+        
+        Args:
+            solutions: [batch_size, n_vars] tensor of binary solutions
+            
+        Returns:
+            Predicted fitness [batch_size, 1]
+        """
+        return self.predictor(solutions)
+
+
 def learn_discrete_backdrive_descriptors(
     population: np.ndarray,
     fitness: np.ndarray,
@@ -287,6 +323,7 @@ def learn_discrete_backdrive_descriptors(
         - 'early_stopping': enable early stopping (default: True)
         - 'patience': early stopping patience (default: 10)
         - 'huber_delta': delta parameter for Huber loss (default: 1.0)
+        - 'train_fitness_predictor': train auxiliary fitness predictor (default: True)
 
     Returns
     -------
@@ -317,6 +354,7 @@ def learn_discrete_backdrive_descriptors(
     early_stopping = params.get('early_stopping', True)
     patience = params.get('patience', 10)
     huber_delta = params.get('huber_delta', 1.0)
+    train_fitness_predictor = params.get('train_fitness_predictor', True)
 
     # Extract pretrained model for weight transfer
     pretrained_model = params.get('pretrained_model', None)
@@ -499,7 +537,76 @@ def learn_discrete_backdrive_descriptors(
             if (epoch + 1) % 20 == 0:
                 print(f"Epoch {epoch+1}/{epochs}: Train Loss={avg_train_loss:.4f}")
 
-    # Return model
+    # Train auxiliary fitness predictor for surrogate filtering (if enabled)
+    # This predictor learns: solution → fitness
+    fitness_predictor_state = None
+    
+    if train_fitness_predictor:
+        print("Training auxiliary fitness predictor for surrogate filtering...")
+        
+        fitness_predictor = FitnessPredictor(n_vars, hidden_dim=max(32, n_vars), dropout=dropout)
+        fitness_optimizer = optim.Adam(fitness_predictor.parameters(), lr=learning_rate, weight_decay=weight_decay)
+        fitness_criterion = nn.MSELoss()
+        
+        # Use same train/val split but with reversed inputs/outputs
+        # X is solutions (normalized_population), y is fitness (normalized)
+        fitness_y = torch.FloatTensor(normalized_descriptors[:, 0:1])  # fitness is first descriptor
+        fitness_X = torch.FloatTensor(normalized_population)
+        
+        if n_val > 0:
+            fitness_X_train = fitness_X[train_indices]
+            fitness_y_train = fitness_y[train_indices]
+            fitness_X_val = fitness_X[val_indices]
+            fitness_y_val = fitness_y[val_indices]
+        else:
+            fitness_X_train = fitness_X
+            fitness_y_train = fitness_y
+            fitness_X_val = None
+            fitness_y_val = None
+        
+        # Train fitness predictor (fewer epochs, it's a simpler task)
+        fitness_predictor.train()
+        fitness_epochs = max(20, epochs // 2)
+        
+        for epoch in range(fitness_epochs):
+            perm = torch.randperm(len(fitness_X_train))
+            epoch_loss = 0
+            n_batches = 0
+            
+            for i in range(0, len(fitness_X_train), batch_size):
+                idx = perm[i:i+batch_size]
+                batch_x = fitness_X_train[idx]
+                batch_y = fitness_y_train[idx]
+                
+                pred = fitness_predictor(batch_x)
+                loss = fitness_criterion(pred, batch_y)
+                
+                fitness_optimizer.zero_grad()
+                loss.backward()
+                fitness_optimizer.step()
+                
+                epoch_loss += loss.item()
+                n_batches += 1
+            
+            avg_train_loss = epoch_loss / n_batches
+            
+            # Validation for fitness predictor
+            if fitness_X_val is not None:
+                fitness_predictor.eval()
+                with torch.no_grad():
+                    val_pred = fitness_predictor(fitness_X_val)
+                    val_loss = fitness_criterion(val_pred, fitness_y_val).item()
+                fitness_predictor.train()
+                
+                if (epoch + 1) % 10 == 0:
+                    print(f"  Fitness Predictor Epoch {epoch+1}/{fitness_epochs}: "
+                          f"Train Loss={avg_train_loss:.4f}, Val Loss={val_loss:.4f}")
+        
+        # Store fitness predictor state
+        fitness_predictor_state = fitness_predictor.state_dict()
+        print("Fitness predictor training complete")
+
+    # Return model with optional fitness predictor
     model = {
         'network_state': network.state_dict(),
         'n_vars': n_vars,
@@ -510,6 +617,10 @@ def learn_discrete_backdrive_descriptors(
         'list_act_functs': list_act_functs if list_act_functs is not None else ['relu'] * len(hidden_layers),
         'type': 'discrete_backdrive_descriptors'
     }
+    
+    # Add fitness predictor state if trained
+    if fitness_predictor_state is not None:
+        model['fitness_predictor_state'] = fitness_predictor_state
 
     return model
 

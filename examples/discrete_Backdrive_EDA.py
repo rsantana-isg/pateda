@@ -29,6 +29,7 @@ Configurable Parameters (all positional):
 - weight_transfer: 1 to enable, 0 to disable
 - early_stopping: 1 to enable, 0 to disable
 - surrogate_filtering: 1 to enable, 0 to disable
+  * For backdrive_descriptors: Uses auxiliary fitness predictor for filtering
 
 Usage:
     python discrete_Backdrive_EDA.py <seed> <obj_func> <n> <pop_size> <n_gen> <trunc> \\
@@ -43,6 +44,9 @@ Examples:
 
     # Backdrive descriptors with Huber loss and ELU activation
     python discrete_Backdrive_EDA.py 2 HIFF 64 200 50 0.5 backdrive_descriptors random huber elu 0 1 0
+
+    # Backdrive descriptors with surrogate filtering enabled
+    python discrete_Backdrive_EDA.py 2 HIFF 64 200 50 0.5 backdrive_descriptors random mse relu 0 1 1
 
     # Adaptive backdrive with GELU activation
     python discrete_Backdrive_EDA.py 3 FC3 30 150 40 0.5 backdrive_adaptive perturb_best mse gelu 1 1 0
@@ -511,9 +515,11 @@ class BackdriveEDA:
                 n_hidden = len(learning_params['hidden_layers'])
                 learning_params['list_act_functs'] = [self.activation] * n_hidden
 
-            # For backdrive_descriptors variant, pass loss function
+            # For backdrive_descriptors variant, pass loss function and fitness predictor flag
             if self.variant == 'backdrive_descriptors':
                 learning_params['loss_function'] = self.loss_function
+                # Only train fitness predictor if surrogate filtering is enabled
+                learning_params['train_fitness_predictor'] = self.surrogate_filtering
 
             # For weight transfer, initialize from previous model
             if self.weight_transfer and self.previous_model is not None:
@@ -576,11 +582,43 @@ class BackdriveEDA:
                     top_indices = np.argsort(pred_fitness)[-self.pop_size:]
                     population = candidate_pop[top_indices]
                 elif self.surrogate_filtering and self.variant == 'backdrive_descriptors':
-                    # Surrogate filtering not supported for descriptor variant
-                    # Use the sampled population directly
-                    if verbose and gen == 0:
-                        print("  Note: Surrogate filtering not supported for backdrive_descriptors variant")
-                    population = new_population
+                    # Use auxiliary fitness predictor for surrogate filtering
+                    import torch
+                    from pateda.learning.discrete_backdrive_descriptors import FitnessPredictor
+                    
+                    # Check if fitness predictor is available in the model
+                    if 'fitness_predictor_state' in model:
+                        # Reconstruct fitness predictor
+                        fitness_predictor = FitnessPredictor(
+                            model['n_vars'],
+                            hidden_dim=max(32, model['n_vars']),
+                            dropout=0.0  # No dropout during evaluation
+                        )
+                        fitness_predictor.load_state_dict(model['fitness_predictor_state'])
+                        fitness_predictor.eval()
+                        
+                        # Generate more samples than needed
+                        candidate_pop = sample_fn(model, self.pop_size * 3, sampling_params)
+                        
+                        # Get descriptor statistics for denormalization
+                        descriptor_means, descriptor_stds = model['descriptor_stats']
+                        
+                        with torch.no_grad():
+                            # Convert to float tensor for fitness predictor
+                            X = torch.FloatTensor(candidate_pop.astype(float))
+                            # Predict normalized fitness
+                            pred_fitness_norm = fitness_predictor(X).numpy().flatten()
+                            # Denormalize fitness predictions
+                            pred_fitness = pred_fitness_norm * descriptor_stds[0] + descriptor_means[0]
+                        
+                        # Select top predicted solutions
+                        top_indices = np.argsort(pred_fitness)[-self.pop_size:]
+                        population = candidate_pop[top_indices]
+                    else:
+                        # Fallback if fitness predictor not available
+                        if verbose and gen == 0:
+                            print("  Note: Fitness predictor not available, surrogate filtering disabled")
+                        population = new_population
                 else:
                     population = new_population
 
