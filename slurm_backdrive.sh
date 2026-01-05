@@ -58,20 +58,36 @@ shift 7  # Skip the first 7 positional parameters
 while [[ $# -gt 0 ]]; do
     case "$1" in
         --variant)
-            VARIANT="$2"
-            shift 2
+            if [[ -n "$2" && "$2" != --* ]]; then
+                VARIANT="$2"
+                shift 2
+            else
+                shift
+            fi
             ;;
         --init)
-            INIT="$2"
-            shift 2
+            if [[ -n "$2" && "$2" != --* ]]; then
+                INIT="$2"
+                shift 2
+            else
+                shift
+            fi
             ;;
         --loss)
-            LOSS="$2"
-            shift 2
+            if [[ -n "$2" && "$2" != --* ]]; then
+                LOSS="$2"
+                shift 2
+            else
+                shift
+            fi
             ;;
         --activation)
-            ACTIVATION="$2"
-            shift 2
+            if [[ -n "$2" && "$2" != --* ]]; then
+                ACTIVATION="$2"
+                shift 2
+            else
+                shift
+            fi
             ;;
         --weight-transfer)
             WEIGHT_TRANSFER="wt"
@@ -104,7 +120,7 @@ FLAG_STRING=""
 # Create output filename with positional parameters and flags
 OUTPUT_FILE="results_discrete_backdrive_${OBJ_FUNC}_${N}_${POP_SIZE}_${N_GEN}_${TRUNC}_${SEED}${FLAG_STRING}.dat"
 
-echo "bnd -exec python3 \"\$@\" > ${OUTPUT_FILE}"
+echo "bnd -exec python3 [original args] > ${OUTPUT_FILE}"
 bnd -exec python3 "${ORIG_ARGS[@]}" > "${OUTPUT_FILE}"
 
 
