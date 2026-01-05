@@ -25,10 +25,10 @@ if __name__ == '__main__':
     activation_functions = ['leaky_relu', 'relu', 'tanh']
     
     # Boolean flags (weight-transfer, early-stopping, surrogate-filtering)
-    weight_transfer_options = [True, False]
-    #early_stopping_options = [True, False]
-    early_stopping_options = [True]
-    surrogate_filtering_options = [True, False]
+    weight_transfer_options = [1, 0]  # 1=True, 0=False
+    #early_stopping_options = [1, 0]
+    early_stopping_options = [1]  # 1=True
+    surrogate_filtering_options = [1, 0]  # 1=True, 0=False
     
     # Seeds
     for seed in np.arange(1, 2):
@@ -48,19 +48,8 @@ if __name__ == '__main__':
                             for weight_transfer in weight_transfer_options:
                                 for early_stopping in early_stopping_options:
                                     for surrogate_filtering in surrogate_filtering_options:
-                                        # Build command
-                                        cmd = f"sbatch slurm_backdrive.sh examples/discrete_Backdrive_EDA.py {seed} {obj_func} {n} {p_size} {n_gen} {trunc}"
-                                        cmd += f" --variant {variant}"
-                                        cmd += f" --init {init_method}"
-                                        cmd += f" --loss {loss_function}"
-                                        cmd += f" --activation {activation}"
-                                        
-                                        if weight_transfer:
-                                            cmd += " --weight-transfer"
-                                        if early_stopping:
-                                            cmd += " --early-stopping"
-                                        if surrogate_filtering:
-                                            cmd += " --surrogate-filtering"
+                                        # Build command with positional arguments
+                                        cmd = f"sbatch slurm_backdrive.sh examples/discrete_Backdrive_EDA.py {seed} {obj_func} {n} {p_size} {n_gen} {trunc} {variant} {init_method} {loss_function} {activation} {weight_transfer} {early_stopping} {surrogate_filtering}"
                                         
                                         print(cmd)
 
