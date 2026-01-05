@@ -376,6 +376,15 @@ def learn_discrete_backdrive_descriptors(
         list_act_functs=list_act_functs
     )
 
+    # Transfer weights from previous generation if provided
+    if pretrained_model is not None:
+        try:
+            # Load state dict from pretrained model
+            network.load_state_dict(pretrained_model['network_state'])
+            print("  Transferred weights from previous generation")
+        except Exception as e:
+            warnings.warn(f"Could not transfer weights: {e}")
+
     # Loss and optimizer
     # Choose loss function based on parameter
     if loss_function == 'mse':
