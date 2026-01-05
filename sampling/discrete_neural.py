@@ -1365,3 +1365,231 @@ def sample_binary_gan_hybrid_vae(
                 samples = probs.numpy()
     
     return samples.astype(int)
+
+
+# ==============================================================================
+# Enhanced VAE Sampling Functions (Based on DISCRETE_VAE_ANALYSIS.md)
+# ==============================================================================
+
+def sample_binary_bavae(
+    model: Dict[str, Any],
+    n_samples: int,
+    params: Optional[Dict[str, Any]] = None
+) -> np.ndarray:
+    """
+    Sample from Beta-Annealed VAE (BA-VAE)
+    
+    BA-VAE uses standard VAE sampling. The cyclical beta annealing is only
+    applied during training to prevent posterior collapse.
+    
+    Parameters
+    ----------
+    model : dict
+        Model dictionary from learn_binary_bavae
+    n_samples : int
+        Number of samples to generate
+    params : dict, optional
+        Sampling parameters (same as sample_binary_vae)
+    
+    Returns
+    -------
+    samples : np.ndarray
+        Binary samples of shape (n_samples, n_vars)
+    """
+    # BA-VAE uses standard VAE sampling
+    return sample_binary_vae(model, n_samples, params)
+
+
+def sample_binary_aavae(
+    model: Dict[str, Any],
+    n_samples: int,
+    params: Optional[Dict[str, Any]] = None
+) -> np.ndarray:
+    """
+    Sample from Adaptive-Architecture VAE (AA-VAE)
+    
+    AA-VAE uses standard VAE sampling. The adaptive architecture and dropout
+    are only applied during training to prevent overfitting.
+    
+    Parameters
+    ----------
+    model : dict
+        Model dictionary from learn_binary_aavae
+    n_samples : int
+        Number of samples to generate
+    params : dict, optional
+        Sampling parameters (same as sample_binary_vae)
+    
+    Returns
+    -------
+    samples : np.ndarray
+        Binary samples of shape (n_samples, n_vars)
+    """
+    # AA-VAE uses standard VAE sampling (dropout is disabled during inference)
+    return sample_binary_vae(model, n_samples, params)
+
+
+def sample_binary_fwvae(
+    model: Dict[str, Any],
+    n_samples: int,
+    params: Optional[Dict[str, Any]] = None
+) -> np.ndarray:
+    """
+    Sample from Fitness-Weighted VAE (FW-VAE)
+    
+    FW-VAE uses standard VAE sampling. The fitness weighting is only applied
+    during training to bias the latent space toward high-fitness regions.
+    
+    Parameters
+    ----------
+    model : dict
+        Model dictionary from learn_binary_fwvae
+    n_samples : int
+        Number of samples to generate
+    params : dict, optional
+        Sampling parameters (same as sample_binary_vae)
+    
+    Returns
+    -------
+    samples : np.ndarray
+        Binary samples of shape (n_samples, n_vars)
+    """
+    # FW-VAE uses standard VAE sampling
+    return sample_binary_vae(model, n_samples, params)
+
+
+def sample_binary_gsvae(
+    model: Dict[str, Any],
+    n_samples: int,
+    params: Optional[Dict[str, Any]] = None
+) -> np.ndarray:
+    """
+    Sample from Greedy-Sampling VAE (GS-VAE) - Uses deterministic sampling
+    
+    This variant uses deterministic (greedy) sampling instead of stochastic
+    Bernoulli sampling to reduce variance and improve exploitation.
+    
+    Parameters
+    ----------
+    model : dict
+        Model dictionary from any binary VAE variant
+    n_samples : int
+        Number of samples to generate
+    params : dict, optional
+        Sampling parameters (extends sample_binary_vae)
+    
+    Returns
+    -------
+    samples : np.ndarray
+        Binary samples of shape (n_samples, n_vars)
+    """
+    if params is None:
+        params = {}
+    
+    # Force deterministic sampling
+    modified_params = params.copy()
+    modified_params['deterministic'] = True
+    
+    return sample_binary_vae(model, n_samples, modified_params)
+
+
+def sample_binary_hsvae(
+    model: Dict[str, Any],
+    n_samples: int,
+    params: Optional[Dict[str, Any]] = None
+) -> np.ndarray:
+    """
+    Sample from Hybrid-Sampling VAE (HS-VAE) - Combines deterministic and stochastic
+    
+    This variant combines greedy (deterministic) sampling for exploitation with
+    stochastic sampling for exploration.
+    
+    Parameters
+    ----------
+    model : dict
+        Model dictionary from any binary VAE variant
+    n_samples : int
+        Number of samples to generate
+    params : dict, optional
+        Sampling parameters:
+        - 'exploration_ratio': fraction of samples to generate stochastically (default: 0.3)
+        - Other parameters from sample_binary_vae
+    
+    Returns
+    -------
+    samples : np.ndarray
+        Binary samples of shape (n_samples, n_vars)
+    """
+    if params is None:
+        params = {}
+    
+    exploration_ratio = params.get('exploration_ratio', 0.3)
+    
+    # Calculate split
+    n_exploit = int(n_samples * (1 - exploration_ratio))
+    n_explore = n_samples - n_exploit
+    
+    # Exploitation: deterministic sampling
+    exploit_params = params.copy()
+    exploit_params['deterministic'] = True
+    exploit_samples = sample_binary_vae(model, n_exploit, exploit_params)
+    
+    # Exploration: stochastic sampling
+    explore_params = params.copy()
+    explore_params['deterministic'] = False
+    explore_params['temperature'] = params.get('temperature', 1.0)  # Higher temp for exploration
+    explore_samples = sample_binary_vae(model, n_explore, explore_params)
+    
+    # Combine samples
+    return np.vstack([exploit_samples, explore_samples])
+
+
+def sample_binary_tcvae(
+    model: Dict[str, Any],
+    n_samples: int,
+    params: Optional[Dict[str, Any]] = None
+) -> np.ndarray:
+    """
+    Sample from Temperature-Controlled VAE (TC-VAE)
+    
+    This variant uses adaptive temperature for exploration-exploitation balance.
+    Temperature decreases over generations to gradually shift from exploration
+    to exploitation.
+    
+    Parameters
+    ----------
+    model : dict
+        Model dictionary from any binary VAE variant
+    n_samples : int
+        Number of samples to generate
+    params : dict, optional
+        Sampling parameters:
+        - 'generation': current generation number (default: 0)
+        - 'max_generations': total generations (default: 50)
+        - 'temp_start': starting temperature (default: 1.0)
+        - 'temp_end': ending temperature (default: 0.1)
+        - Other parameters from sample_binary_vae
+    
+    Returns
+    -------
+    samples : np.ndarray
+        Binary samples of shape (n_samples, n_vars)
+    """
+    if params is None:
+        params = {}
+    
+    # Get generation info
+    generation = params.get('generation', 0)
+    max_generations = params.get('max_generations', 50)
+    temp_start = params.get('temp_start', 1.0)
+    temp_end = params.get('temp_end', 0.1)
+    
+    # Compute adaptive temperature (linear annealing)
+    progress = min(1.0, generation / max_generations)
+    temperature = temp_start - (temp_start - temp_end) * progress
+    
+    # Sample with adaptive temperature
+    modified_params = params.copy()
+    modified_params['temperature'] = temperature
+    
+    return sample_binary_vae(model, n_samples, modified_params)
