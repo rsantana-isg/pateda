@@ -257,6 +257,63 @@ class DescriptorBackdriveNet(nn.Module):
         return self.network(descriptors)
 
 
+class ForwardDescriptorNet(nn.Module):
+    """
+    Neural network that predicts descriptors from solutions (forward model)
+    
+    Architecture: solution → hidden layers → [fitness, mean, std]
+    
+    This is the traditional direction, predicting descriptors (including fitness)
+    from solutions. Used for surrogate filtering.
+    """
+    
+    def __init__(self, n_vars: int, n_descriptors: int = 3,
+                 hidden_layers: list = None, dropout: float = 0.2,
+                 list_act_functs: list = None):
+        super(ForwardDescriptorNet, self).__init__()
+        
+        self.n_vars = n_vars
+        self.n_descriptors = n_descriptors
+        self.dropout = dropout
+        
+        if hidden_layers is None:
+            # Default: gradually compress from solution to descriptor space
+            hidden_layers = [max(32, n_vars), max(16, n_vars // 2)]
+        
+        # Default activation functions
+        if list_act_functs is None:
+            list_act_functs = ['relu'] * len(hidden_layers)
+        elif len(list_act_functs) != len(hidden_layers):
+            list_act_functs = [list_act_functs[0]] * len(hidden_layers)
+        
+        # Build network: solution → hidden layers → descriptors
+        layers = []
+        prev_dim = n_vars
+        
+        for i, hidden_dim in enumerate(hidden_layers):
+            layers.append(nn.Linear(prev_dim, hidden_dim))
+            layers.append(get_activation(list_act_functs[i], in_features=hidden_dim))
+            layers.append(nn.Dropout(self.dropout))
+            prev_dim = hidden_dim
+        
+        # Output layer: maps to n_descriptors values
+        layers.append(nn.Linear(prev_dim, n_descriptors))
+        
+        self.network = nn.Sequential(*layers)
+    
+    def forward(self, solutions):
+        """
+        Forward pass: solution → descriptor predictions
+        
+        Args:
+            solutions: [batch_size, n_vars] tensor of solution values
+            
+        Returns:
+            Predicted descriptors [batch_size, n_descriptors]
+        """
+        return self.network(solutions)
+
+
 def learn_discrete_backdrive_descriptors(
     population: np.ndarray,
     fitness: np.ndarray,
@@ -499,6 +556,103 @@ def learn_discrete_backdrive_descriptors(
             if (epoch + 1) % 20 == 0:
                 print(f"Epoch {epoch+1}/{epochs}: Train Loss={avg_train_loss:.4f}")
 
+    # Train forward model for surrogate filtering (solution → descriptors)
+    # This allows predicting fitness from candidate solutions during sampling
+    forward_network = None
+    if params.get('train_forward_model', True):
+        # Create forward network (solution → descriptors)
+        # Use reversed hidden layers for symmetry
+        forward_hidden_layers = list(reversed(hidden_layers))
+        
+        forward_network = ForwardDescriptorNet(
+            n_vars, n_descriptors=3, hidden_layers=forward_hidden_layers, 
+            dropout=dropout, list_act_functs=list_act_functs
+        )
+        
+        # Transfer weights from previous generation if provided
+        if pretrained_model is not None and 'forward_network_state' in pretrained_model:
+            try:
+                forward_network.load_state_dict(pretrained_model['forward_network_state'])
+                print("  Transferred forward network weights from previous generation")
+            except Exception as e:
+                warnings.warn(f"Could not transfer forward network weights: {e}")
+        
+        # Optimizer for forward network
+        forward_optimizer = optim.Adam(forward_network.parameters(), lr=learning_rate,
+                                      weight_decay=weight_decay)
+        
+        # Forward model training: solution → descriptors
+        forward_network.train()
+        
+        # For forward model, we predict normalized descriptors from solutions
+        # Input: y (normalized solutions), Output: X (normalized descriptors)
+        forward_X_train = y_train  # Solutions
+        forward_y_train = X_train  # Descriptors
+        forward_X_val = y_val if y_val is not None else None
+        forward_y_val = X_val if X_val is not None else None
+        
+        forward_best_val_loss = float('inf')
+        forward_patience_counter = 0
+        
+        # Train forward model for fewer epochs (it's typically easier to learn)
+        forward_epochs = max(epochs // 2, 20)
+        
+        for epoch in range(forward_epochs):
+            # Shuffle training data
+            perm = torch.randperm(len(forward_X_train))
+            
+            epoch_loss = 0
+            n_batches = 0
+            
+            for i in range(0, len(forward_X_train), batch_size):
+                idx = perm[i:i+batch_size]
+                batch_x = forward_X_train[idx]  # Solutions
+                batch_y = forward_y_train[idx]  # Descriptors
+                
+                # Forward pass
+                pred = forward_network(batch_x)
+                
+                # Use MSE loss for descriptor prediction
+                loss = F.mse_loss(pred, batch_y)
+                
+                # Backward pass
+                forward_optimizer.zero_grad()
+                loss.backward()
+                forward_optimizer.step()
+                
+                epoch_loss += loss.item()
+                n_batches += 1
+            
+            avg_train_loss = epoch_loss / n_batches
+            
+            # Validation
+            if forward_X_val is not None:
+                forward_network.eval()
+                with torch.no_grad():
+                    val_pred = forward_network(forward_X_val)
+                    val_loss = F.mse_loss(val_pred, forward_y_val).item()
+                forward_network.train()
+                
+                # Early stopping
+                if early_stopping:
+                    if val_loss < forward_best_val_loss:
+                        forward_best_val_loss = val_loss
+                        forward_patience_counter = 0
+                    else:
+                        forward_patience_counter += 1
+                        if forward_patience_counter >= patience:
+                            print(f"Forward model early stopping at epoch {epoch+1}")
+                            break
+                
+                # Print progress
+                if (epoch + 1) % 20 == 0:
+                    print(f"Forward Model Epoch {epoch+1}/{forward_epochs}: "
+                          f"Train Loss={avg_train_loss:.4f}, Val Loss={val_loss:.4f}")
+            else:
+                # Print progress (no validation)
+                if (epoch + 1) % 20 == 0:
+                    print(f"Forward Model Epoch {epoch+1}/{forward_epochs}: Train Loss={avg_train_loss:.4f}")
+
     # Return model
     model = {
         'network_state': network.state_dict(),
@@ -510,6 +664,11 @@ def learn_discrete_backdrive_descriptors(
         'list_act_functs': list_act_functs if list_act_functs is not None else ['relu'] * len(hidden_layers),
         'type': 'discrete_backdrive_descriptors'
     }
+    
+    # Add forward model if trained
+    if forward_network is not None:
+        model['forward_network_state'] = forward_network.state_dict()
+        model['forward_hidden_layers'] = forward_hidden_layers
 
     return model
 

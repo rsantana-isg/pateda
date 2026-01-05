@@ -29,6 +29,7 @@ Configurable Parameters (all positional):
 - weight_transfer: 1 to enable, 0 to disable
 - early_stopping: 1 to enable, 0 to disable
 - surrogate_filtering: 1 to enable, 0 to disable
+  * For backdrive_descriptors: Uses forward model (solution → descriptors) to predict fitness
 
 Usage:
     python discrete_Backdrive_EDA.py <seed> <obj_func> <n> <pop_size> <n_gen> <trunc> \\
@@ -43,6 +44,9 @@ Examples:
 
     # Backdrive descriptors with Huber loss and ELU activation
     python discrete_Backdrive_EDA.py 2 HIFF 64 200 50 0.5 backdrive_descriptors random huber elu 0 1 0
+
+    # Backdrive descriptors with surrogate filtering enabled
+    python discrete_Backdrive_EDA.py 2 HIFF 64 200 50 0.5 backdrive_descriptors random mse relu 0 1 1
 
     # Adaptive backdrive with GELU activation
     python discrete_Backdrive_EDA.py 3 FC3 30 150 40 0.5 backdrive_adaptive perturb_best mse gelu 1 1 0
@@ -545,42 +549,75 @@ class BackdriveEDA:
                 new_population = sample_fn(model, self.pop_size, sampling_params)
                 
                 # Surrogate filtering (optional)
-                # Note: Not supported for backdrive_descriptors variant
-                if self.surrogate_filtering and self.variant != 'backdrive_descriptors':
-                    # Use the model to pre-filter solutions
-                    # Evaluate with surrogate, then select promising ones
+                if self.surrogate_filtering:
                     import torch
-                    from pateda.learning.discrete_backdrive import DiscreteBackdriveNet
+                    
+                    if self.variant == 'backdrive_descriptors':
+                        # Use forward model to predict descriptors (including fitness) from solutions
+                        if 'forward_network_state' in model:
+                            from pateda.learning.discrete_backdrive_descriptors import ForwardDescriptorNet
+                            
+                            # Reconstruct forward network for predictions
+                            forward_network = ForwardDescriptorNet(
+                                model['n_vars'],
+                                model['n_descriptors'],
+                                model.get('forward_hidden_layers', list(reversed(model['hidden_layers']))),
+                                dropout=0.0,  # No dropout during evaluation
+                                list_act_functs=model.get('list_act_functs', None)
+                            )
+                            forward_network.load_state_dict(model['forward_network_state'])
+                            forward_network.eval()
+                            
+                            # Generate more samples than needed
+                            candidate_pop = sample_fn(model, self.pop_size * 3, sampling_params)
+                            
+                            # Get descriptor statistics for denormalization
+                            descriptor_means, descriptor_stds = model['descriptor_stats']
+                            
+                            with torch.no_grad():
+                                X = torch.FloatTensor(candidate_pop.astype(float))
+                                # Predict normalized descriptors
+                                pred_descriptors_norm = forward_network(X).numpy()
+                                # Denormalize to get actual descriptor values
+                                pred_descriptors = pred_descriptors_norm * descriptor_stds + descriptor_means
+                                # Extract fitness (first component of descriptors)
+                                pred_fitness = pred_descriptors[:, 0]
+                            
+                            # Select top predicted solutions based on fitness
+                            top_indices = np.argsort(pred_fitness)[-self.pop_size:]
+                            population = candidate_pop[top_indices]
+                        else:
+                            # Forward model not available, use sampled population directly
+                            if verbose and gen == 0:
+                                print("  Note: Forward model not available, surrogate filtering disabled")
+                            population = new_population
+                    else:
+                        # Original backdrive variants
+                        from pateda.learning.discrete_backdrive import DiscreteBackdriveNet
+                        
+                        # Reconstruct network for predictions with same configuration as training
+                        network = DiscreteBackdriveNet(
+                            model['n_vars'],
+                            model['cardinality'],
+                            model['hidden_layers'],
+                            model['use_embeddings'],
+                            model.get('embedding_dim', 8),
+                            dropout=0.0,  # No dropout during evaluation
+                            list_act_functs=model.get('list_act_functs', None)
+                        )
+                        network.load_state_dict(model['network_state'])
+                        network.eval()
 
-                    # Reconstruct network for predictions with same configuration as training
-                    network = DiscreteBackdriveNet(
-                        model['n_vars'],
-                        model['cardinality'],
-                        model['hidden_layers'],
-                        model['use_embeddings'],
-                        model.get('embedding_dim', 8),
-                        dropout=0.0,  # No dropout during evaluation
-                        list_act_functs=model.get('list_act_functs', None)
-                    )
-                    network.load_state_dict(model['network_state'])
-                    network.eval()
+                        # Generate more samples than needed
+                        candidate_pop = sample_fn(model, self.pop_size * 3, sampling_params)
 
-                    # Generate more samples than needed
-                    candidate_pop = sample_fn(model, self.pop_size * 3, sampling_params)
+                        with torch.no_grad():
+                            X = torch.LongTensor(candidate_pop.astype(int))
+                            pred_fitness = network(X).numpy().flatten()
 
-                    with torch.no_grad():
-                        X = torch.LongTensor(candidate_pop.astype(int))
-                        pred_fitness = network(X).numpy().flatten()
-
-                    # Select top predicted solutions
-                    top_indices = np.argsort(pred_fitness)[-self.pop_size:]
-                    population = candidate_pop[top_indices]
-                elif self.surrogate_filtering and self.variant == 'backdrive_descriptors':
-                    # Surrogate filtering not supported for descriptor variant
-                    # Use the sampled population directly
-                    if verbose and gen == 0:
-                        print("  Note: Surrogate filtering not supported for backdrive_descriptors variant")
-                    population = new_population
+                        # Select top predicted solutions
+                        top_indices = np.argsort(pred_fitness)[-self.pop_size:]
+                        population = candidate_pop[top_indices]
                 else:
                     population = new_population
 
