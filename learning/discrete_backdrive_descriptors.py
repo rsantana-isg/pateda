@@ -567,7 +567,12 @@ def learn_discrete_backdrive_descriptors(
         # Create forward network (solution → descriptors)
         # Reuse the same hidden layers architecture from the main model
         # Use copy() to create an independent list
-        forward_hidden_layers = hidden_layers.copy() if isinstance(hidden_layers, list) else list(hidden_layers)
+        if hidden_layers is None:
+            forward_hidden_layers = None
+        elif isinstance(hidden_layers, list):
+            forward_hidden_layers = hidden_layers.copy()
+        else:
+            forward_hidden_layers = list(hidden_layers)
         
         forward_network = ForwardDescriptorNet(
             n_vars, n_descriptors=n_descriptors, hidden_layers=forward_hidden_layers, 
@@ -579,7 +584,7 @@ def learn_discrete_backdrive_descriptors(
             try:
                 forward_network.load_state_dict(pretrained_model['forward_network_state'])
                 print("  Transferred forward network weights from previous generation")
-            except Exception as e:
+            except (RuntimeError, KeyError, TypeError) as e:
                 warnings.warn(f"Could not transfer forward network weights: {e}")
         
         # Optimizer for forward network

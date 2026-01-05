@@ -576,6 +576,11 @@ class BackdriveEDA:
                             candidate_pop = sample_fn(model, self.pop_size * SURROGATE_CANDIDATE_FACTOR, sampling_params)
                             
                             # Get descriptor statistics for denormalization
+                            if 'descriptor_stats' not in model:
+                                if verbose and gen == 0:
+                                    print("  Warning: descriptor_stats not found in model, cannot use surrogate filtering")
+                                population = new_population
+                                continue
                             descriptor_means, descriptor_stds = model['descriptor_stats']
                             
                             with torch.no_grad():
