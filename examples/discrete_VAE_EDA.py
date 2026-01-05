@@ -32,12 +32,11 @@ Configurable Parameters:
 
 Usage:
     python discrete_VAE_EDA.py <seed> <obj_func> <n> <pop_size> <n_gen> <trunc> <vae_variant> \\
-        [--activation-enc ACT] [--activation-dec ACT] [--beta-start BETA] [--beta-end BETA]
+        <activation_enc> <activation_dec> <beta_start> <beta_end> <latent_dim> <epochs>
 
 Example:
-    python discrete_VAE_EDA.py 0 OneMax 20 80 20 0.5 VAE --activation-enc relu --activation-dec tanh
-    python discrete_VAE_EDA.py 1 Deceptive3 30 100 30 0.5 BA-VAE --beta-start 0.0 --beta-end 1.0
-    python discrete_VAE_EDA.py 2 HIFF 64 200 50 0.5 HS-VAE --activation-enc leakyrelu
+    python discrete_VAE_EDA.py 0 OneMax 20 80 20 0.5 VAE relu relu 0.0 1.0 0 30
+    python discrete_VAE_EDA.py 1 Deceptive3 30 100 30 0.5 BA-VAE relu relu 0.0 1.0 8 30
 
 ==============================================================================
 """
@@ -45,6 +44,7 @@ Example:
 import sys
 import os
 import argparse
+import random
 
 # Add parent directory to path for running examples without installation
 sys.path.insert(0, os.path.dirname(os.path.dirname(os.path.dirname(os.path.abspath(__file__)))))
@@ -98,6 +98,51 @@ from pateda.functions.discrete.additive_decomposable import (
 
 # Success threshold as a fraction of optimal fitness
 SUCCESS_THRESHOLD = 0.01
+
+
+# ==============================================================================
+# Seeding Utilities
+# ==============================================================================
+
+def set_seed(seed: int):
+    """
+    Set all random seeds for reproducibility.
+    
+    This function sets seeds for:
+    - Python's random module
+    - NumPy
+    - PyTorch (CPU and CUDA)
+    - PyTorch deterministic operations
+    
+    Parameters
+    ----------
+    seed : int
+        Random seed value
+    """
+    # Python random
+    random.seed(seed)
+    
+    # NumPy
+    np.random.seed(seed)
+    
+    # PyTorch
+    try:
+        import torch
+        torch.manual_seed(seed)
+        torch.cuda.manual_seed(seed)
+        torch.cuda.manual_seed_all(seed)  # for multi-GPU
+        
+        # Set deterministic behavior for reproducibility
+        # Note: This may impact performance
+        torch.backends.cudnn.deterministic = True
+        torch.backends.cudnn.benchmark = False
+        
+        # For some operations on CUDA >= 10.2
+        if hasattr(torch, 'use_deterministic_algorithms'):
+            torch.use_deterministic_algorithms(True, warn_only=True)
+    except ImportError:
+        # PyTorch not available, skip torch seeding
+        pass
 
 
 # ==============================================================================
@@ -356,7 +401,7 @@ class VAEEDA:
 
         # Set random seed if provided
         if random_seed is not None:
-            np.random.seed(random_seed)
+            set_seed(random_seed)
 
         # Map variant to learning and sampling functions
         self.variant_map = {
@@ -528,20 +573,20 @@ def main():
         epilog="""
 Examples:
   # Basic usage with default settings
-  python discrete_VAE_EDA.py 0 OneMax 20 80 20 0.5 VAE
+  python discrete_VAE_EDA.py 0 OneMax 20 80 20 0.5 VAE relu relu 0.0 1.0 0 30
 
   # With custom activation functions
-  python discrete_VAE_EDA.py 0 OneMax 20 80 20 0.5 E-VAE --activation-enc tanh --activation-dec relu
+  python discrete_VAE_EDA.py 0 OneMax 20 80 20 0.5 E-VAE tanh relu 0.0 1.0 0 30
 
-  # Conditional VAE with beta annealing
-  python discrete_VAE_EDA.py 0 Deceptive3 30 100 30 0.5 C-VAE --beta-start 0.0 --beta-end 1.0
+  # Conditional VAE with beta annealing and specific latent dim
+  python discrete_VAE_EDA.py 0 Deceptive3 30 100 30 0.5 C-VAE relu relu 0.0 1.0 8 30
 
   # Regression VAE
-  python discrete_VAE_EDA.py 0 HIFF 64 200 50 0.5 Reg-VAE --activation-enc leakyrelu
+  python discrete_VAE_EDA.py 0 HIFF 64 200 50 0.5 Reg-VAE leakyrelu relu 0.0 1.0 0 30
         """
     )
 
-    # Required positional arguments
+    # All positional arguments
     parser.add_argument('seed', type=int, help='Random seed')
     parser.add_argument('obj_func', type=str, help='Objective function name')
     parser.add_argument('n', type=int, help='Number of variables')
@@ -552,23 +597,25 @@ Examples:
                         choices=['VAE', 'E-VAE', 'C-VAE', 'Desc-VAE', 'Reg-VAE', 'Mom-VAE',
                                  'BA-VAE', 'AA-VAE', 'FW-VAE', 'GS-VAE', 'HS-VAE', 'TC-VAE'],
                         help='VAE variant to use')
-
-    # Optional configuration arguments
-    parser.add_argument('--activation-enc', type=str, default='relu',
-                        help='Activation function for encoder (default: relu). Options: relu, tanh, sigmoid, leakyrelu, elu, selu, gelu, etc.')
-    parser.add_argument('--activation-dec', type=str, default='relu',
-                        help='Activation function for decoder (default: relu)')
-    parser.add_argument('--beta-start', type=float, default=0.0,
-                        help='Initial KL weight for beta annealing (default: 0.0)')
-    parser.add_argument('--beta-end', type=float, default=1.0,
-                        help='Final KL weight for beta annealing (default: 1.0)')
-    parser.add_argument('--latent-dim', type=int, default=None,
-                        help='Latent dimension (default: max(2, n_vars/4))')
-    parser.add_argument('--epochs', type=int, default=30,
-                        help='Training epochs per generation (default: 30)')
+    parser.add_argument('activation_enc', type=str,
+                        help='Activation function for encoder. Options: relu, tanh, sigmoid, leakyrelu, elu, selu, gelu, etc.')
+    parser.add_argument('activation_dec', type=str,
+                        help='Activation function for decoder')
+    parser.add_argument('beta_start', type=float,
+                        help='Initial KL weight for beta annealing')
+    parser.add_argument('beta_end', type=float,
+                        help='Final KL weight for beta annealing')
+    parser.add_argument('latent_dim', type=int,
+                        help='Latent dimension (use 0 for default: max(2, n_vars/4))')
+    parser.add_argument('epochs', type=int,
+                        help='Training epochs per generation')
 
     # Parse arguments
     args = parser.parse_args()
+
+    # Handle latent_dim default (0 means use default calculation)
+    if args.latent_dim == 0:
+        args.latent_dim = None
 
     # Validate truncation percent
     if args.trunc <= 0 or args.trunc > 1:
