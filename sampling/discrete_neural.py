@@ -1469,6 +1469,10 @@ def sample_binary_gsvae(
     This variant uses deterministic (greedy) sampling instead of stochastic
     Bernoulli sampling to reduce variance and improve exploitation.
     
+    Note: This function always uses deterministic sampling regardless of
+    the 'deterministic' parameter in params. This is the defining behavior
+    of GS-VAE. If you want configurable sampling, use sample_binary_vae directly.
+    
     Parameters
     ----------
     model : dict
@@ -1476,7 +1480,8 @@ def sample_binary_gsvae(
     n_samples : int
         Number of samples to generate
     params : dict, optional
-        Sampling parameters (extends sample_binary_vae)
+        Sampling parameters (extends sample_binary_vae).
+        Note: 'deterministic' will be set to True regardless of input.
     
     Returns
     -------
@@ -1486,7 +1491,7 @@ def sample_binary_gsvae(
     if params is None:
         params = {}
     
-    # Force deterministic sampling
+    # Always use deterministic sampling (this is GS-VAE's defining feature)
     modified_params = params.copy()
     modified_params['deterministic'] = True
     

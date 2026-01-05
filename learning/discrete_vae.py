@@ -1704,9 +1704,10 @@ def _learn_binary_vae_with_cyclical_beta(
     decoder.train()
     
     for epoch in range(epochs):
-        # Cyclical beta annealing
+        # Cyclical beta annealing (sawtooth pattern)
+        # Beta goes from 0 to beta_max within each cycle, then resets
         cycle_pos = (epoch % cycle_length) / cycle_length
-        beta = beta_max * cycle_pos  # Linear increase within each cycle
+        beta = beta_max * cycle_pos  # Linear increase within each cycle (resets at cycle end)
         
         # Shuffle data
         perm = torch.randperm(len(data))
@@ -1853,8 +1854,8 @@ def _learn_binary_vae_with_regularization(
     decoder = BinaryVAEDecoder(latent_dim, n_vars, hidden_dims_dec,
                                list_act_functs_dec, list_init_functs_dec)
     
-    # Add dropout to encoder and decoder
-    # Note: This is a simplified approach. In production, you'd modify the network classes.
+    # Note: Dropout is applied to the latent space during training
+    # For more comprehensive dropout, the network classes would need to be modified
     
     # Optimizer with weight decay (L2 regularization)
     optimizer = optim.Adam(
@@ -1881,11 +1882,11 @@ def _learn_binary_vae_with_regularization(
             idx = perm[i:i+batch_size]
             batch = data[idx]
             
-            # Forward pass with dropout during training
+            # Forward pass
             mean, logvar = encoder(batch)
             z = reparameterize(mean, logvar)
             
-            # Apply dropout to latent space
+            # Apply dropout to latent space during training
             if dropout > 0:
                 z = F.dropout(z, p=dropout, training=True)
             
@@ -1997,9 +1998,11 @@ def learn_binary_fwvae(
     # Normalize fitness to [0, 1] for weighting
     fitness_min = fitness_tensor.min()
     fitness_max = fitness_tensor.max()
-    if fitness_max - fitness_min > 1e-10:
-        norm_fitness = (fitness_tensor - fitness_min) / (fitness_max - fitness_min + 1e-10)
+    fitness_range = fitness_max - fitness_min
+    if fitness_range > 1e-10:
+        norm_fitness = (fitness_tensor - fitness_min) / fitness_range
     else:
+        # All fitness values are the same
         norm_fitness = torch.ones_like(fitness_tensor)
     
     # Compute weights: 1.0 + fitness_weight_strength * norm_fitness
