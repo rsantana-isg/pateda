@@ -34,7 +34,7 @@ if __name__ == '__main__':
     epochs_options = [50]
 
     # MI Layer options
-    mi_layer_options = [False, True]
+    mi_layer_options = [0, 1]
 
     # Seeds
     for seed in np.arange(6, 11):
@@ -56,11 +56,9 @@ if __name__ == '__main__':
                                     for epochs in epochs_options:
                                         for mi_layer in mi_layer_options:
                                             # Build command with positional arguments
-                                            cmd = f"sbatch slurm_vae.sh examples/discrete_VAE_EDA.py {seed} {obj_func} {n} {p_size} {n_gen} {trunc} {variant} {activation_enc} {activation_dec} {beta_start} {beta_end} {latent_dim} {epochs}"
+                                            cmd = f"sbatch slurm_vae.sh examples/discrete_VAE_EDA.py {seed} {obj_func} {n} {p_size} {n_gen} {trunc} {variant} {activation_enc} {activation_dec} {beta_start} {beta_end} {latent_dim} {epochs} {mi_layer}"
 
-                                            # Add MI layer flag if enabled
-                                            if mi_layer:
-                                                cmd += " --mi_layer"
+                                          
 
                                             print(cmd)
 
