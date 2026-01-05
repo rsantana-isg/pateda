@@ -20,7 +20,12 @@ Configurable Parameters (all positional):
 - variant: Backdrive variant (backdrive, backdrive_adaptive, backdrive_descriptors)
 - init: Initialization method (random, perturb_best, perturb_selected)
 - loss: Loss function (mse, weighted_mse, ranking, huber)
-- activation: Activation function (relu, tanh, sigmoid, leaky_relu, etc.)
+  * For backdrive_descriptors: All loss functions supported (adapted for descriptors)
+  * weighted_mse: Weights solution reconstruction by fitness
+  * ranking: Falls back to MSE (not applicable for descriptor prediction)
+  * huber: Robust MSE for solution reconstruction
+- activation: Activation function (relu, tanh, sigmoid, leaky_relu, elu, selu, gelu, etc.)
+  * All variants now support any activation function
 - weight_transfer: 1 to enable, 0 to disable
 - early_stopping: 1 to enable, 0 to disable
 - surrogate_filtering: 1 to enable, 0 to disable
@@ -29,9 +34,18 @@ Usage:
     python discrete_Backdrive_EDA.py <seed> <obj_func> <n> <pop_size> <n_gen> <trunc> \\
         <variant> <init> <loss> <activation> <weight_transfer> <early_stopping> <surrogate_filtering>
 
-Example:
+Examples:
+    # Basic backdrive with MSE and ReLU
     python discrete_Backdrive_EDA.py 0 OneMax 20 80 20 0.5 backdrive random mse relu 0 0 0
-    python discrete_Backdrive_EDA.py 1 Deceptive3 30 100 30 0.5 backdrive random mse relu 1 1 0
+
+    # Backdrive with weighted MSE and tanh activation
+    python discrete_Backdrive_EDA.py 1 Deceptive3 30 100 30 0.5 backdrive random weighted_mse tanh 1 1 0
+
+    # Backdrive descriptors with Huber loss and ELU activation
+    python discrete_Backdrive_EDA.py 2 HIFF 64 200 50 0.5 backdrive_descriptors random huber elu 0 1 0
+
+    # Adaptive backdrive with GELU activation
+    python discrete_Backdrive_EDA.py 3 FC3 30 150 40 0.5 backdrive_adaptive perturb_best mse gelu 1 1 0
 
 ==============================================================================
 """
@@ -491,7 +505,14 @@ class BackdriveEDA:
             if 'hidden_dims' in learning_params:
                 n_hidden = len(learning_params['hidden_dims'])
                 learning_params['list_act_functs'] = [self.activation] * n_hidden
-            
+            elif 'hidden_layers' in learning_params:
+                n_hidden = len(learning_params['hidden_layers'])
+                learning_params['list_act_functs'] = [self.activation] * n_hidden
+
+            # For backdrive_descriptors variant, pass loss function
+            if self.variant == 'backdrive_descriptors':
+                learning_params['loss_function'] = self.loss_function
+
             # For weight transfer, initialize from previous model
             if self.weight_transfer and self.previous_model is not None:
                 learning_params['pretrained_model'] = self.previous_model
