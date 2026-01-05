@@ -39,6 +39,7 @@ Example:
 import sys
 import os
 import argparse
+import random
 
 # Add parent directory to path for running examples without installation
 sys.path.insert(0, os.path.dirname(os.path.dirname(os.path.dirname(os.path.abspath(__file__)))))
@@ -79,6 +80,51 @@ from pateda.functions.discrete.additive_decomposable import (
 
 # Success threshold as a fraction of optimal fitness
 SUCCESS_THRESHOLD = 0.01
+
+
+# ==============================================================================
+# Seeding Utilities
+# ==============================================================================
+
+def set_seed(seed: int):
+    """
+    Set all random seeds for reproducibility.
+    
+    This function sets seeds for:
+    - Python's random module
+    - NumPy
+    - PyTorch (CPU and CUDA)
+    - PyTorch deterministic operations
+    
+    Parameters
+    ----------
+    seed : int
+        Random seed value
+    """
+    # Python random
+    random.seed(seed)
+    
+    # NumPy
+    np.random.seed(seed)
+    
+    # PyTorch
+    try:
+        import torch
+        torch.manual_seed(seed)
+        torch.cuda.manual_seed(seed)
+        torch.cuda.manual_seed_all(seed)  # for multi-GPU
+        
+        # Set deterministic behavior for reproducibility
+        # Note: This may impact performance
+        torch.backends.cudnn.deterministic = True
+        torch.backends.cudnn.benchmark = False
+        
+        # For some operations on CUDA >= 10.2
+        if hasattr(torch, 'use_deterministic_algorithms'):
+            torch.use_deterministic_algorithms(True, warn_only=True)
+    except ImportError:
+        # PyTorch not available, skip torch seeding
+        pass
 
 
 # ==============================================================================
@@ -354,7 +400,7 @@ class BackdriveEDA:
 
         # Set random seed if provided
         if random_seed is not None:
-            np.random.seed(random_seed)
+            set_seed(random_seed)
 
         # Validate parameters
         valid_variants = ['backdrive', 'backdrive_adaptive', 'backdrive_descriptors']
