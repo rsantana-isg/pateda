@@ -415,14 +415,6 @@ class BackdriveEDA:
         if loss_function not in valid_loss_functions:
             raise ValueError(f"Invalid loss_function: {loss_function}. Must be one of {valid_loss_functions}")
 
-        # Warning for unimplemented features
-        if weight_transfer:
-            warnings.warn(
-                "weight_transfer is not yet implemented in the learning functions. "
-                "The parameter will be stored but will have no effect on training.",
-                UserWarning
-            )
-
         # Map loss function to learning function
         self.loss_function_map = {
             'mse': learn_binary_backdrive,
@@ -509,11 +501,9 @@ class BackdriveEDA:
             if self.variant == 'backdrive_descriptors':
                 learning_params['loss_function'] = self.loss_function
 
-            # TODO: Weight transfer not yet implemented in learning functions
-            # The pretrained_model parameter is currently ignored by all learning functions
             # For weight transfer, initialize from previous model
-            # if self.weight_transfer and self.previous_model is not None:
-            #     learning_params['pretrained_model'] = self.previous_model
+            if self.weight_transfer and self.previous_model is not None:
+                learning_params['pretrained_model'] = self.previous_model
 
             # Learn model
             try:

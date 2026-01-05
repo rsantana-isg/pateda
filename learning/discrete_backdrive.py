@@ -286,6 +286,7 @@ def learn_discrete_backdrive(
         - 'validation_split': validation fraction (default: 0.2)
         - 'early_stopping': enable early stopping (default: True)
         - 'patience': early stopping patience (default: 10)
+        - 'pretrained_model': model dict from previous generation for transfer learning
 
     Returns
     -------
@@ -321,6 +322,9 @@ def learn_discrete_backdrive(
     # Extract activation and initialization function lists
     list_act_functs = params.get('list_act_functs', None)
     list_init_functs = params.get('list_init_functs', None)
+
+    # Extract pretrained model for weight transfer
+    pretrained_model = params.get('pretrained_model', None)
 
     # Normalize fitness
     fitness_1d = fitness.flatten()
@@ -362,6 +366,15 @@ def learn_discrete_backdrive(
         n_vars, cardinality, hidden_layers, use_embeddings, embedding_dim, dropout,
         list_act_functs=list_act_functs
     )
+
+    # Transfer weights from previous generation if provided
+    if pretrained_model is not None:
+        try:
+            # Load state dict from pretrained model
+            network.load_state_dict(pretrained_model['network_state'])
+            print("  Transferred weights from previous generation")
+        except Exception as e:
+            warnings.warn(f"Could not transfer weights: {e}")
 
     # Loss and optimizer
     criterion = nn.MSELoss()

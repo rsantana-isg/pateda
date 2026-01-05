@@ -169,6 +169,7 @@ def learn_discrete_backdrive_ranking(
         - 'patience': early stopping patience (default: 10)
         - 'ranking_weight': weight for ranking loss (default: 0.5)
         - 'ranking_margin': margin for ranking loss (default: 0.1)
+        - 'pretrained_model': model dict from previous generation for transfer learning
 
     Returns
     -------
@@ -197,6 +198,9 @@ def learn_discrete_backdrive_ranking(
     patience = params.get('patience', 10)
     ranking_weight = params.get('ranking_weight', 0.5)
     ranking_margin = params.get('ranking_margin', 0.1)
+
+    # Extract pretrained model for weight transfer
+    pretrained_model = params.get('pretrained_model', None)
 
     # Normalize fitness
     fitness_1d = fitness.flatten()
@@ -237,6 +241,15 @@ def learn_discrete_backdrive_ranking(
         n_vars, cardinality, hidden_layers, use_embeddings, embedding_dim, dropout,
         list_act_functs=list_act_functs
     )
+
+    # Transfer weights from previous generation if provided
+    if pretrained_model is not None:
+        try:
+            # Load state dict from pretrained model
+            network.load_state_dict(pretrained_model['network_state'])
+            print("  Transferred weights from previous generation")
+        except Exception as e:
+            warnings.warn(f"Could not transfer weights: {e}")
 
     # Optimizer
     optimizer = optim.Adam(network.parameters(), lr=learning_rate,

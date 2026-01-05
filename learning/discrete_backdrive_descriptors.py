@@ -265,6 +265,7 @@ def learn_discrete_backdrive_descriptors(
         - 'validation_split': validation fraction (default: 0.2)
         - 'early_stopping': enable early stopping (default: True)
         - 'patience': early stopping patience (default: 10)
+        - 'pretrained_model': model dict from previous generation for transfer learning
 
     Returns
     -------
@@ -293,6 +294,9 @@ def learn_discrete_backdrive_descriptors(
     validation_split = params.get('validation_split', 0.2)
     early_stopping = params.get('early_stopping', True)
     patience = params.get('patience', 10)
+
+    # Extract pretrained model for weight transfer
+    pretrained_model = params.get('pretrained_model', None)
 
     # Compute descriptors for each solution
     # Descriptor 0: fitness
@@ -348,6 +352,15 @@ def learn_discrete_backdrive_descriptors(
         n_vars, n_descriptors=3, hidden_layers=hidden_layers,
         dropout=dropout, list_act_functs=list_act_functs
     )
+
+    # Transfer weights from previous generation if provided
+    if pretrained_model is not None:
+        try:
+            # Load state dict from pretrained model
+            network.load_state_dict(pretrained_model['network_state'])
+            print("  Transferred weights from previous generation")
+        except Exception as e:
+            warnings.warn(f"Could not transfer weights: {e}")
 
     # Select loss function based on params
     # For descriptors variant, we predict solutions from descriptors
