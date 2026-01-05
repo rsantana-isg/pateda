@@ -379,6 +379,9 @@ def learn_discrete_backdrive_descriptors(
     # Extract pretrained model for weight transfer
     pretrained_model = params.get('pretrained_model', None)
 
+    # Number of descriptors: fitness, mean, std
+    n_descriptors = 3
+
     # Compute descriptors for each solution
     # Descriptor 0: fitness
     # Descriptor 1: mean of solution values
@@ -386,7 +389,7 @@ def learn_discrete_backdrive_descriptors(
     
     fitness_1d = fitness.flatten()
     
-    descriptors = np.zeros((pop_size, 3))
+    descriptors = np.zeros((pop_size, n_descriptors))
     descriptors[:, 0] = fitness_1d
     descriptors[:, 1] = np.mean(population, axis=1)
     descriptors[:, 2] = np.std(population, axis=1)
@@ -430,7 +433,7 @@ def learn_discrete_backdrive_descriptors(
 
     # Create network with configurable activation functions
     network = DescriptorBackdriveNet(
-        n_vars, n_descriptors=3, hidden_layers=hidden_layers, dropout=dropout,
+        n_vars, n_descriptors=n_descriptors, hidden_layers=hidden_layers, dropout=dropout,
         list_act_functs=list_act_functs
     )
 
@@ -566,7 +569,7 @@ def learn_discrete_backdrive_descriptors(
         forward_hidden_layers = hidden_layers
         
         forward_network = ForwardDescriptorNet(
-            n_vars, n_descriptors=3, hidden_layers=forward_hidden_layers, 
+            n_vars, n_descriptors=n_descriptors, hidden_layers=forward_hidden_layers, 
             dropout=dropout, list_act_functs=list_act_functs
         )
         
@@ -658,7 +661,7 @@ def learn_discrete_backdrive_descriptors(
     model = {
         'network_state': network.state_dict(),
         'n_vars': n_vars,
-        'n_descriptors': 3,
+        'n_descriptors': n_descriptors,
         'hidden_layers': hidden_layers,
         'descriptor_stats': (descriptor_means, descriptor_stds),
         'loss_function': loss_function,
