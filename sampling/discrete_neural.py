@@ -23,6 +23,8 @@ import torch.optim as optim
 # Import network definitions
 from pateda.learning.discrete_vae import (
     BinaryVAEEncoder, BinaryVAEDecoder, CategoricalVAEDecoder,
+    ConditionalBinaryVAEEncoder, ConditionalBinaryVAEDecoder,
+    DescriptorBinaryVAEEncoder, FitnessPredictor,
     reparameterize, gumbel_softmax
 )
 from pateda.learning.discrete_gan import (
@@ -171,6 +173,285 @@ def sample_categorical_vae(
             samples[:, i] = torch.argmax(var_one_hot, dim=1).numpy()
 
     return samples
+
+
+def sample_binary_cvae(
+    model: Dict[str, Any],
+    n_samples: int,
+    params: Optional[Dict[str, Any]] = None
+) -> np.ndarray:
+    """
+    Sample from Conditional Binary VAE (C-VAE) model
+
+    This variant allows conditioning on target fitness and statistics during sampling,
+    enabling fitness-guided generation.
+
+    Parameters
+    ----------
+    model : dict
+        Model dictionary from learn_binary_cvae
+    n_samples : int
+        Number of samples to generate
+    params : dict, optional
+        Sampling parameters:
+        - 'target_condition': target condition vector [fitness, mean, std] (default: None, uses max from training)
+        - 'sample_from_prior': sample from N(0,I) vs encoding data (default: True)
+        - 'deterministic': use deterministic sampling (argmax) instead of random (default: False)
+
+    Returns
+    -------
+    samples : np.ndarray
+        Binary samples of shape (n_samples, n_vars)
+    """
+    if params is None:
+        params = {}
+
+    sample_from_prior = params.get('sample_from_prior', True)
+    deterministic = params.get('deterministic', False)
+    target_condition = params.get('target_condition', None)
+
+    # Reconstruct networks
+    latent_dim = model['latent_dim']
+    n_vars = model['n_vars']
+    condition_dim = model['condition_dim']
+    hidden_dims_dec = model['hidden_dims_dec']
+    condition_means = model['condition_means']
+    condition_stds = model['condition_stds']
+
+    decoder = ConditionalBinaryVAEDecoder(latent_dim, n_vars, condition_dim, hidden_dims_dec)
+    decoder.load_state_dict(model['decoder_state'])
+    decoder.eval()
+
+    # Prepare target condition
+    if target_condition is None:
+        # Use maximum fitness from normalized conditions (approximately +1.0 std above mean)
+        target_condition = np.array([1.5, 0.5, 0.3])  # [high fitness, medium mean, low std]
+
+    # Ensure target_condition is normalized
+    if len(target_condition) != condition_dim:
+        raise ValueError(f"target_condition must have {condition_dim} dimensions")
+
+    # Broadcast condition to all samples
+    conditions = np.tile(target_condition, (n_samples, 1))
+    conditions_tensor = torch.FloatTensor(conditions)
+
+    with torch.no_grad():
+        # Sample from prior
+        z = torch.randn(n_samples, latent_dim)
+
+        # Decode with condition
+        logits = decoder(z, conditions_tensor)
+        probs = torch.sigmoid(logits)
+
+        # Sample binary values
+        if deterministic:
+            samples = (probs > 0.5).float().numpy()
+        else:
+            samples = torch.bernoulli(probs).numpy()
+
+    return samples.astype(int)
+
+
+def sample_binary_descvae(
+    model: Dict[str, Any],
+    n_samples: int,
+    params: Optional[Dict[str, Any]] = None
+) -> np.ndarray:
+    """
+    Sample from Descriptor-augmented Binary VAE (Desc-VAE) model
+
+    This variant uses descriptors during encoding but samples from standard decoder.
+
+    Parameters
+    ----------
+    model : dict
+        Model dictionary from learn_binary_descvae
+    n_samples : int
+        Number of samples to generate
+    params : dict, optional
+        Sampling parameters:
+        - 'sample_from_prior': sample from N(0,I) (default: True)
+        - 'deterministic': use deterministic sampling (argmax) instead of random (default: False)
+
+    Returns
+    -------
+    samples : np.ndarray
+        Binary samples of shape (n_samples, n_vars)
+    """
+    if params is None:
+        params = {}
+
+    sample_from_prior = params.get('sample_from_prior', True)
+    deterministic = params.get('deterministic', False)
+
+    # Reconstruct decoder
+    latent_dim = model['latent_dim']
+    n_vars = model['n_vars']
+    hidden_dims_dec = model['hidden_dims_dec']
+
+    decoder = BinaryVAEDecoder(latent_dim, n_vars, hidden_dims_dec)
+    decoder.load_state_dict(model['decoder_state'])
+    decoder.eval()
+
+    with torch.no_grad():
+        # Sample from prior (descriptors only used during encoding/training)
+        z = torch.randn(n_samples, latent_dim)
+
+        # Decode
+        logits = decoder(z)
+        probs = torch.sigmoid(logits)
+
+        # Sample binary values
+        if deterministic:
+            samples = (probs > 0.5).float().numpy()
+        else:
+            samples = torch.bernoulli(probs).numpy()
+
+    return samples.astype(int)
+
+
+def sample_binary_regvae(
+    model: Dict[str, Any],
+    n_samples: int,
+    params: Optional[Dict[str, Any]] = None
+) -> np.ndarray:
+    """
+    Sample from Regression-focused Binary VAE (Reg-VAE) model
+
+    This variant can use the fitness predictor to guide sampling by selecting
+    latent codes with high predicted fitness.
+
+    Parameters
+    ----------
+    model : dict
+        Model dictionary from learn_binary_regvae
+    n_samples : int
+        Number of samples to generate
+    params : dict, optional
+        Sampling parameters:
+        - 'use_fitness_guidance': use fitness predictor for guided sampling (default: False)
+        - 'target_fitness': target fitness for guided sampling (default: None, uses max)
+        - 'candidate_factor': generate this many candidates for filtering (default: 10)
+        - 'deterministic': use deterministic sampling (argmax) instead of random (default: False)
+
+    Returns
+    -------
+    samples : np.ndarray
+        Binary samples of shape (n_samples, n_vars)
+    """
+    if params is None:
+        params = {}
+
+    use_fitness_guidance = params.get('use_fitness_guidance', False)
+    target_fitness = params.get('target_fitness', None)
+    candidate_factor = params.get('candidate_factor', 10)
+    deterministic = params.get('deterministic', False)
+
+    # Reconstruct decoder
+    latent_dim = model['latent_dim']
+    n_vars = model['n_vars']
+    hidden_dims_dec = model['hidden_dims_dec']
+
+    decoder = BinaryVAEDecoder(latent_dim, n_vars, hidden_dims_dec)
+    decoder.load_state_dict(model['decoder_state'])
+    decoder.eval()
+
+    # For fitness guidance, also load fitness predictor
+    if use_fitness_guidance:
+        fitness_predictor = FitnessPredictor(latent_dim, 1, 32)
+        fitness_predictor.load_state_dict(model['fitness_predictor_state'])
+        fitness_predictor.eval()
+
+    with torch.no_grad():
+        if use_fitness_guidance:
+            # Sample multiple latent codes and select based on fitness
+            n_candidates = n_samples * candidate_factor
+            z_candidates = torch.randn(n_candidates, latent_dim)
+            pred_fitness = fitness_predictor(z_candidates).squeeze()
+
+            if target_fitness is not None:
+                # Select samples closest to target fitness
+                fitness_diff = torch.abs(pred_fitness - target_fitness)
+                _, top_indices = torch.topk(fitness_diff, n_samples, largest=False)
+            else:
+                # Select samples with highest predicted fitness
+                _, top_indices = torch.topk(pred_fitness, n_samples, largest=True)
+
+            z = z_candidates[top_indices]
+        else:
+            # Standard sampling from prior
+            z = torch.randn(n_samples, latent_dim)
+
+        # Decode
+        logits = decoder(z)
+        probs = torch.sigmoid(logits)
+
+        # Sample binary values
+        if deterministic:
+            samples = (probs > 0.5).float().numpy()
+        else:
+            samples = torch.bernoulli(probs).numpy()
+
+    return samples.astype(int)
+
+
+def sample_binary_momvae(
+    model: Dict[str, Any],
+    n_samples: int,
+    params: Optional[Dict[str, Any]] = None
+) -> np.ndarray:
+    """
+    Sample from Moment-matching Binary VAE (Mom-VAE) model
+
+    This variant samples from the standard VAE, which has been trained to match
+    the statistical moments of the elite population.
+
+    Parameters
+    ----------
+    model : dict
+        Model dictionary from learn_binary_momvae
+    n_samples : int
+        Number of samples to generate
+    params : dict, optional
+        Sampling parameters:
+        - 'sample_from_prior': sample from N(0,I) (default: True)
+        - 'deterministic': use deterministic sampling (argmax) instead of random (default: False)
+
+    Returns
+    -------
+    samples : np.ndarray
+        Binary samples of shape (n_samples, n_vars)
+    """
+    if params is None:
+        params = {}
+
+    sample_from_prior = params.get('sample_from_prior', True)
+    deterministic = params.get('deterministic', False)
+
+    # Reconstruct decoder
+    latent_dim = model['latent_dim']
+    n_vars = model['n_vars']
+    hidden_dims_dec = model['hidden_dims_dec']
+
+    decoder = BinaryVAEDecoder(latent_dim, n_vars, hidden_dims_dec)
+    decoder.load_state_dict(model['decoder_state'])
+    decoder.eval()
+
+    with torch.no_grad():
+        # Sample from prior
+        z = torch.randn(n_samples, latent_dim)
+
+        # Decode
+        logits = decoder(z)
+        probs = torch.sigmoid(logits)
+
+        # Sample binary values
+        if deterministic:
+            samples = (probs > 0.5).float().numpy()
+        else:
+            samples = torch.bernoulli(probs).numpy()
+
+    return samples.astype(int)
 
 
 def sample_binary_gan(
