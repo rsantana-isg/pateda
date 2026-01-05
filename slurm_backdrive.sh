@@ -29,8 +29,8 @@
 
 
 
-echo   "bnd -exec python3 $@"        
-        bnd -exec python3 "$@"
+echo "bnd -exec python3 $@"
+bnd -exec python3 "$@"
 
 
-# sbatch examples/slurm_backdrive.sh discrete_Backdrive_EDA.py 111 OneMax 30 150 250 0.5 --variant backdrive --init random --loss mse --activation relu
+# sbatch slurm_backdrive.sh examples/discrete_Backdrive_EDA.py 111 OneMax 30 150 250 0.5 --variant backdrive --init random --loss mse --activation relu
