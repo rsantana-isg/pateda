@@ -23,7 +23,8 @@ if __name__ == '__main__':
     activation_e = 'relu'
     
     # Dropout rates
-    dropout_options = [0.3, 0.5]
+    #dropout_options = [0.3, 0.5]
+    dropout_options = [0.5]
     
     # Temperature
     temperature_options = [0.5, 1.0]
@@ -32,7 +33,7 @@ if __name__ == '__main__':
     use_surrogate_options = [0, 1]
     
     # Seeds
-    for seed in np.arange(1, 2):
+    for seed in np.arange(6, 11):
         for obj_func in obj_functions:
             # Set n based on objective function
             if obj_func == 'HIFF':

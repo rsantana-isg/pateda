@@ -21,17 +21,20 @@ if __name__ == '__main__':
     activation_dec_options = ['relu', 'tanh']
     
     # Beta annealing parameters
-    beta_start_options = [0.0, 0.1]
+    #beta_start_options = [0.0, 0.1]
+    beta_start_options = [0.0]
     beta_end_options = [1.0]
     
     # Latent dimension (0 means use default)
-    latent_dim_options = [0, 8]
-    
+    # latent_dim_options = [0, 8]
+    latent_dim_options = [0]
+
     # Epochs
-    epochs_options = [30, 50]
+    #epochs_options = [30, 50]
+    epochs_options = [50]
     
     # Seeds
-    for seed in np.arange(1, 2):
+    for seed in np.arange(6, 11):
         for obj_func in obj_functions:
             # Set n based on objective function
             if obj_func == 'HIFF':
