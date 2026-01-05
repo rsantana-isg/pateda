@@ -90,6 +90,115 @@ from pateda.learning.discrete_backdrive_ranking import pairwise_ranking_loss, co
 from pateda.learning.discrete_backdrive_huber import huber_loss
 
 
+# Constants for numerical stability
+EPSILON = 1e-10  # Small constant to prevent division by zero
+
+
+def descriptor_weighted_mse_loss(predictions: torch.Tensor, targets: torch.Tensor,
+                                 fitness_values: torch.Tensor) -> torch.Tensor:
+    """
+    Compute fitness-weighted MSE loss for descriptor-based learning
+
+    Higher fitness solutions get higher weight in the loss, focusing
+    the model on accurately predicting high-fitness solutions.
+
+    Parameters
+    ----------
+    predictions : torch.Tensor
+        Predicted solutions [batch_size, n_vars]
+    targets : torch.Tensor
+        Target solutions [batch_size, n_vars]
+    fitness_values : torch.Tensor
+        Original fitness values for weighting [batch_size]
+
+    Returns
+    -------
+    loss : torch.Tensor
+        Weighted MSE loss scalar
+    """
+    # Normalize fitness to [0, 1]
+    fitness_min = fitness_values.min()
+    fitness_max = fitness_values.max()
+
+    if fitness_max - fitness_min < EPSILON:
+        # All fitness values are the same, use uniform weights
+        weights = torch.ones_like(fitness_values)
+    else:
+        fitness_norm = (fitness_values - fitness_min) / (fitness_max - fitness_min)
+
+        # Compute weights: higher fitness -> higher weight
+        # Use exponential weighting to emphasize top solutions
+        weights = torch.exp(2.0 * fitness_norm)
+
+    # Normalize weights to sum to batch size (for consistent scale with standard MSE)
+    weights = weights / weights.mean()
+
+    # Weighted MSE: compute per-sample MSE and weight by fitness
+    squared_errors = ((predictions - targets) ** 2).mean(dim=1)  # [batch_size]
+    weighted_loss = (weights * squared_errors).mean()
+
+    return weighted_loss
+
+
+def descriptor_ranking_loss(predictions: torch.Tensor, targets: torch.Tensor,
+                            fitness_values: torch.Tensor, margin: float = 0.1) -> torch.Tensor:
+    """
+    Compute pairwise ranking loss for descriptor-based learning
+
+    For pairs where fitness[i] > fitness[j], encourage that the predicted
+    solution for i is closer to its target than the prediction for j.
+
+    Parameters
+    ----------
+    predictions : torch.Tensor
+        Predicted solutions [batch_size, n_vars]
+    targets : torch.Tensor
+        Target solutions [batch_size, n_vars]
+    fitness_values : torch.Tensor
+        Fitness values for ranking [batch_size]
+    margin : float
+        Margin for ranking (default: 0.1)
+
+    Returns
+    -------
+    loss : torch.Tensor
+        Ranking loss scalar
+    """
+    batch_size = predictions.shape[0]
+
+    if batch_size < 2:
+        # Not enough samples for pairwise comparison, fall back to MSE
+        return F.mse_loss(predictions, targets)
+
+    # Compute per-sample reconstruction error
+    # error[i] = MSE between prediction[i] and target[i]
+    errors = ((predictions - targets) ** 2).mean(dim=1)  # [batch_size]
+
+    # Compute all pairwise comparisons
+    # For pairs where fitness[i] > fitness[j], we want error[i] < error[j] + margin
+    error_diff = errors.unsqueeze(1) - errors.unsqueeze(0)  # [batch_size, batch_size]
+    fitness_diff = fitness_values.unsqueeze(1) - fitness_values.unsqueeze(0)  # [batch_size, batch_size]
+
+    # Create mask for valid pairs (fitness[i] > fitness[j])
+    valid_pairs = (fitness_diff > 0).float()
+
+    # Compute hinge loss: loss = max(0, margin + error[i] - error[j]) when fitness[i] > fitness[j]
+    # We want error[i] < error[j], so penalize when error[i] > error[j] - margin
+    hinge_loss = torch.clamp(margin + error_diff, min=0)
+
+    # Apply mask and average
+    masked_loss = hinge_loss * valid_pairs
+    n_valid_pairs = valid_pairs.sum()
+
+    if n_valid_pairs > 0:
+        ranking_loss = masked_loss.sum() / n_valid_pairs
+    else:
+        # No valid pairs, use MSE
+        ranking_loss = F.mse_loss(predictions, targets)
+
+    return ranking_loss
+
+
 class DescriptorBackdriveNet(nn.Module):
     """
     Neural network that generates solutions from descriptors
@@ -209,6 +318,9 @@ def learn_discrete_backdrive_descriptors(
     patience = params.get('patience', 10)
     huber_delta = params.get('huber_delta', 1.0)
 
+    # Extract pretrained model for weight transfer
+    pretrained_model = params.get('pretrained_model', None)
+
     # Compute descriptors for each solution
     # Descriptor 0: fitness
     # Descriptor 1: mean of solution values
@@ -258,7 +370,7 @@ def learn_discrete_backdrive_descriptors(
         X_val = None
         y_val = None
 
-    # Create network
+    # Create network with configurable activation functions
     network = DescriptorBackdriveNet(
         n_vars, n_descriptors=3, hidden_layers=hidden_layers, dropout=dropout,
         list_act_functs=list_act_functs
@@ -292,6 +404,9 @@ def learn_discrete_backdrive_descriptors(
     best_val_loss = float('inf')
     patience_counter = 0
 
+    # Convert fitness to tensor for loss computation
+    fitness_tensor = torch.FloatTensor(fitness_1d)
+
     for epoch in range(epochs):
         # Shuffle training data
         perm = torch.randperm(len(X_train))
@@ -303,6 +418,7 @@ def learn_discrete_backdrive_descriptors(
             idx = perm[i:i+batch_size]
             batch_x = X_train[idx]
             batch_y = y_train[idx]
+            batch_fitness = fitness_tensor[idx] if loss_function in ['weighted_mse', 'ranking'] else None
 
             # Forward pass
             pred = network(batch_x)
@@ -381,6 +497,8 @@ def learn_discrete_backdrive_descriptors(
         'n_descriptors': 3,
         'hidden_layers': hidden_layers,
         'descriptor_stats': (descriptor_means, descriptor_stds),
+        'loss_function': loss_function,
+        'list_act_functs': list_act_functs if list_act_functs is not None else ['relu'] * len(hidden_layers),
         'type': 'discrete_backdrive_descriptors'
     }
 

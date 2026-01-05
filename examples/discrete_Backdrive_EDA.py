@@ -469,7 +469,8 @@ class BackdriveEDA:
             History dictionary
         """
         # Get learning and sampling functions
-        # Special case for backdrive_descriptors variant
+        # For backdrive_descriptors variant, always use the descriptors learning function
+        # but pass the loss_function parameter to it
         if self.variant == 'backdrive_descriptors':
             learn_fn = self.loss_function_map['descriptors']
         else:
@@ -501,6 +502,7 @@ class BackdriveEDA:
             # Prepare learning parameters
             learning_params = self.learning_params.copy()
             learning_params['early_stopping'] = self.early_stopping
+
             # Pass activation as a list for all hidden layers
             if 'hidden_dims' in learning_params:
                 n_hidden = len(learning_params['hidden_dims'])
@@ -549,25 +551,27 @@ class BackdriveEDA:
                     # Evaluate with surrogate, then select promising ones
                     import torch
                     from pateda.learning.discrete_backdrive import DiscreteBackdriveNet
-                    
-                    # Reconstruct network for predictions
+
+                    # Reconstruct network for predictions with same configuration as training
                     network = DiscreteBackdriveNet(
-                        model['n_vars'], 
-                        model['cardinality'], 
+                        model['n_vars'],
+                        model['cardinality'],
                         model['hidden_layers'],
                         model['use_embeddings'],
-                        model.get('embedding_dim', 8)
+                        model.get('embedding_dim', 8),
+                        dropout=0.0,  # No dropout during evaluation
+                        list_act_functs=model.get('list_act_functs', None)
                     )
                     network.load_state_dict(model['network_state'])
                     network.eval()
-                    
+
                     # Generate more samples than needed
                     candidate_pop = sample_fn(model, self.pop_size * 3, sampling_params)
-                    
+
                     with torch.no_grad():
                         X = torch.LongTensor(candidate_pop.astype(int))
                         pred_fitness = network(X).numpy().flatten()
-                    
+
                     # Select top predicted solutions
                     top_indices = np.argsort(pred_fitness)[-self.pop_size:]
                     population = candidate_pop[top_indices]
@@ -719,13 +723,23 @@ Examples:
     batch_s = min(32, int(selected_pop_size/10))
     
     # Configure learning parameters
-    learning_params = {
-        'epochs': 30,
-        'hidden_dims': adaptive_hidden_dims,
-        'batch_size': batch_s,
-        'early_stopping': args.early_stopping,
-        # Activation will be passed as list_act_functs in the run method
-    }
+    # Note: descriptors variant uses 'hidden_layers', others use 'hidden_dims'
+    if args.variant == 'backdrive_descriptors':
+        learning_params = {
+            'epochs': 30,
+            'hidden_layers': adaptive_hidden_dims,
+            'batch_size': batch_s,
+            'early_stopping': args.early_stopping,
+            # Activation and loss_function will be passed in the run method
+        }
+    else:
+        learning_params = {
+            'epochs': 30,
+            'hidden_dims': adaptive_hidden_dims,
+            'batch_size': batch_s,
+            'early_stopping': args.early_stopping,
+            # Activation will be passed as list_act_functs in the run method
+        }
     
     # Configure sampling parameters based on variant and initialization
     sampling_params = {

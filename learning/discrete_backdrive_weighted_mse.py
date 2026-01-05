@@ -125,6 +125,7 @@ def learn_discrete_backdrive_weighted_mse(
         - 'validation_split': validation fraction (default: 0.2)
         - 'early_stopping': enable early stopping (default: True)
         - 'patience': early stopping patience (default: 10)
+        - 'pretrained_model': model dict from previous generation for transfer learning
 
     Returns
     -------
@@ -140,6 +141,7 @@ def learn_discrete_backdrive_weighted_mse(
     # Compute defaults
     default_hidden_dims = compute_backdrive_hidden_dims(n_vars, pop_size)
     hidden_layers = params.get('hidden_layers', default_hidden_dims)
+    list_act_functs = params.get('list_act_functs', None)
     use_embeddings = params.get('use_embeddings', np.max(cardinality) > 2)
     embedding_dim = params.get('embedding_dim', 8)
     epochs = params.get('epochs', 100)
@@ -150,6 +152,9 @@ def learn_discrete_backdrive_weighted_mse(
     validation_split = params.get('validation_split', 0.2)
     early_stopping = params.get('early_stopping', True)
     patience = params.get('patience', 10)
+
+    # Extract pretrained model for weight transfer
+    pretrained_model = params.get('pretrained_model', None)
 
     # Normalize fitness
     fitness_1d = fitness.flatten()
@@ -191,10 +196,20 @@ def learn_discrete_backdrive_weighted_mse(
         y_val = None
         y_val_orig = None
 
-    # Create network
+    # Create network with configurable activation functions
     network = DiscreteBackdriveNet(
-        n_vars, cardinality, hidden_layers, use_embeddings, embedding_dim, dropout
+        n_vars, cardinality, hidden_layers, use_embeddings, embedding_dim, dropout,
+        list_act_functs=list_act_functs
     )
+
+    # Transfer weights from previous generation if provided
+    if pretrained_model is not None:
+        try:
+            # Load state dict from pretrained model
+            network.load_state_dict(pretrained_model['network_state'])
+            print("  Transferred weights from previous generation")
+        except Exception as e:
+            warnings.warn(f"Could not transfer weights: {e}")
 
     # Optimizer
     optimizer = optim.Adam(network.parameters(), lr=learning_rate,
@@ -271,6 +286,7 @@ def learn_discrete_backdrive_weighted_mse(
         'use_embeddings': use_embeddings,
         'embedding_dim': embedding_dim if use_embeddings else None,
         'fitness_stats': (fitness_mean, fitness_std),
+        'list_act_functs': list_act_functs if list_act_functs is not None else ['relu'] * len(hidden_layers),
         'type': 'discrete_backdrive_weighted_mse'
     }
 
