@@ -10,8 +10,9 @@ if __name__ == '__main__':
     # Objective functions to test
     obj_functions = ['OneMax', 'KDeceptive3', 'Deceptive3', 'HIFF', 'KDeceptive5', 'FC5']
     
-    # VAE variants
-    variants = ['VAE', 'E-VAE', 'C-VAE', 'BA-VAE', 'FW-VAE']
+    # VAE variants - all 12 variants (original + enhanced)
+    variants = ['VAE', 'E-VAE', 'C-VAE', 'Desc-VAE', 'Reg-VAE', 'Mom-VAE', 
+                'BA-VAE', 'AA-VAE', 'FW-VAE', 'GS-VAE', 'HS-VAE', 'TC-VAE']
     
     # Activation functions for Encoder
     activation_enc_options = ['relu', 'tanh', 'leaky_relu']
