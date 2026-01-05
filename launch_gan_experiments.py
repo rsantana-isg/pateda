@@ -40,7 +40,7 @@ if __name__ == '__main__':
                 n = 64
             else:
                 n = 30
-            p_size = n * 5
+            p_size = n * 15
             
             # Generate all combinations
             for variant in variants:
