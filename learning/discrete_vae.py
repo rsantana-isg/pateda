@@ -102,6 +102,144 @@ from pateda.learning.nn_utils import (
     SUPPORTED_ACTIVATIONS,
     SUPPORTED_INITIALIZATIONS,
 )
+from scipy import stats
+
+
+# ==============================================================================
+# Mutual Information and G-Test Utilities
+# ==============================================================================
+
+def compute_mutual_information_matrix(population: np.ndarray) -> np.ndarray:
+    """
+    Compute the mutual information matrix for binary variables.
+
+    For binary variables X and Y, mutual information is:
+    MI(X,Y) = sum_{x,y} P(x,y) * log(P(x,y) / (P(x)*P(y)))
+
+    Parameters
+    ----------
+    population : np.ndarray
+        Binary population of shape (pop_size, n_vars) with values in {0, 1}
+
+    Returns
+    -------
+    mi_matrix : np.ndarray
+        Mutual information matrix of shape (n_vars, n_vars)
+    """
+    n_samples, n_vars = population.shape
+    mi_matrix = np.zeros((n_vars, n_vars))
+
+    # Add small epsilon to avoid log(0)
+    eps = 1e-10
+
+    for i in range(n_vars):
+        for j in range(i, n_vars):
+            if i == j:
+                # Self-MI is entropy
+                p1 = np.mean(population[:, i])
+                p0 = 1 - p1
+                if p0 > eps and p1 > eps:
+                    mi_matrix[i, j] = -p0 * np.log2(p0 + eps) - p1 * np.log2(p1 + eps)
+            else:
+                # Compute joint and marginal probabilities
+                # P(X=x, Y=y) for x,y in {0,1}
+                p00 = np.mean((population[:, i] == 0) & (population[:, j] == 0))
+                p01 = np.mean((population[:, i] == 0) & (population[:, j] == 1))
+                p10 = np.mean((population[:, i] == 1) & (population[:, j] == 0))
+                p11 = np.mean((population[:, i] == 1) & (population[:, j] == 1))
+
+                # Marginal probabilities
+                p_i0 = p00 + p01
+                p_i1 = p10 + p11
+                p_j0 = p00 + p10
+                p_j1 = p01 + p11
+
+                # Compute mutual information
+                mi = 0.0
+                for px, py, pxy in [(p_i0, p_j0, p00), (p_i0, p_j1, p01),
+                                     (p_i1, p_j0, p10), (p_i1, p_j1, p11)]:
+                    if pxy > eps and px > eps and py > eps:
+                        mi += pxy * np.log2(pxy / (px * py + eps) + eps)
+
+                mi_matrix[i, j] = mi
+                mi_matrix[j, i] = mi
+
+    return mi_matrix
+
+
+def compute_gtest_independence_matrix(population: np.ndarray, alpha: float = 0.05) -> np.ndarray:
+    """
+    Compute G-Test (Likelihood Ratio Test) to test independence of binary variables.
+
+    The G-Test statistic is:
+    G = 2 * sum_{x,y} O_{x,y} * log(O_{x,y} / E_{x,y})
+
+    where O_{x,y} are observed frequencies and E_{x,y} are expected frequencies
+    under independence assumption.
+
+    Parameters
+    ----------
+    population : np.ndarray
+        Binary population of shape (pop_size, n_vars) with values in {0, 1}
+    alpha : float
+        Significance level for independence test (default: 0.05)
+
+    Returns
+    -------
+    g_matrix : np.ndarray
+        Binary matrix of shape (n_vars, n_vars) where G[i,j]=1 indicates
+        variables i and j are independent (fail to reject H0), and
+        G[i,j]=0 indicates they are dependent (reject H0)
+    """
+    n_samples, n_vars = population.shape
+    g_matrix = np.zeros((n_vars, n_vars))
+
+    eps = 1e-10
+
+    for i in range(n_vars):
+        for j in range(i, n_vars):
+            if i == j:
+                # Variable is always dependent with itself
+                g_matrix[i, j] = 0
+            else:
+                # Compute contingency table (2x2 for binary variables)
+                n00 = np.sum((population[:, i] == 0) & (population[:, j] == 0))
+                n01 = np.sum((population[:, i] == 0) & (population[:, j] == 1))
+                n10 = np.sum((population[:, i] == 1) & (population[:, j] == 0))
+                n11 = np.sum((population[:, i] == 1) & (population[:, j] == 1))
+
+                # Marginal totals
+                n_i0 = n00 + n01
+                n_i1 = n10 + n11
+                n_j0 = n00 + n10
+                n_j1 = n01 + n11
+
+                # Expected frequencies under independence
+                e00 = (n_i0 * n_j0) / n_samples
+                e01 = (n_i0 * n_j1) / n_samples
+                e10 = (n_i1 * n_j0) / n_samples
+                e11 = (n_i1 * n_j1) / n_samples
+
+                # Compute G-statistic
+                g_stat = 0.0
+                for observed, expected in [(n00, e00), (n01, e01), (n10, e10), (n11, e11)]:
+                    if observed > 0 and expected > eps:
+                        g_stat += 2 * observed * np.log(observed / (expected + eps))
+
+                # G-statistic follows chi-square distribution with df=1 for 2x2 table
+                # Critical value for chi-square(1) at alpha=0.05 is 3.841
+                critical_value = stats.chi2.ppf(1 - alpha, df=1)
+
+                # If G < critical_value, fail to reject H0 (independence)
+                # So G[i,j]=1 means variables are independent
+                if g_stat < critical_value:
+                    g_matrix[i, j] = 1
+                    g_matrix[j, i] = 1
+                else:
+                    g_matrix[i, j] = 0
+                    g_matrix[j, i] = 0
+
+    return g_matrix
 
 
 def sample_gumbel(shape, eps=1e-20):
@@ -143,6 +281,41 @@ def gumbel_softmax(logits, temperature, hard=False):
     return y
 
 
+class SparseLinear(nn.Module):
+    """
+    Sparse linear layer with masked connections.
+
+    Parameters
+    ----------
+    in_features : int
+        Number of input features
+    out_features : int
+        Number of output features
+    mask : torch.Tensor
+        Binary mask of shape (in_features, out_features) where 1 indicates connection
+    """
+
+    def __init__(self, in_features: int, out_features: int, mask: torch.Tensor):
+        super(SparseLinear, self).__init__()
+        self.in_features = in_features
+        self.out_features = out_features
+
+        # Register mask as buffer (not a parameter, but part of state)
+        self.register_buffer('mask', mask.float())
+
+        # Create weight and bias parameters
+        self.weight = nn.Parameter(torch.randn(out_features, in_features))
+        self.bias = nn.Parameter(torch.zeros(out_features))
+
+        # Initialize weights
+        nn.init.kaiming_uniform_(self.weight, a=np.sqrt(5))
+
+    def forward(self, x):
+        # Apply mask to weights before linear transformation
+        masked_weight = self.weight * self.mask.t()
+        return F.linear(x, masked_weight, self.bias)
+
+
 class BinaryVAEEncoder(nn.Module):
     """
     Encoder for binary VAE
@@ -161,6 +334,12 @@ class BinaryVAEEncoder(nn.Module):
         List of activation functions, one per hidden layer.
     list_init_functs : list, optional
         List of initialization functions, one per hidden layer.
+    mi_layer : bool, optional
+        If True, use MI-based sparse connectivity for first layer (default: False)
+    g_matrix : np.ndarray, optional
+        G-Test independence matrix for MI layer (required if mi_layer=True)
+    activation_func : str, optional
+        Activation function name for MI layer (required if mi_layer=True)
     """
 
     def __init__(
@@ -169,7 +348,10 @@ class BinaryVAEEncoder(nn.Module):
         latent_dim: int,
         hidden_dims: List[int] = None,
         list_act_functs: List[str] = None,
-        list_init_functs: List[str] = None
+        list_init_functs: List[str] = None,
+        mi_layer: bool = False,
+        g_matrix: np.ndarray = None,
+        activation_func: str = 'relu'
     ):
         super(BinaryVAEEncoder, self).__init__()
 
@@ -191,6 +373,31 @@ class BinaryVAEEncoder(nn.Module):
         layers = []
         prev_dim = input_dim
 
+        # If MI layer is enabled, add sparse first layer
+        if mi_layer:
+            if g_matrix is None:
+                raise ValueError("g_matrix must be provided when mi_layer=True")
+
+            # First hidden layer has n neurons (same as input_dim)
+            mi_hidden_dim = input_dim
+
+            # Create connectivity mask:
+            # - G[i,j]=1 means variables i and j are independent -> connection exists
+            # - Additionally, each input i connects to neuron i (diagonal)
+            connectivity_mask = torch.zeros(input_dim, mi_hidden_dim)
+            for i in range(input_dim):
+                for j in range(mi_hidden_dim):
+                    if i == j or g_matrix[i, j] == 1:
+                        connectivity_mask[i, j] = 1
+
+            # Add sparse MI layer
+            mi_linear = SparseLinear(input_dim, mi_hidden_dim, connectivity_mask)
+            layers.append(mi_linear)
+            layers.append(get_activation(activation_func, in_features=mi_hidden_dim))
+            layers.append(nn.Dropout(0.2))
+            prev_dim = mi_hidden_dim
+
+        # Add remaining hidden layers
         for i, hidden_dim in enumerate(hidden_dims):
             linear = nn.Linear(prev_dim, hidden_dim)
             apply_weight_init(linear, list_init_functs[i])
@@ -373,6 +580,12 @@ class ConditionalBinaryVAEEncoder(nn.Module):
         List of activation functions
     list_init_functs : list, optional
         List of initialization functions
+    mi_layer : bool, optional
+        If True, use MI-based sparse connectivity for first layer (default: False)
+    g_matrix : np.ndarray, optional
+        G-Test independence matrix for MI layer (required if mi_layer=True)
+    activation_func : str, optional
+        Activation function name for MI layer (required if mi_layer=True)
     """
 
     def __init__(
@@ -382,9 +595,16 @@ class ConditionalBinaryVAEEncoder(nn.Module):
         condition_dim: int = 3,
         hidden_dims: List[int] = None,
         list_act_functs: List[str] = None,
-        list_init_functs: List[str] = None
+        list_init_functs: List[str] = None,
+        mi_layer: bool = False,
+        g_matrix: np.ndarray = None,
+        activation_func: str = 'relu'
     ):
         super(ConditionalBinaryVAEEncoder, self).__init__()
+
+        self.input_dim = input_dim
+        self.condition_dim = condition_dim
+        self.mi_layer = mi_layer
 
         if hidden_dims is None:
             hidden_dims = [128, 64]
@@ -402,9 +622,34 @@ class ConditionalBinaryVAEEncoder(nn.Module):
         )
 
         layers = []
-        # Concatenate input with condition
-        prev_dim = input_dim + condition_dim
 
+        # If MI layer is enabled, add sparse first layer on input only
+        if mi_layer:
+            if g_matrix is None:
+                raise ValueError("g_matrix must be provided when mi_layer=True")
+
+            # First hidden layer has n neurons (same as input_dim)
+            mi_hidden_dim = input_dim
+
+            # Create connectivity mask
+            connectivity_mask = torch.zeros(input_dim, mi_hidden_dim)
+            for i in range(input_dim):
+                for j in range(mi_hidden_dim):
+                    if i == j or g_matrix[i, j] == 1:
+                        connectivity_mask[i, j] = 1
+
+            # Store MI layer components separately
+            self.mi_linear = SparseLinear(input_dim, mi_hidden_dim, connectivity_mask)
+            self.mi_activation = get_activation(activation_func, in_features=mi_hidden_dim)
+            self.mi_dropout = nn.Dropout(0.2)
+
+            # After MI layer, combine with condition
+            prev_dim = mi_hidden_dim + condition_dim
+        else:
+            # Concatenate input with condition from the start
+            prev_dim = input_dim + condition_dim
+
+        # Add remaining hidden layers
         for i, hidden_dim in enumerate(hidden_dims):
             linear = nn.Linear(prev_dim, hidden_dim)
             apply_weight_init(linear, list_init_functs[i])
@@ -428,9 +673,18 @@ class ConditionalBinaryVAEEncoder(nn.Module):
         Returns:
             mean, logvar: latent distribution parameters
         """
-        # Concatenate input and condition
-        x_cond = torch.cat([x, condition], dim=1)
-        h = self.encoder(x_cond)
+        if self.mi_layer:
+            # Process input through MI layer first
+            h = self.mi_linear(x)
+            h = self.mi_activation(h)
+            h = self.mi_dropout(h)
+            # Then concatenate with condition
+            h = torch.cat([h, condition], dim=1)
+        else:
+            # Concatenate input and condition
+            h = torch.cat([x, condition], dim=1)
+
+        h = self.encoder(h)
         mean = self.fc_mean(h)
         logvar = self.fc_logvar(h)
         return mean, logvar
@@ -507,6 +761,27 @@ class DescriptorBinaryVAEEncoder(nn.Module):
     Descriptor-augmented encoder for Desc-VAE
 
     Takes binary input augmented with descriptors (fitness, mean, std)
+
+    Parameters
+    ----------
+    input_dim : int
+        Dimension of the binary input
+    latent_dim : int
+        Dimension of the latent space
+    n_descriptors : int
+        Number of descriptors (default: 3)
+    hidden_dims : list, optional
+        List of hidden layer dimensions
+    list_act_functs : list, optional
+        List of activation functions
+    list_init_functs : list, optional
+        List of initialization functions
+    mi_layer : bool, optional
+        If True, use MI-based sparse connectivity for first layer (default: False)
+    g_matrix : np.ndarray, optional
+        G-Test independence matrix for MI layer (required if mi_layer=True)
+    activation_func : str, optional
+        Activation function name for MI layer (required if mi_layer=True)
     """
 
     def __init__(
@@ -516,9 +791,16 @@ class DescriptorBinaryVAEEncoder(nn.Module):
         n_descriptors: int = 3,
         hidden_dims: List[int] = None,
         list_act_functs: List[str] = None,
-        list_init_functs: List[str] = None
+        list_init_functs: List[str] = None,
+        mi_layer: bool = False,
+        g_matrix: np.ndarray = None,
+        activation_func: str = 'relu'
     ):
         super(DescriptorBinaryVAEEncoder, self).__init__()
+
+        self.input_dim = input_dim
+        self.n_descriptors = n_descriptors
+        self.mi_layer = mi_layer
 
         if hidden_dims is None:
             hidden_dims = [128, 64]
@@ -536,9 +818,34 @@ class DescriptorBinaryVAEEncoder(nn.Module):
         )
 
         layers = []
-        # Concatenate input with descriptors
-        prev_dim = input_dim + n_descriptors
 
+        # If MI layer is enabled, add sparse first layer on input only
+        if mi_layer:
+            if g_matrix is None:
+                raise ValueError("g_matrix must be provided when mi_layer=True")
+
+            # First hidden layer has n neurons (same as input_dim)
+            mi_hidden_dim = input_dim
+
+            # Create connectivity mask
+            connectivity_mask = torch.zeros(input_dim, mi_hidden_dim)
+            for i in range(input_dim):
+                for j in range(mi_hidden_dim):
+                    if i == j or g_matrix[i, j] == 1:
+                        connectivity_mask[i, j] = 1
+
+            # Store MI layer components separately
+            self.mi_linear = SparseLinear(input_dim, mi_hidden_dim, connectivity_mask)
+            self.mi_activation = get_activation(activation_func, in_features=mi_hidden_dim)
+            self.mi_dropout = nn.Dropout(0.2)
+
+            # After MI layer, combine with descriptors
+            prev_dim = mi_hidden_dim + n_descriptors
+        else:
+            # Concatenate input with descriptors from the start
+            prev_dim = input_dim + n_descriptors
+
+        # Add remaining hidden layers
         for i, hidden_dim in enumerate(hidden_dims):
             linear = nn.Linear(prev_dim, hidden_dim)
             apply_weight_init(linear, list_init_functs[i])
@@ -562,9 +869,18 @@ class DescriptorBinaryVAEEncoder(nn.Module):
         Returns:
             mean, logvar: latent distribution parameters
         """
-        # Concatenate input and descriptors
-        x_desc = torch.cat([x, descriptors], dim=1)
-        h = self.encoder(x_desc)
+        if self.mi_layer:
+            # Process input through MI layer first
+            h = self.mi_linear(x)
+            h = self.mi_activation(h)
+            h = self.mi_dropout(h)
+            # Then concatenate with descriptors
+            h = torch.cat([h, descriptors], dim=1)
+        else:
+            # Concatenate input and descriptors
+            h = torch.cat([x, descriptors], dim=1)
+
+        h = self.encoder(h)
         mean = self.fc_mean(h)
         logvar = self.fc_logvar(h)
         return mean, logvar
@@ -669,13 +985,26 @@ def learn_binary_vae(
     list_init_functs_enc = params.get('list_init_functs_enc', None)
     list_init_functs_dec = params.get('list_init_functs_dec', None)
 
+    # MI layer parameters
+    mi_layer = params.get('mi_layer', False)
+    g_matrix = None
+    if mi_layer:
+        # Compute mutual information matrix
+        mi_matrix = compute_mutual_information_matrix(population)
+        # Compute G-Test independence matrix
+        g_matrix = compute_gtest_independence_matrix(population, alpha=0.05)
+        # Get activation function for encoder (use first one)
+        activation_func = list_act_functs_enc[0] if list_act_functs_enc else 'relu'
+
     # Convert to tensors
     data = torch.FloatTensor(population)
     fitness_tensor = torch.FloatTensor(fitness.reshape(-1, 1))
 
     # Create networks
     encoder = BinaryVAEEncoder(n_vars, latent_dim, hidden_dims_enc,
-                               list_act_functs_enc, list_init_functs_enc)
+                               list_act_functs_enc, list_init_functs_enc,
+                               mi_layer=mi_layer, g_matrix=g_matrix,
+                               activation_func=activation_func if mi_layer else 'relu')
     decoder = BinaryVAEDecoder(latent_dim, n_vars, hidden_dims_dec,
                                list_act_functs_dec, list_init_functs_dec)
 
@@ -979,6 +1308,17 @@ def learn_binary_cvae(
     list_init_functs_enc = params.get('list_init_functs_enc', None)
     list_init_functs_dec = params.get('list_init_functs_dec', None)
 
+    # MI layer parameters
+    mi_layer = params.get('mi_layer', False)
+    g_matrix = None
+    if mi_layer:
+        # Compute mutual information matrix
+        mi_matrix = compute_mutual_information_matrix(population)
+        # Compute G-Test independence matrix
+        g_matrix = compute_gtest_independence_matrix(population, alpha=0.05)
+        # Get activation function for encoder (use first one)
+        activation_func = list_act_functs_enc[0] if list_act_functs_enc else 'relu'
+
     # Compute conditioning vectors (fitness, mean, std per individual)
     fitness_1d = fitness.flatten()
     conditions = np.zeros((pop_size, 3))
@@ -1001,7 +1341,9 @@ def learn_binary_cvae(
 
     # Create networks
     encoder = ConditionalBinaryVAEEncoder(n_vars, latent_dim, condition_dim, hidden_dims_enc,
-                                          list_act_functs_enc, list_init_functs_enc)
+                                          list_act_functs_enc, list_init_functs_enc,
+                                          mi_layer=mi_layer, g_matrix=g_matrix,
+                                          activation_func=activation_func if mi_layer else 'relu')
     decoder = ConditionalBinaryVAEDecoder(latent_dim, n_vars, condition_dim, hidden_dims_dec,
                                           list_act_functs_dec, list_init_functs_dec)
 
@@ -1144,6 +1486,17 @@ def learn_binary_descvae(
     list_init_functs_enc = params.get('list_init_functs_enc', None)
     list_init_functs_dec = params.get('list_init_functs_dec', None)
 
+    # MI layer parameters
+    mi_layer = params.get('mi_layer', False)
+    g_matrix = None
+    if mi_layer:
+        # Compute mutual information matrix
+        mi_matrix = compute_mutual_information_matrix(population)
+        # Compute G-Test independence matrix
+        g_matrix = compute_gtest_independence_matrix(population, alpha=0.05)
+        # Get activation function for encoder (use first one)
+        activation_func = list_act_functs_enc[0] if list_act_functs_enc else 'relu'
+
     # Compute descriptors (fitness, mean, std per individual)
     fitness_1d = fitness.flatten()
     descriptors = np.zeros((pop_size, 3))
@@ -1162,7 +1515,9 @@ def learn_binary_descvae(
 
     # Create networks
     encoder = DescriptorBinaryVAEEncoder(n_vars, latent_dim, n_descriptors, hidden_dims_enc,
-                                         list_act_functs_enc, list_init_functs_enc)
+                                         list_act_functs_enc, list_init_functs_enc,
+                                         mi_layer=mi_layer, g_matrix=g_matrix,
+                                         activation_func=activation_func if mi_layer else 'relu')
     decoder = BinaryVAEDecoder(latent_dim, n_vars, hidden_dims_dec,
                                list_act_functs_dec, list_init_functs_dec)
 
@@ -1309,6 +1664,17 @@ def learn_binary_regvae(
     list_init_functs_enc = params.get('list_init_functs_enc', None)
     list_init_functs_dec = params.get('list_init_functs_dec', None)
 
+    # MI layer parameters
+    mi_layer = params.get('mi_layer', False)
+    g_matrix = None
+    if mi_layer:
+        # Compute mutual information matrix
+        mi_matrix = compute_mutual_information_matrix(population)
+        # Compute G-Test independence matrix
+        g_matrix = compute_gtest_independence_matrix(population, alpha=0.05)
+        # Get activation function for encoder (use first one)
+        activation_func = list_act_functs_enc[0] if list_act_functs_enc else 'relu'
+
     # Convert to tensors
     data = torch.FloatTensor(population)
     fitness_tensor = torch.FloatTensor(fitness.reshape(-1, 1))
@@ -1327,7 +1693,9 @@ def learn_binary_regvae(
 
     # Create networks
     encoder = BinaryVAEEncoder(n_vars, latent_dim, hidden_dims_enc,
-                               list_act_functs_enc, list_init_functs_enc)
+                               list_act_functs_enc, list_init_functs_enc,
+                               mi_layer=mi_layer, g_matrix=g_matrix,
+                               activation_func=activation_func if mi_layer else 'relu')
     decoder = BinaryVAEDecoder(latent_dim, n_vars, hidden_dims_dec,
                                list_act_functs_dec, list_init_functs_dec)
     fitness_predictor = FitnessPredictor(latent_dim, 1, 32)
@@ -1486,6 +1854,17 @@ def learn_binary_momvae(
     list_init_functs_enc = params.get('list_init_functs_enc', None)
     list_init_functs_dec = params.get('list_init_functs_dec', None)
 
+    # MI layer parameters
+    mi_layer = params.get('mi_layer', False)
+    g_matrix = None
+    if mi_layer:
+        # Compute mutual information matrix
+        mi_matrix = compute_mutual_information_matrix(population)
+        # Compute G-Test independence matrix
+        g_matrix = compute_gtest_independence_matrix(population, alpha=0.05)
+        # Get activation function for encoder (use first one)
+        activation_func = list_act_functs_enc[0] if list_act_functs_enc else 'relu'
+
     # Convert to tensors
     data = torch.FloatTensor(population)
 
@@ -1495,7 +1874,9 @@ def learn_binary_momvae(
 
     # Create networks
     encoder = BinaryVAEEncoder(n_vars, latent_dim, hidden_dims_enc,
-                               list_act_functs_enc, list_init_functs_enc)
+                               list_act_functs_enc, list_init_functs_enc,
+                               mi_layer=mi_layer, g_matrix=g_matrix,
+                               activation_func=activation_func if mi_layer else 'relu')
     decoder = BinaryVAEDecoder(latent_dim, n_vars, hidden_dims_dec,
                                list_act_functs_dec, list_init_functs_dec)
 
@@ -1684,13 +2065,26 @@ def _learn_binary_vae_with_cyclical_beta(
     list_act_functs_dec = params.get('list_act_functs_dec', None)
     list_init_functs_enc = params.get('list_init_functs_enc', None)
     list_init_functs_dec = params.get('list_init_functs_dec', None)
-    
+
+    # MI layer parameters
+    mi_layer = params.get('mi_layer', False)
+    g_matrix = None
+    if mi_layer:
+        # Compute mutual information matrix
+        mi_matrix = compute_mutual_information_matrix(population)
+        # Compute G-Test independence matrix
+        g_matrix = compute_gtest_independence_matrix(population, alpha=0.05)
+        # Get activation function for encoder (use first one)
+        activation_func = list_act_functs_enc[0] if list_act_functs_enc else 'relu'
+
     # Convert to tensors
     data = torch.FloatTensor(population)
-    
+
     # Create networks
     encoder = BinaryVAEEncoder(n_vars, latent_dim, hidden_dims_enc,
-                               list_act_functs_enc, list_init_functs_enc)
+                               list_act_functs_enc, list_init_functs_enc,
+                               mi_layer=mi_layer, g_matrix=g_matrix,
+                               activation_func=activation_func if mi_layer else 'relu')
     decoder = BinaryVAEDecoder(latent_dim, n_vars, hidden_dims_dec,
                                list_act_functs_dec, list_init_functs_dec)
     
@@ -1844,13 +2238,26 @@ def _learn_binary_vae_with_regularization(
     list_act_functs_dec = params.get('list_act_functs_dec', None)
     list_init_functs_enc = params.get('list_init_functs_enc', None)
     list_init_functs_dec = params.get('list_init_functs_dec', None)
-    
+
+    # MI layer parameters
+    mi_layer = params.get('mi_layer', False)
+    g_matrix = None
+    if mi_layer:
+        # Compute mutual information matrix
+        mi_matrix = compute_mutual_information_matrix(population)
+        # Compute G-Test independence matrix
+        g_matrix = compute_gtest_independence_matrix(population, alpha=0.05)
+        # Get activation function for encoder (use first one)
+        activation_func = list_act_functs_enc[0] if list_act_functs_enc else 'relu'
+
     # Convert to tensors
     data = torch.FloatTensor(population)
-    
+
     # Create networks with dropout
     encoder = BinaryVAEEncoder(n_vars, latent_dim, hidden_dims_enc,
-                               list_act_functs_enc, list_init_functs_enc)
+                               list_act_functs_enc, list_init_functs_enc,
+                               mi_layer=mi_layer, g_matrix=g_matrix,
+                               activation_func=activation_func if mi_layer else 'relu')
     decoder = BinaryVAEDecoder(latent_dim, n_vars, hidden_dims_dec,
                                list_act_functs_dec, list_init_functs_dec)
     
@@ -1990,11 +2397,22 @@ def learn_binary_fwvae(
     list_act_functs_dec = params.get('list_act_functs_dec', None)
     list_init_functs_enc = params.get('list_init_functs_enc', None)
     list_init_functs_dec = params.get('list_init_functs_dec', None)
-    
+
+    # MI layer parameters
+    mi_layer = params.get('mi_layer', False)
+    g_matrix = None
+    if mi_layer:
+        # Compute mutual information matrix
+        mi_matrix = compute_mutual_information_matrix(population)
+        # Compute G-Test independence matrix
+        g_matrix = compute_gtest_independence_matrix(population, alpha=0.05)
+        # Get activation function for encoder (use first one)
+        activation_func = list_act_functs_enc[0] if list_act_functs_enc else 'relu'
+
     # Convert to tensors
     data = torch.FloatTensor(population)
     fitness_tensor = torch.FloatTensor(fitness.reshape(-1, 1))
-    
+
     # Normalize fitness to [0, 1] for weighting
     fitness_min = fitness_tensor.min()
     fitness_max = fitness_tensor.max()
@@ -2004,13 +2422,15 @@ def learn_binary_fwvae(
     else:
         # All fitness values are the same
         norm_fitness = torch.ones_like(fitness_tensor)
-    
+
     # Compute weights: 1.0 + fitness_weight_strength * norm_fitness
     weights = 1.0 + fitness_weight_strength * norm_fitness
-    
+
     # Create networks
     encoder = BinaryVAEEncoder(n_vars, latent_dim, hidden_dims_enc,
-                               list_act_functs_enc, list_init_functs_enc)
+                               list_act_functs_enc, list_init_functs_enc,
+                               mi_layer=mi_layer, g_matrix=g_matrix,
+                               activation_func=activation_func if mi_layer else 'relu')
     decoder = BinaryVAEDecoder(latent_dim, n_vars, hidden_dims_dec,
                                list_act_functs_dec, list_init_functs_dec)
     

@@ -609,6 +609,8 @@ Examples:
                         help='Latent dimension (use 0 for default: max(2, n_vars/4))')
     parser.add_argument('epochs', type=int,
                         help='Training epochs per generation')
+    parser.add_argument('--mi_layer', action='store_true',
+                        help='Use MI-based sparse connectivity layer (default: False)')
 
     # Parse arguments
     args = parser.parse_args()
@@ -652,6 +654,7 @@ Examples:
     if args.latent_dim:
         print(f"Latent Dim:         {args.latent_dim}")
     print(f"Epochs:             {args.epochs}")
+    print(f"MI Layer:           {args.mi_layer}")
     print("=" * 80)
     print()
 
@@ -678,6 +681,7 @@ Examples:
     # Configure learning parameters
     learning_params = {
         'epochs': args.epochs,
+        'mi_layer': args.mi_layer,
     }
     if args.latent_dim:
         learning_params['latent_dim'] = args.latent_dim
