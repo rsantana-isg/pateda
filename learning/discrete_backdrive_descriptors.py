@@ -66,17 +66,127 @@ from pateda.learning.nn_utils import (
 )
 
 
+# Constants for numerical stability
+EPSILON = 1e-10  # Small constant to prevent division by zero
+
+
+def descriptor_weighted_mse_loss(predictions: torch.Tensor, targets: torch.Tensor,
+                                 fitness_values: torch.Tensor) -> torch.Tensor:
+    """
+    Compute fitness-weighted MSE loss for descriptor-based learning
+
+    Higher fitness solutions get higher weight in the loss, focusing
+    the model on accurately predicting high-fitness solutions.
+
+    Parameters
+    ----------
+    predictions : torch.Tensor
+        Predicted solutions [batch_size, n_vars]
+    targets : torch.Tensor
+        Target solutions [batch_size, n_vars]
+    fitness_values : torch.Tensor
+        Original fitness values for weighting [batch_size]
+
+    Returns
+    -------
+    loss : torch.Tensor
+        Weighted MSE loss scalar
+    """
+    # Normalize fitness to [0, 1]
+    fitness_min = fitness_values.min()
+    fitness_max = fitness_values.max()
+
+    if fitness_max - fitness_min < EPSILON:
+        # All fitness values are the same, use uniform weights
+        weights = torch.ones_like(fitness_values)
+    else:
+        fitness_norm = (fitness_values - fitness_min) / (fitness_max - fitness_min)
+
+        # Compute weights: higher fitness -> higher weight
+        # Use exponential weighting to emphasize top solutions
+        weights = torch.exp(2.0 * fitness_norm)
+
+    # Normalize weights to sum to batch size (for consistent scale with standard MSE)
+    weights = weights / weights.mean()
+
+    # Weighted MSE: compute per-sample MSE and weight by fitness
+    squared_errors = ((predictions - targets) ** 2).mean(dim=1)  # [batch_size]
+    weighted_loss = (weights * squared_errors).mean()
+
+    return weighted_loss
+
+
+def descriptor_ranking_loss(predictions: torch.Tensor, targets: torch.Tensor,
+                            fitness_values: torch.Tensor, margin: float = 0.1) -> torch.Tensor:
+    """
+    Compute pairwise ranking loss for descriptor-based learning
+
+    For pairs where fitness[i] > fitness[j], encourage that the predicted
+    solution for i is closer to its target than the prediction for j.
+
+    Parameters
+    ----------
+    predictions : torch.Tensor
+        Predicted solutions [batch_size, n_vars]
+    targets : torch.Tensor
+        Target solutions [batch_size, n_vars]
+    fitness_values : torch.Tensor
+        Fitness values for ranking [batch_size]
+    margin : float
+        Margin for ranking (default: 0.1)
+
+    Returns
+    -------
+    loss : torch.Tensor
+        Ranking loss scalar
+    """
+    batch_size = predictions.shape[0]
+
+    if batch_size < 2:
+        # Not enough samples for pairwise comparison, fall back to MSE
+        return F.mse_loss(predictions, targets)
+
+    # Compute per-sample reconstruction error
+    # error[i] = MSE between prediction[i] and target[i]
+    errors = ((predictions - targets) ** 2).mean(dim=1)  # [batch_size]
+
+    # Compute all pairwise comparisons
+    # For pairs where fitness[i] > fitness[j], we want error[i] < error[j] + margin
+    error_diff = errors.unsqueeze(1) - errors.unsqueeze(0)  # [batch_size, batch_size]
+    fitness_diff = fitness_values.unsqueeze(1) - fitness_values.unsqueeze(0)  # [batch_size, batch_size]
+
+    # Create mask for valid pairs (fitness[i] > fitness[j])
+    valid_pairs = (fitness_diff > 0).float()
+
+    # Compute hinge loss: loss = max(0, margin + error[i] - error[j]) when fitness[i] > fitness[j]
+    # We want error[i] < error[j], so penalize when error[i] > error[j] - margin
+    hinge_loss = torch.clamp(margin + error_diff, min=0)
+
+    # Apply mask and average
+    masked_loss = hinge_loss * valid_pairs
+    n_valid_pairs = valid_pairs.sum()
+
+    if n_valid_pairs > 0:
+        ranking_loss = masked_loss.sum() / n_valid_pairs
+    else:
+        # No valid pairs, use MSE
+        ranking_loss = F.mse_loss(predictions, targets)
+
+    return ranking_loss
+
+
 class DescriptorBackdriveNet(nn.Module):
     """
     Neural network that generates solutions from descriptors
-    
+
     Architecture: [fitness, mean, std] → hidden layers → solution
-    
+
     This is the inverse of traditional backdrive which predicts fitness from solutions.
     """
 
     def __init__(self, n_vars: int, n_descriptors: int = 3,
-                 hidden_layers: list = None, dropout: float = 0.2):
+                 hidden_layers: list = None, dropout: float = 0.2,
+                 list_act_functs: Optional[List[str]] = None):
         super(DescriptorBackdriveNet, self).__init__()
 
         self.n_vars = n_vars
@@ -87,13 +197,23 @@ class DescriptorBackdriveNet(nn.Module):
             # Default: gradually expand from descriptors to solution space
             hidden_layers = [max(16, n_vars // 2), max(32, n_vars)]
 
+        # Validate and set defaults for activation functions
+        if list_act_functs is None:
+            list_act_functs = ['relu'] * len(hidden_layers)
+        elif len(list_act_functs) != len(hidden_layers):
+            raise ValueError(
+                f"list_act_functs length ({len(list_act_functs)}) must match "
+                f"hidden_layers length ({len(hidden_layers)})"
+            )
+
         # Build network: descriptors → hidden layers → solution
         layers = []
         prev_dim = n_descriptors
 
-        for hidden_dim in hidden_layers:
+        for i, hidden_dim in enumerate(hidden_layers):
             layers.append(nn.Linear(prev_dim, hidden_dim))
-            layers.append(nn.ReLU())
+            # Use configurable activation function
+            layers.append(get_activation(list_act_functs[i], in_features=hidden_dim))
             layers.append(nn.Dropout(self.dropout))
             prev_dim = hidden_dim
 
@@ -123,9 +243,9 @@ def learn_discrete_backdrive_descriptors(
 ) -> Dict[str, Any]:
     """
     Learn a Descriptor-based Backdrive model
-    
+
     Trains a neural network to generate solutions from descriptors.
-    
+
     Parameters
     ----------
     population : np.ndarray
@@ -136,6 +256,7 @@ def learn_discrete_backdrive_descriptors(
         Training parameters:
         - 'hidden_layers': list of hidden layer sizes (default: computed)
         - 'list_act_functs': list of activation functions for hidden layers
+        - 'loss_function': loss function type ('mse', 'weighted_mse', 'ranking', 'huber')
         - 'epochs': number of training epochs (default: 100)
         - 'batch_size': batch size (default: computed)
         - 'learning_rate': learning rate (default: 0.001)
@@ -144,7 +265,7 @@ def learn_discrete_backdrive_descriptors(
         - 'validation_split': validation fraction (default: 0.2)
         - 'early_stopping': enable early stopping (default: True)
         - 'patience': early stopping patience (default: 10)
-        
+
     Returns
     -------
     model : dict
@@ -162,6 +283,8 @@ def learn_discrete_backdrive_descriptors(
 
     # Extract parameters
     hidden_layers = params.get('hidden_layers', default_hidden_dims)
+    list_act_functs = params.get('list_act_functs', None)
+    loss_function = params.get('loss_function', 'mse')
     epochs = params.get('epochs', 100)
     batch_size = params.get('batch_size', default_batch_size)
     learning_rate = params.get('learning_rate', 0.001)
@@ -220,14 +343,30 @@ def learn_discrete_backdrive_descriptors(
         X_val = None
         y_val = None
 
-    # Create network
+    # Create network with configurable activation functions
     network = DescriptorBackdriveNet(
-        n_vars, n_descriptors=3, hidden_layers=hidden_layers, dropout=dropout
+        n_vars, n_descriptors=3, hidden_layers=hidden_layers,
+        dropout=dropout, list_act_functs=list_act_functs
     )
 
-    # Loss and optimizer
-    # Use MSE loss for regression to binary values
-    criterion = nn.MSELoss()
+    # Select loss function based on params
+    # For descriptors variant, we predict solutions from descriptors
+    # So loss functions work on solution predictions vs actual solutions
+    if loss_function == 'mse':
+        criterion = nn.MSELoss()
+    elif loss_function == 'weighted_mse':
+        # Weighted MSE: weight solutions by their fitness
+        criterion = None  # Will be computed manually in training loop
+    elif loss_function == 'ranking':
+        # Ranking loss: ensure relative ordering of solutions
+        criterion = None  # Will be computed manually in training loop
+    elif loss_function == 'huber':
+        # Huber loss: robust to outliers
+        criterion = nn.HuberLoss(delta=1.0)
+    else:
+        raise ValueError(f"Unknown loss function: {loss_function}. "
+                        f"Supported: mse, weighted_mse, ranking, huber")
+
     optimizer = optim.Adam(network.parameters(), lr=learning_rate,
                           weight_decay=weight_decay)
 
@@ -236,6 +375,9 @@ def learn_discrete_backdrive_descriptors(
 
     best_val_loss = float('inf')
     patience_counter = 0
+
+    # Convert fitness to tensor for loss computation
+    fitness_tensor = torch.FloatTensor(fitness_1d)
 
     for epoch in range(epochs):
         # Shuffle training data
@@ -248,10 +390,22 @@ def learn_discrete_backdrive_descriptors(
             idx = perm[i:i+batch_size]
             batch_x = X_train[idx]
             batch_y = y_train[idx]
+            batch_fitness = fitness_tensor[idx] if loss_function in ['weighted_mse', 'ranking'] else None
 
             # Forward pass
             pred = network(batch_x)
-            loss = criterion(pred, batch_y)
+
+            # Compute loss based on selected loss function
+            if loss_function == 'mse':
+                loss = criterion(pred, batch_y)
+            elif loss_function == 'weighted_mse':
+                loss = descriptor_weighted_mse_loss(pred, batch_y, batch_fitness)
+            elif loss_function == 'ranking':
+                loss = descriptor_ranking_loss(pred, batch_y, batch_fitness)
+            elif loss_function == 'huber':
+                loss = criterion(pred, batch_y)
+            else:
+                loss = criterion(pred, batch_y)  # Default to MSE
 
             # Backward pass
             optimizer.zero_grad()
@@ -268,7 +422,21 @@ def learn_discrete_backdrive_descriptors(
             network.eval()
             with torch.no_grad():
                 val_pred = network(X_val)
-                val_loss = criterion(val_pred, y_val).item()
+                # Use same loss function for validation
+                if loss_function == 'mse':
+                    val_loss = criterion(val_pred, y_val).item()
+                elif loss_function == 'weighted_mse':
+                    val_indices = torch.randperm(n_samples)[n_train:]
+                    val_fitness = fitness_tensor[val_indices]
+                    val_loss = descriptor_weighted_mse_loss(val_pred, y_val, val_fitness).item()
+                elif loss_function == 'ranking':
+                    val_indices = torch.randperm(n_samples)[n_train:]
+                    val_fitness = fitness_tensor[val_indices]
+                    val_loss = descriptor_ranking_loss(val_pred, y_val, val_fitness).item()
+                elif loss_function == 'huber':
+                    val_loss = criterion(val_pred, y_val).item()
+                else:
+                    val_loss = criterion(val_pred, y_val).item()
             network.train()
 
             # Early stopping
@@ -298,6 +466,8 @@ def learn_discrete_backdrive_descriptors(
         'n_descriptors': 3,
         'hidden_layers': hidden_layers,
         'descriptor_stats': (descriptor_means, descriptor_stds),
+        'loss_function': loss_function,
+        'list_act_functs': list_act_functs if list_act_functs is not None else ['relu'] * len(hidden_layers),
         'type': 'discrete_backdrive_descriptors'
     }
 

@@ -455,7 +455,8 @@ class BackdriveEDA:
             History dictionary
         """
         # Get learning and sampling functions
-        # Special case for backdrive_descriptors variant
+        # For backdrive_descriptors variant, always use the descriptors learning function
+        # but pass the loss_function parameter to it
         if self.variant == 'backdrive_descriptors':
             learn_fn = self.loss_function_map['descriptors']
         else:
@@ -487,11 +488,19 @@ class BackdriveEDA:
             # Prepare learning parameters
             learning_params = self.learning_params.copy()
             learning_params['early_stopping'] = self.early_stopping
+
             # Pass activation as a list for all hidden layers
             if 'hidden_dims' in learning_params:
                 n_hidden = len(learning_params['hidden_dims'])
                 learning_params['list_act_functs'] = [self.activation] * n_hidden
-            
+            elif 'hidden_layers' in learning_params:
+                n_hidden = len(learning_params['hidden_layers'])
+                learning_params['list_act_functs'] = [self.activation] * n_hidden
+
+            # For backdrive_descriptors variant, pass the loss_function parameter
+            if self.variant == 'backdrive_descriptors':
+                learning_params['loss_function'] = self.loss_function
+
             # For weight transfer, initialize from previous model
             if self.weight_transfer and self.previous_model is not None:
                 learning_params['pretrained_model'] = self.previous_model
@@ -698,13 +707,23 @@ Examples:
     batch_s = min(32, int(selected_pop_size/10))
     
     # Configure learning parameters
-    learning_params = {
-        'epochs': 30,
-        'hidden_dims': adaptive_hidden_dims,
-        'batch_size': batch_s,
-        'early_stopping': args.early_stopping,
-        # Activation will be passed as list_act_functs in the run method
-    }
+    # Note: descriptors variant uses 'hidden_layers', others use 'hidden_dims'
+    if args.variant == 'backdrive_descriptors':
+        learning_params = {
+            'epochs': 30,
+            'hidden_layers': adaptive_hidden_dims,
+            'batch_size': batch_s,
+            'early_stopping': args.early_stopping,
+            # Activation and loss_function will be passed in the run method
+        }
+    else:
+        learning_params = {
+            'epochs': 30,
+            'hidden_dims': adaptive_hidden_dims,
+            'batch_size': batch_s,
+            'early_stopping': args.early_stopping,
+            # Activation will be passed as list_act_functs in the run method
+        }
     
     # Configure sampling parameters based on variant and initialization
     sampling_params = {

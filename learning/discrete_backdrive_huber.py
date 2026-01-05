@@ -129,6 +129,7 @@ def learn_discrete_backdrive_huber(
     # Compute defaults
     default_hidden_dims = compute_backdrive_hidden_dims(n_vars, pop_size)
     hidden_layers = params.get('hidden_layers', default_hidden_dims)
+    list_act_functs = params.get('list_act_functs', None)
     use_embeddings = params.get('use_embeddings', np.max(cardinality) > 2)
     embedding_dim = params.get('embedding_dim', 8)
     epochs = params.get('epochs', 100)
@@ -175,9 +176,10 @@ def learn_discrete_backdrive_huber(
         X_val = None
         y_val = None
 
-    # Create network
+    # Create network with configurable activation functions
     network = DiscreteBackdriveNet(
-        n_vars, cardinality, hidden_layers, use_embeddings, embedding_dim, dropout
+        n_vars, cardinality, hidden_layers, use_embeddings, embedding_dim, dropout,
+        list_act_functs=list_act_functs
     )
 
     # Optimizer

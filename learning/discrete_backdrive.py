@@ -155,7 +155,8 @@ class DiscreteBackdriveNet(nn.Module):
 
     def __init__(self, n_vars: int, cardinality: np.ndarray,
                  hidden_layers: list = None, use_embeddings: bool = True,
-                 embedding_dim: int = 8, dropout: float = 0.2):
+                 embedding_dim: int = 8, dropout: float = 0.2,
+                 list_act_functs: Optional[List[str]] = None):
         super(DiscreteBackdriveNet, self).__init__()
 
         self.n_vars = n_vars
@@ -165,6 +166,15 @@ class DiscreteBackdriveNet(nn.Module):
 
         if hidden_layers is None:
             hidden_layers = [128, 64]
+
+        # Validate and set defaults for activation functions
+        if list_act_functs is None:
+            list_act_functs = ['relu'] * len(hidden_layers)
+        elif len(list_act_functs) != len(hidden_layers):
+            raise ValueError(
+                f"list_act_functs length ({len(list_act_functs)}) must match "
+                f"hidden_layers length ({len(hidden_layers)})"
+            )
 
         # Determine input dimension
         if use_embeddings and np.any(cardinality > 2):
@@ -185,13 +195,14 @@ class DiscreteBackdriveNet(nn.Module):
             self.embeddings = None
             input_dim = n_vars
 
-        # Hidden layers
+        # Hidden layers with configurable activation functions
         layers = []
         prev_dim = input_dim
 
-        for hidden_dim in hidden_layers:
+        for i, hidden_dim in enumerate(hidden_layers):
             layers.append(nn.Linear(prev_dim, hidden_dim))
-            layers.append(nn.ReLU())
+            # Use configurable activation function
+            layers.append(get_activation(list_act_functs[i], in_features=hidden_dim))
             layers.append(nn.Dropout(self.dropout))
             prev_dim = hidden_dim
 
@@ -346,9 +357,10 @@ def learn_discrete_backdrive(
         X_val = None
         y_val = None
 
-    # Create network
+    # Create network with configurable activation functions
     network = DiscreteBackdriveNet(
-        n_vars, cardinality, hidden_layers, use_embeddings, embedding_dim, dropout
+        n_vars, cardinality, hidden_layers, use_embeddings, embedding_dim, dropout,
+        list_act_functs=list_act_functs
     )
 
     # Loss and optimizer
