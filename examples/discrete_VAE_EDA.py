@@ -5,13 +5,23 @@ Discrete VAE EDA - Command-Line Interface for VAE-EDA Variants
 This program provides a unified interface to run various Variational Autoencoder (VAE)
 based EDA algorithms on benchmark problems with different seeds for cluster execution.
 
-Supports six VAE-EDA variants:
+Supports twelve VAE-EDA variants:
+
+**Original Variants:**
 - VAE: Standard Variational Autoencoder with β-annealing
 - E-VAE: Enhanced VAE with fitness predictor
 - C-VAE: Conditional VAE conditioned on fitness and statistics
 - Desc-VAE: Descriptor-augmented VAE with landscape information
 - Reg-VAE: Regression-focused VAE with fitness-weighted reconstruction
 - Mom-VAE: Moment-matching VAE with statistical alignment
+
+**Enhanced Variants (Based on DISCRETE_VAE_ANALYSIS.md):**
+- BA-VAE: Beta-Annealed VAE - Addresses posterior collapse with cyclical beta annealing
+- AA-VAE: Adaptive-Architecture VAE - Addresses overfitting with ultra-small networks
+- FW-VAE: Fitness-Weighted VAE - Better fitness guidance via weighted reconstruction
+- GS-VAE: Greedy-Sampling VAE - Deterministic sampling for exploitation
+- HS-VAE: Hybrid-Sampling VAE - Combines deterministic and stochastic sampling
+- TC-VAE: Temperature-Controlled VAE - Adaptive temperature for exploration-exploitation
 
 Configurable Parameters:
 - Activation Functions: For encoder and decoder layers
@@ -26,7 +36,8 @@ Usage:
 
 Example:
     python discrete_VAE_EDA.py 0 OneMax 20 80 20 0.5 VAE --activation-enc relu --activation-dec tanh
-    python discrete_VAE_EDA.py 1 Deceptive3 30 100 30 0.5 C-VAE --beta-start 0.0 --beta-end 1.0
+    python discrete_VAE_EDA.py 1 Deceptive3 30 100 30 0.5 BA-VAE --beta-start 0.0 --beta-end 1.0
+    python discrete_VAE_EDA.py 2 HIFF 64 200 50 0.5 HS-VAE --activation-enc leakyrelu
 
 ==============================================================================
 """
@@ -50,7 +61,10 @@ from pateda.learning.discrete_vae import (
     learn_binary_cvae,
     learn_binary_descvae,
     learn_binary_regvae,
-    learn_binary_momvae
+    learn_binary_momvae,
+    learn_binary_bavae,
+    learn_binary_aavae,
+    learn_binary_fwvae
 )
 
 # VAE sampling modules
@@ -59,7 +73,13 @@ from pateda.sampling.discrete_neural import (
     sample_binary_cvae,
     sample_binary_descvae,
     sample_binary_regvae,
-    sample_binary_momvae
+    sample_binary_momvae,
+    sample_binary_bavae,
+    sample_binary_aavae,
+    sample_binary_fwvae,
+    sample_binary_gsvae,
+    sample_binary_hsvae,
+    sample_binary_tcvae
 )
 
 # Benchmark functions
@@ -340,12 +360,20 @@ class VAEEDA:
 
         # Map variant to learning and sampling functions
         self.variant_map = {
+            # Original variants
             'vae': (learn_binary_vae, sample_binary_vae),
             'evae': (learn_binary_vae, sample_binary_vae),  # E-VAE uses learn_binary_vae with use_extended=True
             'cvae': (learn_binary_cvae, sample_binary_cvae),
             'descvae': (learn_binary_descvae, sample_binary_descvae),
             'regvae': (learn_binary_regvae, sample_binary_regvae),
             'momvae': (learn_binary_momvae, sample_binary_momvae),
+            # Enhanced variants (DISCRETE_VAE_ANALYSIS.md)
+            'bavae': (learn_binary_bavae, sample_binary_bavae),
+            'aavae': (learn_binary_aavae, sample_binary_aavae),
+            'fwvae': (learn_binary_fwvae, sample_binary_fwvae),
+            'gsvae': (learn_binary_vae, sample_binary_gsvae),  # Uses standard learning, greedy sampling
+            'hsvae': (learn_binary_vae, sample_binary_hsvae),  # Uses standard learning, hybrid sampling
+            'tcvae': (learn_binary_vae, sample_binary_tcvae),  # Uses standard learning, temp-controlled sampling
         }
 
         if variant not in self.variant_map:
@@ -448,6 +476,10 @@ class VAEEDA:
                     pass
                 elif self.variant == 'regvae':
                     sampling_params['use_fitness_guidance'] = sampling_params.get('use_fitness_guidance', True)
+                elif self.variant == 'tcvae':
+                    # TC-VAE: pass generation info for temperature control
+                    sampling_params['generation'] = gen + 1
+                    sampling_params['max_generations'] = self.max_generations
 
                 # Sample new population
                 population = sample_fn(model, self.pop_size, sampling_params)
@@ -517,7 +549,8 @@ Examples:
     parser.add_argument('n_gen', type=int, help='Number of generations')
     parser.add_argument('trunc', type=float, help='Truncation percent (selection ratio, e.g., 0.5 for 50%%)')
     parser.add_argument('vae_variant', type=str,
-                        choices=['VAE', 'E-VAE', 'C-VAE', 'Desc-VAE', 'Reg-VAE', 'Mom-VAE'],
+                        choices=['VAE', 'E-VAE', 'C-VAE', 'Desc-VAE', 'Reg-VAE', 'Mom-VAE',
+                                 'BA-VAE', 'AA-VAE', 'FW-VAE', 'GS-VAE', 'HS-VAE', 'TC-VAE'],
                         help='VAE variant to use')
 
     # Optional configuration arguments
@@ -585,6 +618,12 @@ Examples:
         'Desc-VAE': 'descvae',
         'Reg-VAE': 'regvae',
         'Mom-VAE': 'momvae',
+        'BA-VAE': 'bavae',
+        'AA-VAE': 'aavae',
+        'FW-VAE': 'fwvae',
+        'GS-VAE': 'gsvae',
+        'HS-VAE': 'hsvae',
+        'TC-VAE': 'tcvae',
     }
 
     variant_id = variant_map[args.vae_variant]

@@ -1584,3 +1584,492 @@ def learn_binary_momvae(
     }
 
     return model
+
+
+# ==============================================================================
+# Enhanced VAE Variants (Based on DISCRETE_VAE_ANALYSIS.md)
+# ==============================================================================
+
+def learn_binary_bavae(
+    population: np.ndarray,
+    fitness: np.ndarray,
+    params: Optional[Dict[str, Any]] = None
+) -> Dict[str, Any]:
+    """
+    Learn Beta-Annealed VAE (BA-VAE) - Addresses posterior collapse
+    
+    This variant implements cyclical beta annealing to prevent KL divergence
+    vanishing (posterior collapse). Uses a cyclical schedule where beta starts
+    low, increases to allow reconstruction learning, then decreases again.
+    
+    Key Features:
+    - Cyclical beta annealing schedule (Fu et al. 2019)
+    - Prevents posterior collapse by giving reconstruction priority early
+    - Multiple cycles allow learning of both reconstruction and latent structure
+    
+    Parameters
+    ----------
+    population : np.ndarray
+        Binary population of shape (pop_size, n_vars)
+    fitness : np.ndarray
+        Fitness values of shape (pop_size,)
+    params : dict, optional
+        - 'n_cycles': number of beta annealing cycles (default: 4)
+        - 'beta_max': maximum beta value (default: 1.0)
+        - Other standard VAE parameters
+    
+    Returns
+    -------
+    model : dict
+        Model dictionary with trained networks
+    """
+    if params is None:
+        params = {}
+    
+    # Override beta annealing to use cyclical schedule
+    n_cycles = params.get('n_cycles', 4)
+    beta_max = params.get('beta_max', 1.0)
+    epochs = params.get('epochs', 100)
+    
+    # Compute cycle length
+    cycle_length = epochs // n_cycles
+    
+    # Use standard VAE learning but with modified parameters
+    modified_params = params.copy()
+    modified_params['beta_start'] = 0.0
+    modified_params['beta_end'] = beta_max
+    modified_params['beta_annealing_epochs'] = cycle_length // 2
+    modified_params['use_cyclical_beta'] = True
+    modified_params['n_cycles'] = n_cycles
+    
+    # Learn using standard binary VAE with cyclical beta
+    return _learn_binary_vae_with_cyclical_beta(population, fitness, modified_params)
+
+
+def _learn_binary_vae_with_cyclical_beta(
+    population: np.ndarray,
+    fitness: np.ndarray,
+    params: Dict[str, Any]
+) -> Dict[str, Any]:
+    """
+    Internal implementation of VAE with cyclical beta annealing
+    """
+    pop_size = population.shape[0]
+    n_vars = population.shape[1]
+    
+    # Compute defaults
+    default_batch_size = compute_default_batch_size(n_vars, pop_size)
+    default_latent_dim = compute_default_latent_dim(n_vars)
+    
+    # Dynamic architecture
+    h1 = min(n_vars, pop_size)
+    latent_dim = params.get('latent_dim', default_latent_dim)
+    target_params = 4.5 * pop_size
+    h2 = max(4, int((target_params - n_vars * h1) / (h1 + latent_dim)))
+    default_hidden_dims = [h1, h2]
+    
+    hidden_dims_enc = params.get('hidden_dims_enc', default_hidden_dims)
+    hidden_dims_dec = params.get('hidden_dims_dec', list(reversed(default_hidden_dims)))
+    epochs = params.get('epochs', 100)
+    batch_size = params.get('batch_size', default_batch_size)
+    learning_rate = params.get('learning_rate', 0.001)
+    
+    # Cyclical beta parameters
+    n_cycles = params.get('n_cycles', 4)
+    beta_max = params.get('beta_max', 1.0)
+    cycle_length = epochs // n_cycles
+    
+    # Activation functions
+    list_act_functs_enc = params.get('list_act_functs_enc', None)
+    list_act_functs_dec = params.get('list_act_functs_dec', None)
+    list_init_functs_enc = params.get('list_init_functs_enc', None)
+    list_init_functs_dec = params.get('list_init_functs_dec', None)
+    
+    # Convert to tensors
+    data = torch.FloatTensor(population)
+    
+    # Create networks
+    encoder = BinaryVAEEncoder(n_vars, latent_dim, hidden_dims_enc,
+                               list_act_functs_enc, list_init_functs_enc)
+    decoder = BinaryVAEDecoder(latent_dim, n_vars, hidden_dims_dec,
+                               list_act_functs_dec, list_init_functs_dec)
+    
+    optimizer = optim.Adam(
+        list(encoder.parameters()) + list(decoder.parameters()),
+        lr=learning_rate
+    )
+    
+    # Training loop with cyclical beta
+    encoder.train()
+    decoder.train()
+    
+    for epoch in range(epochs):
+        # Cyclical beta annealing (sawtooth pattern)
+        # Beta goes from 0 to beta_max within each cycle, then resets
+        cycle_pos = (epoch % cycle_length) / cycle_length
+        beta = beta_max * cycle_pos  # Linear increase within each cycle (resets at cycle end)
+        
+        # Shuffle data
+        perm = torch.randperm(len(data))
+        
+        for i in range(0, len(data), batch_size):
+            idx = perm[i:i+batch_size]
+            batch = data[idx]
+            
+            # Forward pass
+            mean, logvar = encoder(batch)
+            z = reparameterize(mean, logvar)
+            recon_logits = decoder(z)
+            
+            # Reconstruction loss
+            recon_loss = F.binary_cross_entropy_with_logits(
+                recon_logits, batch, reduction='sum'
+            ) / len(batch)
+            
+            # KL divergence
+            kl_loss = kl_divergence(mean, logvar).mean()
+            
+            # Total loss with cyclical beta
+            loss = recon_loss + beta * kl_loss
+            
+            # Backward pass
+            optimizer.zero_grad()
+            loss.backward()
+            optimizer.step()
+    
+    # Return model
+    model = {
+        'encoder_state': encoder.state_dict(),
+        'decoder_state': decoder.state_dict(),
+        'latent_dim': latent_dim,
+        'n_vars': n_vars,
+        'hidden_dims_enc': hidden_dims_enc,
+        'hidden_dims_dec': hidden_dims_dec,
+        'type': 'binary_bavae'
+    }
+    
+    return model
+
+
+def learn_binary_aavae(
+    population: np.ndarray,
+    fitness: np.ndarray,
+    params: Optional[Dict[str, Any]] = None
+) -> Dict[str, Any]:
+    """
+    Learn Adaptive-Architecture VAE (AA-VAE) - Addresses overfitting
+    
+    This variant uses very conservative architecture sizing to prevent overfitting.
+    It targets ~1-2 parameters per training sample, much smaller than standard VAE.
+    
+    Key Features:
+    - Ultra-small hidden layers (sqrt(n_vars * pop_size))
+    - Very small latent dimension (n_vars // 10)
+    - Dropout regularization (0.3)
+    - L2 weight decay
+    
+    Parameters
+    ----------
+    population : np.ndarray
+        Binary population of shape (pop_size, n_vars)
+    fitness : np.ndarray
+        Fitness values of shape (pop_size,)
+    params : dict, optional
+        - 'dropout': dropout rate (default: 0.3)
+        - 'weight_decay': L2 regularization (default: 0.0001)
+        - Other standard VAE parameters
+    
+    Returns
+    -------
+    model : dict
+        Model dictionary with trained networks
+    """
+    if params is None:
+        params = {}
+    
+    pop_size = population.shape[0]
+    n_vars = population.shape[1]
+    
+    # Ultra-conservative architecture to prevent overfitting
+    # Target: ~1-2 params per sample
+    max_hidden = int(np.sqrt(n_vars * pop_size))
+    h1 = min(max_hidden, max(8, n_vars // 2))
+    h2 = min(max_hidden // 2, max(4, n_vars // 4))
+    
+    # Very small latent dimension
+    latent_dim = max(2, min(n_vars // 10, pop_size // 30))
+    
+    # Override parameters
+    modified_params = params.copy()
+    modified_params['hidden_dims_enc'] = params.get('hidden_dims_enc', [h1, h2])
+    modified_params['hidden_dims_dec'] = params.get('hidden_dims_dec', [h2, h1])
+    modified_params['latent_dim'] = params.get('latent_dim', latent_dim)
+    modified_params['dropout'] = params.get('dropout', 0.3)
+    modified_params['weight_decay'] = params.get('weight_decay', 0.0001)
+    
+    # Use regularized learning
+    return _learn_binary_vae_with_regularization(population, fitness, modified_params)
+
+
+def _learn_binary_vae_with_regularization(
+    population: np.ndarray,
+    fitness: np.ndarray,
+    params: Dict[str, Any]
+) -> Dict[str, Any]:
+    """
+    Internal implementation of VAE with dropout and L2 regularization
+    """
+    pop_size = population.shape[0]
+    n_vars = population.shape[1]
+    
+    # Extract parameters
+    hidden_dims_enc = params['hidden_dims_enc']
+    hidden_dims_dec = params['hidden_dims_dec']
+    latent_dim = params['latent_dim']
+    dropout = params.get('dropout', 0.3)
+    weight_decay = params.get('weight_decay', 0.0001)
+    
+    default_batch_size = compute_default_batch_size(n_vars, pop_size)
+    epochs = params.get('epochs', 100)
+    batch_size = params.get('batch_size', default_batch_size)
+    learning_rate = params.get('learning_rate', 0.001)
+    
+    # Beta annealing
+    beta_start = params.get('beta_start', 0.0)
+    beta_end = params.get('beta_end', 1.0)
+    beta_annealing_epochs = params.get('beta_annealing_epochs', epochs // 2)
+    
+    # Activation functions
+    list_act_functs_enc = params.get('list_act_functs_enc', None)
+    list_act_functs_dec = params.get('list_act_functs_dec', None)
+    list_init_functs_enc = params.get('list_init_functs_enc', None)
+    list_init_functs_dec = params.get('list_init_functs_dec', None)
+    
+    # Convert to tensors
+    data = torch.FloatTensor(population)
+    
+    # Create networks with dropout
+    encoder = BinaryVAEEncoder(n_vars, latent_dim, hidden_dims_enc,
+                               list_act_functs_enc, list_init_functs_enc)
+    decoder = BinaryVAEDecoder(latent_dim, n_vars, hidden_dims_dec,
+                               list_act_functs_dec, list_init_functs_dec)
+    
+    # Note: Dropout is applied to the latent space during training
+    # For more comprehensive dropout, the network classes would need to be modified
+    
+    # Optimizer with weight decay (L2 regularization)
+    optimizer = optim.Adam(
+        list(encoder.parameters()) + list(decoder.parameters()),
+        lr=learning_rate,
+        weight_decay=weight_decay
+    )
+    
+    # Training loop
+    encoder.train()
+    decoder.train()
+    
+    for epoch in range(epochs):
+        # Beta annealing
+        if epoch < beta_annealing_epochs:
+            beta = beta_start + (beta_end - beta_start) * (epoch / beta_annealing_epochs)
+        else:
+            beta = beta_end
+        
+        # Shuffle data
+        perm = torch.randperm(len(data))
+        
+        for i in range(0, len(data), batch_size):
+            idx = perm[i:i+batch_size]
+            batch = data[idx]
+            
+            # Forward pass
+            mean, logvar = encoder(batch)
+            z = reparameterize(mean, logvar)
+            
+            # Apply dropout to latent space during training
+            if dropout > 0:
+                z = F.dropout(z, p=dropout, training=True)
+            
+            recon_logits = decoder(z)
+            
+            # Reconstruction loss
+            recon_loss = F.binary_cross_entropy_with_logits(
+                recon_logits, batch, reduction='sum'
+            ) / len(batch)
+            
+            # KL divergence
+            kl_loss = kl_divergence(mean, logvar).mean()
+            
+            # Total loss
+            loss = recon_loss + beta * kl_loss
+            
+            # Backward pass
+            optimizer.zero_grad()
+            loss.backward()
+            optimizer.step()
+    
+    # Return model
+    model = {
+        'encoder_state': encoder.state_dict(),
+        'decoder_state': decoder.state_dict(),
+        'latent_dim': latent_dim,
+        'n_vars': n_vars,
+        'hidden_dims_enc': hidden_dims_enc,
+        'hidden_dims_dec': hidden_dims_dec,
+        'dropout': dropout,
+        'type': 'binary_aavae'
+    }
+    
+    return model
+
+
+def learn_binary_fwvae(
+    population: np.ndarray,
+    fitness: np.ndarray,
+    params: Optional[Dict[str, Any]] = None
+) -> Dict[str, Any]:
+    """
+    Learn Fitness-Weighted VAE (FW-VAE) - Better fitness guidance
+    
+    This variant weights the reconstruction loss by fitness values, prioritizing
+    accurate reconstruction of high-fitness solutions over low-fitness ones.
+    
+    Key Features:
+    - Fitness-weighted reconstruction loss
+    - Learns to reconstruct good solutions more accurately
+    - Biases latent space toward high-fitness regions
+    
+    Parameters
+    ----------
+    population : np.ndarray
+        Binary population of shape (pop_size, n_vars)
+    fitness : np.ndarray
+        Fitness values of shape (pop_size,)
+    params : dict, optional
+        - 'fitness_weight_strength': how much to weight by fitness (default: 2.0)
+        - Other standard VAE parameters
+    
+    Returns
+    -------
+    model : dict
+        Model dictionary with trained networks
+    """
+    if params is None:
+        params = {}
+    
+    pop_size = population.shape[0]
+    n_vars = population.shape[1]
+    
+    # Compute defaults
+    default_batch_size = compute_default_batch_size(n_vars, pop_size)
+    default_latent_dim = compute_default_latent_dim(n_vars)
+    
+    # Dynamic architecture
+    h1 = min(n_vars, pop_size)
+    latent_dim = params.get('latent_dim', default_latent_dim)
+    target_params = 4.5 * pop_size
+    h2 = max(4, int((target_params - n_vars * h1) / (h1 + latent_dim)))
+    default_hidden_dims = [h1, h2]
+    
+    hidden_dims_enc = params.get('hidden_dims_enc', default_hidden_dims)
+    hidden_dims_dec = params.get('hidden_dims_dec', list(reversed(default_hidden_dims)))
+    epochs = params.get('epochs', 100)
+    batch_size = params.get('batch_size', default_batch_size)
+    learning_rate = params.get('learning_rate', 0.001)
+    
+    # Beta annealing
+    beta_start = params.get('beta_start', 0.0)
+    beta_end = params.get('beta_end', 1.0)
+    beta_annealing_epochs = params.get('beta_annealing_epochs', epochs // 2)
+    
+    # Fitness weighting
+    fitness_weight_strength = params.get('fitness_weight_strength', 2.0)
+    
+    # Activation functions
+    list_act_functs_enc = params.get('list_act_functs_enc', None)
+    list_act_functs_dec = params.get('list_act_functs_dec', None)
+    list_init_functs_enc = params.get('list_init_functs_enc', None)
+    list_init_functs_dec = params.get('list_init_functs_dec', None)
+    
+    # Convert to tensors
+    data = torch.FloatTensor(population)
+    fitness_tensor = torch.FloatTensor(fitness.reshape(-1, 1))
+    
+    # Normalize fitness to [0, 1] for weighting
+    fitness_min = fitness_tensor.min()
+    fitness_max = fitness_tensor.max()
+    fitness_range = fitness_max - fitness_min
+    if fitness_range > 1e-10:
+        norm_fitness = (fitness_tensor - fitness_min) / fitness_range
+    else:
+        # All fitness values are the same
+        norm_fitness = torch.ones_like(fitness_tensor)
+    
+    # Compute weights: 1.0 + fitness_weight_strength * norm_fitness
+    weights = 1.0 + fitness_weight_strength * norm_fitness
+    
+    # Create networks
+    encoder = BinaryVAEEncoder(n_vars, latent_dim, hidden_dims_enc,
+                               list_act_functs_enc, list_init_functs_enc)
+    decoder = BinaryVAEDecoder(latent_dim, n_vars, hidden_dims_dec,
+                               list_act_functs_dec, list_init_functs_dec)
+    
+    optimizer = optim.Adam(
+        list(encoder.parameters()) + list(decoder.parameters()),
+        lr=learning_rate
+    )
+    
+    # Training loop
+    encoder.train()
+    decoder.train()
+    
+    for epoch in range(epochs):
+        # Beta annealing
+        if epoch < beta_annealing_epochs:
+            beta = beta_start + (beta_end - beta_start) * (epoch / beta_annealing_epochs)
+        else:
+            beta = beta_end
+        
+        # Shuffle data
+        perm = torch.randperm(len(data))
+        
+        for i in range(0, len(data), batch_size):
+            idx = perm[i:i+batch_size]
+            batch = data[idx]
+            batch_weights = weights[idx]
+            
+            # Forward pass
+            mean, logvar = encoder(batch)
+            z = reparameterize(mean, logvar)
+            recon_logits = decoder(z)
+            
+            # Fitness-weighted reconstruction loss
+            recon_loss_per_sample = F.binary_cross_entropy_with_logits(
+                recon_logits, batch, reduction='none'
+            ).sum(dim=1)  # Sum over variables
+            
+            weighted_recon_loss = (recon_loss_per_sample * batch_weights.squeeze()).mean()
+            
+            # KL divergence
+            kl_loss = kl_divergence(mean, logvar).mean()
+            
+            # Total loss
+            loss = weighted_recon_loss + beta * kl_loss
+            
+            # Backward pass
+            optimizer.zero_grad()
+            loss.backward()
+            optimizer.step()
+    
+    # Return model
+    model = {
+        'encoder_state': encoder.state_dict(),
+        'decoder_state': decoder.state_dict(),
+        'latent_dim': latent_dim,
+        'n_vars': n_vars,
+        'hidden_dims_enc': hidden_dims_enc,
+        'hidden_dims_dec': hidden_dims_dec,
+        'type': 'binary_fwvae'
+    }
+    
+    return model
