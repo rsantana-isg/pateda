@@ -277,7 +277,8 @@ class ForwardDescriptorNet(nn.Module):
         self.dropout = dropout
         
         if hidden_layers is None:
-            # Default: gradually compress from solution to descriptor space
+            # Default: compress from solution to descriptor space
+            # Start large (solution space) and reduce to small (descriptor space)
             hidden_layers = [max(32, n_vars), max(16, n_vars // 2)]
         
         # Default activation functions
@@ -561,8 +562,8 @@ def learn_discrete_backdrive_descriptors(
     forward_network = None
     if params.get('train_forward_model', True):
         # Create forward network (solution → descriptors)
-        # Use reversed hidden layers for symmetry
-        forward_hidden_layers = list(reversed(hidden_layers))
+        # Use the same hidden layers architecture (compressing from solution to descriptor space)
+        forward_hidden_layers = hidden_layers
         
         forward_network = ForwardDescriptorNet(
             n_vars, n_descriptors=3, hidden_layers=forward_hidden_layers, 

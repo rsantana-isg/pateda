@@ -561,7 +561,7 @@ class BackdriveEDA:
                             forward_network = ForwardDescriptorNet(
                                 model['n_vars'],
                                 model['n_descriptors'],
-                                model.get('forward_hidden_layers', list(reversed(model['hidden_layers']))),
+                                model.get('forward_hidden_layers', model['hidden_layers']),
                                 dropout=0.0,  # No dropout during evaluation
                                 list_act_functs=model.get('list_act_functs', None)
                             )
@@ -575,6 +575,8 @@ class BackdriveEDA:
                             descriptor_means, descriptor_stds = model['descriptor_stats']
                             
                             with torch.no_grad():
+                                # For binary variables, solutions are already normalized to [0, 1]
+                                # Same as during training (population.astype(float))
                                 X = torch.FloatTensor(candidate_pop.astype(float))
                                 # Predict normalized descriptors
                                 pred_descriptors_norm = forward_network(X).numpy()
