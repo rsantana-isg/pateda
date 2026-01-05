@@ -566,7 +566,8 @@ def learn_discrete_backdrive_descriptors(
     if params.get('train_forward_model', True):
         # Create forward network (solution → descriptors)
         # Reuse the same hidden layers architecture from the main model
-        forward_hidden_layers = hidden_layers
+        # Use copy() to create an independent list
+        forward_hidden_layers = hidden_layers.copy() if isinstance(hidden_layers, list) else list(hidden_layers)
         
         forward_network = ForwardDescriptorNet(
             n_vars, n_descriptors=n_descriptors, hidden_layers=forward_hidden_layers, 
@@ -599,7 +600,9 @@ def learn_discrete_backdrive_descriptors(
         forward_patience_counter = 0
         
         # Train forward model for fewer epochs (it's typically easier to learn)
-        forward_epochs = max(epochs // 2, 20)
+        # Minimum 20 epochs to ensure reasonable convergence
+        min_forward_epochs = params.get('min_forward_epochs', 20)
+        forward_epochs = max(epochs // 2, min_forward_epochs)
         
         for epoch in range(forward_epochs):
             # Shuffle training data

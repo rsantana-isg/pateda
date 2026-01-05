@@ -99,6 +99,10 @@ from pateda.functions.discrete.additive_decomposable import (
 # Success threshold as a fraction of optimal fitness
 SUCCESS_THRESHOLD = 0.01
 
+# Surrogate filtering: factor for generating candidate solutions
+# Generate this many times more solutions than needed, then filter
+SURROGATE_CANDIDATE_FACTOR = 3
+
 
 # ==============================================================================
 # Seeding Utilities
@@ -568,8 +572,8 @@ class BackdriveEDA:
                             forward_network.load_state_dict(model['forward_network_state'])
                             forward_network.eval()
                             
-                            # Generate more samples than needed
-                            candidate_pop = sample_fn(model, self.pop_size * 3, sampling_params)
+                            # Generate more samples than needed for filtering
+                            candidate_pop = sample_fn(model, self.pop_size * SURROGATE_CANDIDATE_FACTOR, sampling_params)
                             
                             # Get descriptor statistics for denormalization
                             descriptor_means, descriptor_stds = model['descriptor_stats']
@@ -610,8 +614,8 @@ class BackdriveEDA:
                         network.load_state_dict(model['network_state'])
                         network.eval()
 
-                        # Generate more samples than needed
-                        candidate_pop = sample_fn(model, self.pop_size * 3, sampling_params)
+                        # Generate more samples than needed for filtering
+                        candidate_pop = sample_fn(model, self.pop_size * SURROGATE_CANDIDATE_FACTOR, sampling_params)
 
                         with torch.no_grad():
                             X = torch.LongTensor(candidate_pop.astype(int))
