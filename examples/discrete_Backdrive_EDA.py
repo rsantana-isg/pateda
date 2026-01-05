@@ -10,23 +10,28 @@ Supports configurable Backdrive-EDA variants:
 - Backdrive-Adaptive: Adaptive sampling with multiple target fitness levels
 - Backdrive-Descriptors: Multi-descriptor variant predicting (fitness, mean, std)
 
-Configurable Parameters:
-- Weight Transfer: Transfer neural network weights between generations
-- Early Stopping: Enable/disable early stopping during training
-- Initialization: random, perturb-best, perturb-selected
-- Loss Function: mse, weighted_mse, ranking, huber
-- Activation Function: relu, tanh, sigmoid, leakyrelu, and others from PyTorch
-- Surrogate Filtering: Use surrogate model for pre-filtering solutions
-- Truncation Percent: Selection ratio for truncation selection
+Configurable Parameters (all positional):
+- seed: Random seed
+- obj_func: Objective function name
+- n: Number of variables
+- pop_size: Population size
+- n_gen: Number of generations
+- trunc: Truncation percent (selection ratio, e.g., 0.5 for 50%)
+- variant: Backdrive variant (backdrive, backdrive_adaptive, backdrive_descriptors)
+- init: Initialization method (random, perturb_best, perturb_selected)
+- loss: Loss function (mse, weighted_mse, ranking, huber)
+- activation: Activation function (relu, tanh, sigmoid, leaky_relu, etc.)
+- weight_transfer: 1 to enable, 0 to disable
+- early_stopping: 1 to enable, 0 to disable
+- surrogate_filtering: 1 to enable, 0 to disable
 
 Usage:
     python discrete_Backdrive_EDA.py <seed> <obj_func> <n> <pop_size> <n_gen> <trunc> \\
-        [--weight-transfer] [--early-stopping] [--init METHOD] [--loss LOSS] \\
-        [--activation ACT] [--surrogate-filtering]
+        <variant> <init> <loss> <activation> <weight_transfer> <early_stopping> <surrogate_filtering>
 
 Example:
-    python discrete_Backdrive_EDA.py 0 OneMax 20 80 20 0.5 --init random --loss mse
-    python discrete_Backdrive_EDA.py 1 Deceptive3 30 100 30 0.5 --weight-transfer --early-stopping
+    python discrete_Backdrive_EDA.py 0 OneMax 20 80 20 0.5 backdrive random mse relu 0 0 0
+    python discrete_Backdrive_EDA.py 1 Deceptive3 30 100 30 0.5 backdrive random mse relu 1 1 0
 
 ==============================================================================
 """
@@ -553,51 +558,54 @@ def main():
         epilog="""
 Examples:
   # Basic usage with default settings
-  python discrete_Backdrive_EDA.py 0 OneMax 20 80 20 0.5
+  python discrete_Backdrive_EDA.py 0 OneMax 20 80 20 0.5 backdrive random mse relu 0 0 0
 
   # With weight transfer and early stopping
-  python discrete_Backdrive_EDA.py 0 OneMax 20 80 20 0.5 --weight-transfer --early-stopping
+  python discrete_Backdrive_EDA.py 0 OneMax 20 80 20 0.5 backdrive random mse relu 1 1 0
 
   # Custom initialization and loss function
-  python discrete_Backdrive_EDA.py 0 Deceptive3 30 100 30 0.5 --init perturb_best --loss weighted_mse
+  python discrete_Backdrive_EDA.py 0 Deceptive3 30 100 30 0.5 backdrive perturb_best weighted_mse relu 0 0 0
 
   # Adaptive variant with custom activation
-  python discrete_Backdrive_EDA.py 0 HIFF 64 200 50 0.5 --variant backdrive_adaptive --activation tanh
+  python discrete_Backdrive_EDA.py 0 HIFF 64 200 50 0.5 backdrive_adaptive random mse tanh 0 1 0
 
   # With surrogate filtering
-  python discrete_Backdrive_EDA.py 0 OneMax 20 80 20 0.5 --surrogate-filtering
+  python discrete_Backdrive_EDA.py 0 OneMax 20 80 20 0.5 backdrive random mse relu 0 0 1
         """
     )
     
-    # Required positional arguments
+    # All positional arguments
     parser.add_argument('seed', type=int, help='Random seed')
     parser.add_argument('obj_func', type=str, help='Objective function name')
     parser.add_argument('n', type=int, help='Number of variables')
     parser.add_argument('pop_size', type=int, help='Population size')
     parser.add_argument('n_gen', type=int, help='Number of generations')
     parser.add_argument('trunc', type=float, help='Truncation percent (selection ratio, e.g., 0.5 for 50%%)')
-    
-    # Optional configuration arguments
-    parser.add_argument('--variant', type=str, default='backdrive',
+    parser.add_argument('variant', type=str, 
                         choices=['backdrive', 'backdrive_adaptive', 'backdrive_descriptors'],
-                        help='Backdrive variant (default: backdrive)')
-    parser.add_argument('--weight-transfer', action='store_true',
-                        help='Transfer neural network weights between generations')
-    parser.add_argument('--early-stopping', action='store_true',
-                        help='Use early stopping during training')
-    parser.add_argument('--init', type=str, default='random',
+                        help='Backdrive variant')
+    parser.add_argument('init', type=str,
                         choices=['random', 'perturb_best', 'perturb_selected'],
-                        help='Initialization method (default: random)')
-    parser.add_argument('--loss', type=str, default='mse',
+                        help='Initialization method')
+    parser.add_argument('loss', type=str,
                         choices=['mse', 'weighted_mse', 'ranking', 'huber'],
-                        help='Loss function (default: mse)')
-    parser.add_argument('--activation', type=str, default='relu',
-                        help='Activation function (default: relu). Options: relu, tanh, sigmoid, leaky_relu, elu, selu, gelu, etc.')
-    parser.add_argument('--surrogate-filtering', action='store_true',
-                        help='Use surrogate model for pre-filtering solutions')
+                        help='Loss function')
+    parser.add_argument('activation', type=str,
+                        help='Activation function (relu, tanh, sigmoid, leaky_relu, elu, selu, gelu, etc.)')
+    parser.add_argument('weight_transfer', type=int, choices=[0, 1],
+                        help='Transfer neural network weights between generations (1=yes, 0=no)')
+    parser.add_argument('early_stopping', type=int, choices=[0, 1],
+                        help='Use early stopping during training (1=yes, 0=no)')
+    parser.add_argument('surrogate_filtering', type=int, choices=[0, 1],
+                        help='Use surrogate model for pre-filtering solutions (1=yes, 0=no)')
     
     # Parse arguments
     args = parser.parse_args()
+    
+    # Convert integer flags to boolean
+    args.weight_transfer = bool(args.weight_transfer)
+    args.early_stopping = bool(args.early_stopping)
+    args.surrogate_filtering = bool(args.surrogate_filtering)
     
     # Validate truncation percent
     if args.trunc <= 0 or args.trunc > 1:
