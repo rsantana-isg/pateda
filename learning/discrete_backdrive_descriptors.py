@@ -38,6 +38,25 @@ Generation Phase:
 3. Post-process to ensure discrete values
 
 ==============================================================================
+CONFIGURABLE COMPONENTS
+==============================================================================
+
+Loss Functions (configurable via params['loss_function']):
+- 'mse': Standard mean squared error (default)
+- 'weighted_mse': Weights solution reconstruction by fitness
+- 'ranking': Falls back to MSE (not applicable for descriptor prediction)
+- 'huber': Robust MSE using Huber loss
+
+Activation Functions (configurable via params['list_act_functs']):
+- Any activation from nn_utils.SUPPORTED_ACTIVATIONS
+- Examples: 'relu', 'tanh', 'sigmoid', 'leaky_relu', 'elu', 'selu', 'gelu'
+- Can specify different activation for each hidden layer
+
+Network Architecture (configurable via params['hidden_layers'] or 'hidden_dims'):
+- Default: [max(16, n_vars//2), max(32, n_vars)]
+- Gradually expands from descriptor space to solution space
+
+==============================================================================
 REFERENCES
 ==============================================================================
 
@@ -64,6 +83,11 @@ from pateda.learning.nn_utils import (
     SUPPORTED_ACTIVATIONS,
     SUPPORTED_INITIALIZATIONS,
 )
+
+# Import loss functions from other backdrive modules
+from pateda.learning.discrete_backdrive_weighted_mse import fitness_weighted_mse_loss
+from pateda.learning.discrete_backdrive_ranking import pairwise_ranking_loss, combined_ranking_mse_loss
+from pateda.learning.discrete_backdrive_huber import huber_loss
 
 
 # Constants for numerical stability
@@ -186,7 +210,7 @@ class DescriptorBackdriveNet(nn.Module):
 
     def __init__(self, n_vars: int, n_descriptors: int = 3,
                  hidden_layers: list = None, dropout: float = 0.2,
-                 list_act_functs: Optional[List[str]] = None):
+                 list_act_functs: list = None):
         super(DescriptorBackdriveNet, self).__init__()
 
         self.n_vars = n_vars
@@ -197,14 +221,12 @@ class DescriptorBackdriveNet(nn.Module):
             # Default: gradually expand from descriptors to solution space
             hidden_layers = [max(16, n_vars // 2), max(32, n_vars)]
 
-        # Validate and set defaults for activation functions
+        # Default activation functions
         if list_act_functs is None:
             list_act_functs = ['relu'] * len(hidden_layers)
         elif len(list_act_functs) != len(hidden_layers):
-            raise ValueError(
-                f"list_act_functs length ({len(list_act_functs)}) must match "
-                f"hidden_layers length ({len(hidden_layers)})"
-            )
+            # If the list is not the right length, repeat the first activation
+            list_act_functs = [list_act_functs[0]] * len(hidden_layers)
 
         # Build network: descriptors → hidden layers → solution
         layers = []
@@ -212,7 +234,6 @@ class DescriptorBackdriveNet(nn.Module):
 
         for i, hidden_dim in enumerate(hidden_layers):
             layers.append(nn.Linear(prev_dim, hidden_dim))
-            # Use configurable activation function
             layers.append(get_activation(list_act_functs[i], in_features=hidden_dim))
             layers.append(nn.Dropout(self.dropout))
             prev_dim = hidden_dim
@@ -256,7 +277,7 @@ def learn_discrete_backdrive_descriptors(
         Training parameters:
         - 'hidden_layers': list of hidden layer sizes (default: computed)
         - 'list_act_functs': list of activation functions for hidden layers
-        - 'loss_function': loss function type ('mse', 'weighted_mse', 'ranking', 'huber')
+        - 'loss_function': loss function name ('mse', 'weighted_mse', 'ranking', 'huber')
         - 'epochs': number of training epochs (default: 100)
         - 'batch_size': batch size (default: computed)
         - 'learning_rate': learning rate (default: 0.001)
@@ -265,7 +286,7 @@ def learn_discrete_backdrive_descriptors(
         - 'validation_split': validation fraction (default: 0.2)
         - 'early_stopping': enable early stopping (default: True)
         - 'patience': early stopping patience (default: 10)
-        - 'pretrained_model': model dict from previous generation for transfer learning
+        - 'huber_delta': delta parameter for Huber loss (default: 1.0)
 
     Returns
     -------
@@ -283,7 +304,8 @@ def learn_discrete_backdrive_descriptors(
     default_batch_size = compute_default_batch_size(n_vars, pop_size)
 
     # Extract parameters
-    hidden_layers = params.get('hidden_layers', default_hidden_dims)
+    # Support both 'hidden_layers' and 'hidden_dims' for compatibility
+    hidden_layers = params.get('hidden_layers', params.get('hidden_dims', default_hidden_dims))
     list_act_functs = params.get('list_act_functs', None)
     loss_function = params.get('loss_function', 'mse')
     epochs = params.get('epochs', 100)
@@ -294,6 +316,7 @@ def learn_discrete_backdrive_descriptors(
     validation_split = params.get('validation_split', 0.2)
     early_stopping = params.get('early_stopping', True)
     patience = params.get('patience', 10)
+    huber_delta = params.get('huber_delta', 1.0)
 
     # Extract pretrained model for weight transfer
     pretrained_model = params.get('pretrained_model', None)
@@ -349,36 +372,28 @@ def learn_discrete_backdrive_descriptors(
 
     # Create network with configurable activation functions
     network = DescriptorBackdriveNet(
-        n_vars, n_descriptors=3, hidden_layers=hidden_layers,
-        dropout=dropout, list_act_functs=list_act_functs
+        n_vars, n_descriptors=3, hidden_layers=hidden_layers, dropout=dropout,
+        list_act_functs=list_act_functs
     )
 
-    # Transfer weights from previous generation if provided
-    if pretrained_model is not None:
-        try:
-            # Load state dict from pretrained model
-            network.load_state_dict(pretrained_model['network_state'])
-            print("  Transferred weights from previous generation")
-        except Exception as e:
-            warnings.warn(f"Could not transfer weights: {e}")
-
-    # Select loss function based on params
-    # For descriptors variant, we predict solutions from descriptors
-    # So loss functions work on solution predictions vs actual solutions
+    # Loss and optimizer
+    # Choose loss function based on parameter
     if loss_function == 'mse':
         criterion = nn.MSELoss()
+        use_custom_loss = False
     elif loss_function == 'weighted_mse':
-        # Weighted MSE: weight solutions by their fitness
-        criterion = None  # Will be computed manually in training loop
+        use_custom_loss = True
+        loss_fn_name = 'weighted_mse'
     elif loss_function == 'ranking':
-        # Ranking loss: ensure relative ordering of solutions
-        criterion = None  # Will be computed manually in training loop
+        use_custom_loss = True
+        loss_fn_name = 'ranking'
     elif loss_function == 'huber':
-        # Huber loss: robust to outliers
-        criterion = nn.HuberLoss(delta=1.0)
+        use_custom_loss = True
+        loss_fn_name = 'huber'
     else:
-        raise ValueError(f"Unknown loss function: {loss_function}. "
-                        f"Supported: mse, weighted_mse, ranking, huber")
+        warnings.warn(f"Unknown loss function '{loss_function}', using MSE")
+        criterion = nn.MSELoss()
+        use_custom_loss = False
 
     optimizer = optim.Adam(network.parameters(), lr=learning_rate,
                           weight_decay=weight_decay)
@@ -409,16 +424,22 @@ def learn_discrete_backdrive_descriptors(
             pred = network(batch_x)
 
             # Compute loss based on selected loss function
-            if loss_function == 'mse':
-                loss = criterion(pred, batch_y)
-            elif loss_function == 'weighted_mse':
-                loss = descriptor_weighted_mse_loss(pred, batch_y, batch_fitness)
-            elif loss_function == 'ranking':
-                loss = descriptor_ranking_loss(pred, batch_y, batch_fitness)
-            elif loss_function == 'huber':
-                loss = criterion(pred, batch_y)
+            if use_custom_loss:
+                if loss_fn_name == 'weighted_mse':
+                    # Extract fitness values from descriptors for weighting
+                    # Descriptors are normalized, so we need original fitness
+                    batch_fitness = batch_x[:, 0:1] * descriptor_stds[0] + descriptor_means[0]
+                    loss = fitness_weighted_mse_loss(pred, batch_y, batch_fitness)
+                elif loss_fn_name == 'ranking':
+                    # Ranking loss doesn't make sense for solution prediction
+                    # Fall back to MSE with warning
+                    if epoch == 0 and i == 0:
+                        warnings.warn("Ranking loss not applicable for descriptor backdrive, using MSE")
+                    loss = F.mse_loss(pred, batch_y)
+                elif loss_fn_name == 'huber':
+                    loss = huber_loss(pred, batch_y, delta=huber_delta)
             else:
-                loss = criterion(pred, batch_y)  # Default to MSE
+                loss = criterion(pred, batch_y)
 
             # Backward pass
             optimizer.zero_grad()
@@ -435,19 +456,16 @@ def learn_discrete_backdrive_descriptors(
             network.eval()
             with torch.no_grad():
                 val_pred = network(X_val)
-                # Use same loss function for validation
-                if loss_function == 'mse':
-                    val_loss = criterion(val_pred, y_val).item()
-                elif loss_function == 'weighted_mse':
-                    val_indices = torch.randperm(n_samples)[n_train:]
-                    val_fitness = fitness_tensor[val_indices]
-                    val_loss = descriptor_weighted_mse_loss(val_pred, y_val, val_fitness).item()
-                elif loss_function == 'ranking':
-                    val_indices = torch.randperm(n_samples)[n_train:]
-                    val_fitness = fitness_tensor[val_indices]
-                    val_loss = descriptor_ranking_loss(val_pred, y_val, val_fitness).item()
-                elif loss_function == 'huber':
-                    val_loss = criterion(val_pred, y_val).item()
+
+                # Compute validation loss
+                if use_custom_loss:
+                    if loss_fn_name == 'weighted_mse':
+                        val_fitness = X_val[:, 0:1] * descriptor_stds[0] + descriptor_means[0]
+                        val_loss = fitness_weighted_mse_loss(val_pred, y_val, val_fitness).item()
+                    elif loss_fn_name == 'ranking':
+                        val_loss = F.mse_loss(val_pred, y_val).item()
+                    elif loss_fn_name == 'huber':
+                        val_loss = huber_loss(val_pred, y_val, delta=huber_delta).item()
                 else:
                     val_loss = criterion(val_pred, y_val).item()
             network.train()
