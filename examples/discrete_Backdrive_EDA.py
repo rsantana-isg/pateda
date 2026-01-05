@@ -415,6 +415,14 @@ class BackdriveEDA:
         if loss_function not in valid_loss_functions:
             raise ValueError(f"Invalid loss_function: {loss_function}. Must be one of {valid_loss_functions}")
 
+        # Warning for unimplemented features
+        if weight_transfer:
+            warnings.warn(
+                "weight_transfer is not yet implemented in the learning functions. "
+                "The parameter will be stored but will have no effect on training.",
+                UserWarning
+            )
+
         # Map loss function to learning function
         self.loss_function_map = {
             'mse': learn_binary_backdrive,
@@ -501,9 +509,11 @@ class BackdriveEDA:
             if self.variant == 'backdrive_descriptors':
                 learning_params['loss_function'] = self.loss_function
 
+            # TODO: Weight transfer not yet implemented in learning functions
+            # The pretrained_model parameter is currently ignored by all learning functions
             # For weight transfer, initialize from previous model
-            if self.weight_transfer and self.previous_model is not None:
-                learning_params['pretrained_model'] = self.previous_model
+            # if self.weight_transfer and self.previous_model is not None:
+            #     learning_params['pretrained_model'] = self.previous_model
 
             # Learn model
             try:
@@ -537,25 +547,27 @@ class BackdriveEDA:
                     # Evaluate with surrogate, then select promising ones
                     import torch
                     from pateda.learning.discrete_backdrive import DiscreteBackdriveNet
-                    
-                    # Reconstruct network for predictions
+
+                    # Reconstruct network for predictions with same configuration as training
                     network = DiscreteBackdriveNet(
-                        model['n_vars'], 
-                        model['cardinality'], 
+                        model['n_vars'],
+                        model['cardinality'],
                         model['hidden_layers'],
                         model['use_embeddings'],
-                        model.get('embedding_dim', 8)
+                        model.get('embedding_dim', 8),
+                        dropout=0.0,  # No dropout during evaluation
+                        list_act_functs=model.get('list_act_functs', None)
                     )
                     network.load_state_dict(model['network_state'])
                     network.eval()
-                    
+
                     # Generate more samples than needed
                     candidate_pop = sample_fn(model, self.pop_size * 3, sampling_params)
-                    
+
                     with torch.no_grad():
                         X = torch.LongTensor(candidate_pop.astype(int))
                         pred_fitness = network(X).numpy().flatten()
-                    
+
                     # Select top predicted solutions
                     top_indices = np.argsort(pred_fitness)[-self.pop_size:]
                     population = candidate_pop[top_indices]

@@ -316,6 +316,7 @@ def learn_discrete_backdrive_ranking(
         'use_embeddings': use_embeddings,
         'embedding_dim': embedding_dim if use_embeddings else None,
         'fitness_stats': (fitness_mean, fitness_std),
+        'list_act_functs': list_act_functs if list_act_functs is not None else ['relu'] * len(hidden_layers),
         'type': 'discrete_backdrive_ranking'
     }
 
