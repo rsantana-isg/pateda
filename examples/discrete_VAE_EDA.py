@@ -32,11 +32,11 @@ Configurable Parameters:
 
 Usage:
     python discrete_VAE_EDA.py <seed> <obj_func> <n> <pop_size> <n_gen> <trunc> <vae_variant> \\
-        <activation_enc> <activation_dec> <beta_start> <beta_end> <latent_dim> <epochs>
+        <activation_enc> <activation_dec> <beta_start> <beta_end> <latent_dim> <epochs> <mi_layer>
 
 Example:
-    python discrete_VAE_EDA.py 0 OneMax 20 80 20 0.5 VAE relu relu 0.0 1.0 0 30
-    python discrete_VAE_EDA.py 1 Deceptive3 30 100 30 0.5 BA-VAE relu relu 0.0 1.0 8 30
+    python discrete_VAE_EDA.py 0 OneMax 20 80 20 0.5 VAE relu relu 0.0 1.0 0 30 0
+    python discrete_VAE_EDA.py 1 Deceptive3 30 100 30 0.5 BA-VAE relu relu 0.0 1.0 8 30 1
 
 ==============================================================================
 """
@@ -572,17 +572,17 @@ def main():
         formatter_class=argparse.RawDescriptionHelpFormatter,
         epilog="""
 Examples:
-  # Basic usage with default settings
-  python discrete_VAE_EDA.py 0 OneMax 20 80 20 0.5 VAE relu relu 0.0 1.0 0 30
+  # Basic usage with default settings (without MI layer)
+  python discrete_VAE_EDA.py 0 OneMax 20 80 20 0.5 VAE relu relu 0.0 1.0 0 30 0
 
-  # With custom activation functions
-  python discrete_VAE_EDA.py 0 OneMax 20 80 20 0.5 E-VAE tanh relu 0.0 1.0 0 30
+  # With custom activation functions (with MI layer enabled)
+  python discrete_VAE_EDA.py 0 OneMax 20 80 20 0.5 E-VAE tanh relu 0.0 1.0 0 30 1
 
   # Conditional VAE with beta annealing and specific latent dim
-  python discrete_VAE_EDA.py 0 Deceptive3 30 100 30 0.5 C-VAE relu relu 0.0 1.0 8 30
+  python discrete_VAE_EDA.py 0 Deceptive3 30 100 30 0.5 C-VAE relu relu 0.0 1.0 8 30 0
 
   # Regression VAE
-  python discrete_VAE_EDA.py 0 HIFF 64 200 50 0.5 Reg-VAE leakyrelu relu 0.0 1.0 0 30
+  python discrete_VAE_EDA.py 0 HIFF 64 200 50 0.5 Reg-VAE leakyrelu relu 0.0 1.0 0 30 0
         """
     )
 
@@ -609,8 +609,8 @@ Examples:
                         help='Latent dimension (use 0 for default: max(2, n_vars/4))')
     parser.add_argument('epochs', type=int,
                         help='Training epochs per generation')
-    parser.add_argument('--mi_layer', action='store_true',
-                        help='Use MI-based sparse connectivity layer (default: False)')
+    parser.add_argument('mi_layer', type=int, choices=[0, 1],
+                        help='Use MI-based sparse connectivity layer (0: False, 1: True)')
 
     # Parse arguments
     args = parser.parse_args()
@@ -654,7 +654,7 @@ Examples:
     if args.latent_dim:
         print(f"Latent Dim:         {args.latent_dim}")
     print(f"Epochs:             {args.epochs}")
-    print(f"MI Layer:           {args.mi_layer}")
+    print(f"MI Layer:           {bool(args.mi_layer)}")
     print("=" * 80)
     print()
 
@@ -681,7 +681,7 @@ Examples:
     # Configure learning parameters
     learning_params = {
         'epochs': args.epochs,
-        'mi_layer': args.mi_layer,
+        'mi_layer': bool(args.mi_layer),
     }
     if args.latent_dim:
         learning_params['latent_dim'] = args.latent_dim
