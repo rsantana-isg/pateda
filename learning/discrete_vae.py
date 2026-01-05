@@ -167,79 +167,84 @@ def compute_mutual_information_matrix(population: np.ndarray) -> np.ndarray:
     return mi_matrix
 
 
+
 def compute_gtest_independence_matrix(population: np.ndarray, alpha: float = 0.05) -> np.ndarray:
     """
     Compute G-Test (Likelihood Ratio Test) to test independence of binary variables.
-
-    The G-Test statistic is:
-    G = 2 * sum_{x,y} O_{x,y} * log(O_{x,y} / E_{x,y})
-
-    where O_{x,y} are observed frequencies and E_{x,y} are expected frequencies
-    under independence assumption.
-
+    
+    Returns binary matrix G where G[i,j]=1 if variables i and j are DEPENDENT
+    (reject null hypothesis of independence at significance level alpha).
+    
     Parameters
     ----------
     population : np.ndarray
         Binary population of shape (pop_size, n_vars) with values in {0, 1}
     alpha : float
         Significance level for independence test (default: 0.05)
-
+    
     Returns
     -------
     g_matrix : np.ndarray
-        Binary matrix of shape (n_vars, n_vars) where G[i,j]=1 indicates
-        variables i and j are independent (fail to reject H0), and
-        G[i,j]=0 indicates they are dependent (reject H0)
+        Binary matrix of shape (n_vars, n_vars) where:
+        - G[i,j]=1 indicates variables i and j are DEPENDENT (reject H0)
+        - G[i,j]=0 indicates variables i and j are INDEPENDENT (fail to reject H0)
     """
     n_samples, n_vars = population.shape
-    g_matrix = np.zeros((n_vars, n_vars))
-
+    g_matrix = np.zeros((n_vars, n_vars), dtype=int)
+    
     eps = 1e-10
-
+    
     for i in range(n_vars):
-        for j in range(i, n_vars):
-            if i == j:
-                # Variable is always dependent with itself
-                g_matrix[i, j] = 0
+        for j in range(i+1, n_vars):  # Only need j > i, symmetric matrix
+            # Compute contingency table (2x2 for binary variables)
+            n00 = np.sum((population[:, i] == 0) & (population[:, j] == 0))
+            n01 = np.sum((population[:, i] == 0) & (population[:, j] == 1))
+            n10 = np.sum((population[:, i] == 1) & (population[:, j] == 0))
+            n11 = np.sum((population[:, i] == 1) & (population[:, j] == 1))
+            
+            # Check if any expected frequency is too small for G-test
+            # G-test may not be reliable if expected frequencies < 5
+            n_i0 = n00 + n01
+            n_i1 = n10 + n11
+            n_j0 = n00 + n10
+            n_j1 = n01 + n11
+            
+            # Expected frequencies under independence
+            e00 = (n_i0 * n_j0) / n_samples
+            e01 = (n_i0 * n_j1) / n_samples
+            e10 = (n_i1 * n_j0) / n_samples
+            e11 = (n_i1 * n_j1) / n_samples
+            
+            # Check G-test validity (expected frequencies should be ≥ 5)
+            if min(e00, e01, e10, e11) < 5:
+                # Consider using Fisher's exact test instead for small expected counts
+                # For now, we'll still compute but with caution
+                pass
+            
+            # Compute G-statistic
+            g_stat = 0.0
+            for observed, expected in [(n00, e00), (n01, e01), (n10, e10), (n11, e11)]:
+                if observed > 0:
+                    g_stat += observed * np.log(observed / (expected + eps))
+            g_stat *= 2  # G = 2 * Σ O * ln(O/E)
+            
+            # Calculate p-value for chi-square distribution with df=1
+            p_value = 1 - stats.chi2.cdf(g_stat, df=1)
+            
+            # Decision: Reject H0 (declare dependent) if p-value < alpha
+            if p_value < alpha:
+                g_matrix[i, j] = 1  # DEPENDENT
+                g_matrix[j, i] = 1  # Symmetric
             else:
-                # Compute contingency table (2x2 for binary variables)
-                n00 = np.sum((population[:, i] == 0) & (population[:, j] == 0))
-                n01 = np.sum((population[:, i] == 0) & (population[:, j] == 1))
-                n10 = np.sum((population[:, i] == 1) & (population[:, j] == 0))
-                n11 = np.sum((population[:, i] == 1) & (population[:, j] == 1))
-
-                # Marginal totals
-                n_i0 = n00 + n01
-                n_i1 = n10 + n11
-                n_j0 = n00 + n10
-                n_j1 = n01 + n11
-
-                # Expected frequencies under independence
-                e00 = (n_i0 * n_j0) / n_samples
-                e01 = (n_i0 * n_j1) / n_samples
-                e10 = (n_i1 * n_j0) / n_samples
-                e11 = (n_i1 * n_j1) / n_samples
-
-                # Compute G-statistic
-                g_stat = 0.0
-                for observed, expected in [(n00, e00), (n01, e01), (n10, e10), (n11, e11)]:
-                    if observed > 0 and expected > eps:
-                        g_stat += 2 * observed * np.log(observed / (expected + eps))
-
-                # G-statistic follows chi-square distribution with df=1 for 2x2 table
-                # Critical value for chi-square(1) at alpha=0.05 is 3.841
-                critical_value = stats.chi2.ppf(1 - alpha, df=1)
-
-                # If G < critical_value, fail to reject H0 (independence)
-                # So G[i,j]=1 means variables are independent
-                if g_stat < critical_value:
-                    g_matrix[i, j] = 1
-                    g_matrix[j, i] = 1
-                else:
-                    g_matrix[i, j] = 0
-                    g_matrix[j, i] = 0
-
+                g_matrix[i, j] = 0  # INDEPENDENT
+                g_matrix[j, i] = 0  # Symmetric
+    
+    # Diagonal: variable is trivially "dependent" with itself
+    np.fill_diagonal(g_matrix, 1)
+    #print(g_matrix)
     return g_matrix
+
+
 
 
 def sample_gumbel(shape, eps=1e-20):

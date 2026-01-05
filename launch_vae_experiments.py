@@ -34,10 +34,10 @@ if __name__ == '__main__':
     epochs_options = [50]
 
     # MI Layer options
-    mi_layer_options = [0, 1]
+    mi_layer_options = [1]
 
     # Seeds
-    for seed in np.arange(6, 11):
+    for seed in np.arange(1, 6):
         for obj_func in obj_functions:
             # Set n based on objective function
             if obj_func == 'HIFF':

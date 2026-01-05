@@ -31,14 +31,14 @@ if __name__ == '__main__':
     surrogate_filtering_options = [1, 0]  # 1=True, 0=False
     
     # Seeds
-    for seed in np.arange(2, 11):
+    for seed in np.arange(1, 6):
         for obj_func in obj_functions:
             # Set n based on objective function
             if obj_func == 'HIFF':
                 n = 64
             else:
                 n = 30
-            p_size = n * 5
+            p_size = n * 15
             
             # Generate all combinations
             for variant in variants:
