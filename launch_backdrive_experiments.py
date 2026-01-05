@@ -1,0 +1,63 @@
+import sys
+import os
+import numpy as np
+
+if __name__ == '__main__':
+    # Fixed parameters
+    n_gen = 250
+    trunc = 0.5
+    
+    # Objective functions to test
+    obj_functions = ['OneMax', 'KDeceptive3', 'Deceptive3', 'HIFF', 'KDeceptive5', 'FC5']
+    
+    # Backdrive variants
+    variants = ['backdrive', 'backdrive_adaptive', 'backdrive_descriptors']
+    
+    # Initialization methods
+    init_methods = ['random', 'perturb_best', 'perturb_selected']
+    
+    # Loss functions
+    loss_functions = ['mse', 'weighted_mse', 'ranking', 'huber']
+    
+    # Activation functions
+    activation_functions = ['leaky_relu', 'relu', 'tanh', 'sigmoid']
+    
+    # Boolean flags (weight-transfer, early-stopping, surrogate-filtering)
+    weight_transfer_options = [True, False]
+    early_stopping_options = [True, False]
+    surrogate_filtering_options = [True, False]
+    
+    # Seeds
+    for seed in np.arange(1, 2):
+        for obj_func in obj_functions:
+            # Set n based on objective function
+            if obj_func == 'HIFF':
+                n = 64
+            else:
+                n = 30
+            p_size = n * 5
+            
+            # Generate all combinations
+            for variant in variants:
+                for init_method in init_methods:
+                    for loss_function in loss_functions:
+                        for activation in activation_functions:
+                            for weight_transfer in weight_transfer_options:
+                                for early_stopping in early_stopping_options:
+                                    for surrogate_filtering in surrogate_filtering_options:
+                                        # Build command
+                                        cmd = f"sbatch slurm_backdrive.sh examples/discrete_Backdrive_EDA.py {seed} {obj_func} {n} {p_size} {n_gen} {trunc}"
+                                        cmd += f" --variant {variant}"
+                                        cmd += f" --init {init_method}"
+                                        cmd += f" --loss {loss_function}"
+                                        cmd += f" --activation {activation}"
+                                        
+                                        if weight_transfer:
+                                            cmd += " --weight-transfer"
+                                        if early_stopping:
+                                            cmd += " --early-stopping"
+                                        if surrogate_filtering:
+                                            cmd += " --surrogate-filtering"
+                                        
+                                        print(cmd)
+
