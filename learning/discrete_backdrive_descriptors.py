@@ -566,13 +566,8 @@ def learn_discrete_backdrive_descriptors(
     if params.get('train_forward_model', True):
         # Create forward network (solution → descriptors)
         # Reuse the same hidden layers architecture from the main model
-        # Use copy() to create an independent list
-        if hidden_layers is None:
-            forward_hidden_layers = None
-        elif isinstance(hidden_layers, list):
-            forward_hidden_layers = hidden_layers.copy()
-        else:
-            forward_hidden_layers = list(hidden_layers)
+        # Create a copy to avoid sharing the same list object
+        forward_hidden_layers = hidden_layers.copy() if hidden_layers else None
         
         forward_network = ForwardDescriptorNet(
             n_vars, n_descriptors=n_descriptors, hidden_layers=forward_hidden_layers, 

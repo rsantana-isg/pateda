@@ -576,27 +576,28 @@ class BackdriveEDA:
                             candidate_pop = sample_fn(model, self.pop_size * SURROGATE_CANDIDATE_FACTOR, sampling_params)
                             
                             # Get descriptor statistics for denormalization
-                            if 'descriptor_stats' not in model:
+                            if 'descriptor_stats' in model:
+                                descriptor_means, descriptor_stds = model['descriptor_stats']
+                                
+                                with torch.no_grad():
+                                    # For binary variables, solutions are already normalized to [0, 1]
+                                    # Same as during training (population.astype(float))
+                                    X = torch.FloatTensor(candidate_pop.astype(float))
+                                    # Predict normalized descriptors
+                                    pred_descriptors_norm = forward_network(X).numpy()
+                                    # Denormalize to get actual descriptor values
+                                    pred_descriptors = pred_descriptors_norm * descriptor_stds + descriptor_means
+                                    # Extract fitness (first component of descriptors)
+                                    pred_fitness = pred_descriptors[:, 0]
+                                
+                                # Select top predicted solutions based on fitness
+                                top_indices = np.argsort(pred_fitness)[-self.pop_size:]
+                                population = candidate_pop[top_indices]
+                            else:
+                                # descriptor_stats not found, cannot denormalize predictions
                                 if verbose and gen == 0:
-                                    print("  Warning: descriptor_stats not found in model, cannot use surrogate filtering")
+                                    print("  Warning: descriptor_stats not found in model, surrogate filtering disabled")
                                 population = new_population
-                                continue
-                            descriptor_means, descriptor_stds = model['descriptor_stats']
-                            
-                            with torch.no_grad():
-                                # For binary variables, solutions are already normalized to [0, 1]
-                                # Same as during training (population.astype(float))
-                                X = torch.FloatTensor(candidate_pop.astype(float))
-                                # Predict normalized descriptors
-                                pred_descriptors_norm = forward_network(X).numpy()
-                                # Denormalize to get actual descriptor values
-                                pred_descriptors = pred_descriptors_norm * descriptor_stds + descriptor_means
-                                # Extract fitness (first component of descriptors)
-                                pred_fitness = pred_descriptors[:, 0]
-                            
-                            # Select top predicted solutions based on fitness
-                            top_indices = np.argsort(pred_fitness)[-self.pop_size:]
-                            population = candidate_pop[top_indices]
                         else:
                             # Forward model not available, use sampled population directly
                             if verbose and gen == 0:
