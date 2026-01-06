@@ -113,7 +113,10 @@ def sample_discrete_dendiff_gumbel(
     x_t = torch.randint(0, 2, (n_samples, input_dim), dtype=torch.float32)
     
     # For fitness-guided sampling, we need target fitness values
-    # Use high fitness (default 1.0) to guide generation toward good solutions
+    # Fitness values are normalized to [0, 1] during training, where:
+    # - 0.0 represents the worst fitness in the training set
+    # - 1.0 represents the best fitness in the training set
+    # Using high values (default 1.0) guides generation toward good solutions
     # This can be customized via params['target_fitness']
     if use_fitness_guidance:
         target_fitness_value = params.get('target_fitness', 1.0)
@@ -243,7 +246,10 @@ def sample_discrete_dendiff_corruption(
     x_t = torch.randint(0, 2, (n_samples, input_dim), dtype=torch.float32)
     
     # For fitness-guided sampling, we need target fitness values
-    # Use high fitness (default 1.0) to guide generation toward good solutions
+    # Fitness values are normalized to [0, 1] during training, where:
+    # - 0.0 represents the worst fitness in the training set
+    # - 1.0 represents the best fitness in the training set
+    # Using high values (default 1.0) guides generation toward good solutions
     # This can be customized via params['target_fitness']
     if use_fitness_guidance:
         target_fitness_value = params.get('target_fitness', 1.0)
