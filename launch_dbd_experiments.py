@@ -11,10 +11,10 @@ if __name__ == '__main__':
     obj_functions = ['OneMax', 'KDeceptive3', 'Deceptive3', 'HIFF', 'KDeceptive5', 'FC5']
 
     # DbD variants to test
-    dbd_variants = ['dbd', 'dbd_cs', 'dbd_cd', 'dbd_uc', 'dbd_us',
-                    'dbd_cs_t', 'dbd_cd_t', 'dbd_uc_t', 'dbd_us_t']
-    dbd_variants = ['dbd', 'dbd_cs', 'dbd_cd', 'dbd_uc', 'dbd_us',
-                    'dbd_cs_t', 'dbd_cd_t', 'dbd_uc_t', 'dbd_us_t']
+    #dbd_variants = ['dbd', 'dbd_cs', 'dbd_cd', 'dbd_uc', 'dbd_us',
+    #                'dbd_cs_t', 'dbd_cd_t', 'dbd_uc_t', 'dbd_us_t']
+    dbd_variants = ['dbd', 'dbd_cs', 'dbd_cd', 'dbd_uc', 
+                    'dbd_cs_t', 'dbd_cd_t', 'dbd_uc_t']
 
 
     # Activation functions (all in the specified set)

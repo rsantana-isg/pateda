@@ -1236,7 +1236,7 @@ def learn_binary_dbd_cd_t(
     
     # Compute conditional probabilities
     conditional_probs_p0 = compute_conditional_probabilities(current_pop, k, alpha_smooth)
-    conditional_probs_p1 = compute_conditional_probabilities(p1_closest, k, alpha_smooth)
+    conditional_probs_p1 = compute_conditional_probabilities(selected_pop, k, alpha_smooth)
     
     # Transform to continuous
     p0_continuous = transform_binary_to_continuous(current_pop, conditional_probs_p0, k)
@@ -1296,12 +1296,12 @@ def learn_binary_dbd_uc_t(
     p1_samples = current_pop[p1_indices, :]
     
     # Compute conditional probabilities
-    conditional_probs_p0 = compute_conditional_probabilities(p0_univariate, k, alpha_smooth)
-    conditional_probs_p1 = compute_conditional_probabilities(p1_samples, k, alpha_smooth)
+    conditional_probs = compute_conditional_probabilities(current_pop, k, alpha_smooth)
+   
     
     # Transform to continuous
-    p0_continuous = transform_binary_to_continuous(p0_univariate, conditional_probs_p0, k)
-    p1_continuous = transform_binary_to_continuous(p1_samples, conditional_probs_p1, k)
+    p0_continuous = transform_binary_to_continuous(p0_univariate, conditional_probs, k)
+    p1_continuous = transform_binary_to_continuous(p1_samples, conditional_probs, k)
     
     # Learn continuous DbD model
     from pateda.learning.dbd import learn_dbd
@@ -1313,7 +1313,7 @@ def learn_binary_dbd_uc_t(
     model['k'] = k
     model['alpha_smooth'] = alpha_smooth
     model['marginal_probs'] = marginal_probs
-    model['conditional_probs'] = conditional_probs_p1
+    model['conditional_probs'] = conditional_probs
     
     return model
 
@@ -1358,7 +1358,7 @@ def learn_binary_dbd_us_t(
     p1_samples = selected_pop[p1_indices, :]
     
     # Compute conditional probabilities
-    conditional_probs_p0 = compute_conditional_probabilities(p0_univariate, k, alpha_smooth)
+    conditional_probs_p0 = compute_conditional_probabilities(current_pop, k, alpha_smooth)
     conditional_probs_p1 = compute_conditional_probabilities(p1_samples, k, alpha_smooth)
     
     # Transform to continuous
