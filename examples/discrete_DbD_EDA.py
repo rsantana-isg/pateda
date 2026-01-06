@@ -642,8 +642,11 @@ class DbDEDA:
                     # First generation: use random as current population
                     current_pop = np.random.randint(0, self.cardinality,
                                                   (len(selected_pop), self.n_vars))
-                    # No fitness for random population
-                    fitness_current = None
+                    # Evaluate fitness for random population if needed for loss function
+                    if self.loss_function in ['weighted_mse', 'ranking']:
+                        fitness_current = fitness_func(current_pop)
+                    else:
+                        fitness_current = None
                 else:
                     # Sample from previous population to match selected population size
                     n_to_sample = len(selected_pop)
@@ -653,10 +656,9 @@ class DbDEDA:
                         indices = np.random.choice(len(prev_population), n_to_sample, replace=True)
                     current_pop = prev_population[indices]
                     
-                    # Sample corresponding fitness values if we have them
-                    if prev_population is not None and len(prev_population) > 0:
+                    # Sample corresponding fitness values if needed
+                    if self.loss_function in ['weighted_mse', 'ranking'] or self.fitness_guided:
                         # Get fitness for sampled current population
-                        # We need to evaluate these or use saved fitness from previous generation
                         fitness_current = fitness_func(current_pop)
                     else:
                         fitness_current = None

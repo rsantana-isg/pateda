@@ -1118,9 +1118,6 @@ def learn_binary_dbd_cs_t(
     params: Optional[Dict[str, Any]] = None,
     fitness_current: np.ndarray = None,
     fitness_selected: np.ndarray = None
-    current_pop: np.ndarray,
-    selected_pop: np.ndarray,
-    params: Optional[Dict[str, Any]] = None
 ) -> Dict[str, Any]:
     """
     Learn DbD-CS-T (Current to Selected with Transformation) model
