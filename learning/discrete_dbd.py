@@ -329,12 +329,18 @@ def create_blended_binary_samples(
         fitness_blended = (1 - alpha) * f0 + alpha * f1
     elif fitness1 is not None:
         # If only fitness1 is provided (e.g., for UC/US variants where p0 is univariate)
-        # Use alpha-weighted fitness1: at alpha=0 (p0), fitness=0; at alpha=1 (p1), fitness=f1
+        # Univariate samples don't have meaningful fitness, so we use alpha-weighted fitness1
+        # At alpha=0: fully at p0 (univariate baseline, no associated fitness) → fitness=0
+        # At alpha=1: fully at p1 (actual samples with fitness1) → fitness=f1
+        # In between: linearly interpolate based on alpha
         f1 = np.repeat(fitness1.reshape(-1, 1), num_alpha_samples, axis=0)
         fitness_blended = alpha * f1
     elif fitness0 is not None:
         # If only fitness0 is provided (less common case)
-        # Use (1-alpha)-weighted fitness0: at alpha=0 (p0), fitness=f0; at alpha=1 (p1), fitness=0
+        # p1 samples don't have meaningful fitness, so we use (1-alpha)-weighted fitness0
+        # At alpha=0: fully at p0 (actual samples with fitness0) → fitness=f0
+        # At alpha=1: fully at p1 (target population, no associated fitness) → fitness=0
+        # In between: linearly interpolate based on alpha
         f0 = np.repeat(fitness0.reshape(-1, 1), num_alpha_samples, axis=0)
         fitness_blended = (1 - alpha) * f0
 
