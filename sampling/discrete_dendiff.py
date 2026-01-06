@@ -60,6 +60,7 @@ def sample_discrete_dendiff_gumbel(
         - 'temperature': sampling temperature (default: 0.5)
         - 'n_steps': number of denoising steps (default: use all timesteps)
         - 'deterministic': use argmax instead of sampling (default: False)
+        - 'target_fitness': target fitness value for fitness-guided sampling (default: 1.0)
     
     Returns
     -------
@@ -112,9 +113,11 @@ def sample_discrete_dendiff_gumbel(
     x_t = torch.randint(0, 2, (n_samples, input_dim), dtype=torch.float32)
     
     # For fitness-guided sampling, we need target fitness values
-    # Use high fitness (1.0) to guide generation toward good solutions
+    # Use high fitness (default 1.0) to guide generation toward good solutions
+    # This can be customized via params['target_fitness']
     if use_fitness_guidance:
-        target_fitness = torch.ones((n_samples, 1), dtype=torch.float32)
+        target_fitness_value = params.get('target_fitness', 1.0)
+        target_fitness = torch.full((n_samples, 1), target_fitness_value, dtype=torch.float32)
     
     # Create timestep schedule (possibly strided for faster sampling)
     if n_steps < n_timesteps:
@@ -190,6 +193,7 @@ def sample_discrete_dendiff_corruption(
         - 'n_steps': number of denoising steps (default: use all)
         - 'temperature': sampling temperature (default: 0.5)
         - 'deterministic': use thresholding instead of sampling
+        - 'target_fitness': target fitness value for fitness-guided sampling (default: 1.0)
     
     Returns
     -------
@@ -239,9 +243,11 @@ def sample_discrete_dendiff_corruption(
     x_t = torch.randint(0, 2, (n_samples, input_dim), dtype=torch.float32)
     
     # For fitness-guided sampling, we need target fitness values
-    # Use high fitness (1.0) to guide generation toward good solutions
+    # Use high fitness (default 1.0) to guide generation toward good solutions
+    # This can be customized via params['target_fitness']
     if use_fitness_guidance:
-        target_fitness = torch.ones((n_samples, 1), dtype=torch.float32)
+        target_fitness_value = params.get('target_fitness', 1.0)
+        target_fitness = torch.full((n_samples, 1), target_fitness_value, dtype=torch.float32)
     
     # Create timestep schedule
     if n_steps < n_timesteps:
