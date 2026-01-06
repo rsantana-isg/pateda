@@ -12,7 +12,8 @@ if __name__ == '__main__':
     
     # Backdrive variants
     #variants = ['backdrive', 'backdrive_adaptive', 'backdrive_descriptors']
-    variants = ['backdrive', 'backdrive_descriptors']
+    #variants = ['backdrive', 'backdrive_descriptors']
+    variants = ['backdrive_adaptive']
     
     # Initialization methods
     #init_methods = ['random', 'perturb_best', 'perturb_selected']
@@ -31,7 +32,7 @@ if __name__ == '__main__':
     surrogate_filtering_options = [1, 0]  # 1=True, 0=False
     
     # Seeds
-    for seed in np.arange(1, 6):
+    for seed in np.arange(1, 11):
         for obj_func in obj_functions:
             # Set n based on objective function
             if obj_func == 'HIFF':

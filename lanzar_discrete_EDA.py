@@ -1,7 +1,7 @@
 import sys
 import os
 import numpy as np
-
+n_gen = 100
 if __name__ == '__main__':
 	#obj_functions = ['OneMax', 'KDeceptive3', 'Deceptive3', 'HIFF', 'KDeceptive5', 'FC5']       
         obj_functions = ['OneMax']

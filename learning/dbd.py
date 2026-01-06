@@ -224,7 +224,7 @@ def learn_dbd(
     default_batch_size = compute_default_batch_size(input_dim, n_samples)
 
     # Extract parameters with new defaults
-    num_alpha_samples = params.get('num_alpha_samples', 10)
+    num_alpha_samples = params.get('num_alpha_samples', 20) # Changed here params.get('num_alpha_samples', 10)
     hidden_dims = params.get('hidden_dims', default_hidden_dims)
     epochs = params.get('epochs', 50)
     batch_size = params.get('batch_size', default_batch_size)
