@@ -56,8 +56,11 @@ def sample_binary_dbd(
     n_vars = model['n_vars']
     hidden_dims = model['hidden_dims']
     use_fitness_guidance = model.get('use_fitness_guidance', False)
+    list_act_functs = model.get('list_act_functs', None)
+    list_init_functs = model.get('list_init_functs', None)
 
-    network = BinaryDeblendingNet(n_vars, hidden_dims, use_fitness_guidance)
+    network = BinaryDeblendingNet(n_vars, hidden_dims, use_fitness_guidance,
+                                 list_act_functs, list_init_functs)
     network.load_state_dict(model['network_state'])
     network.eval()
     
@@ -221,8 +224,12 @@ def sample_binary_dbd_from_seeds(
     # Reconstruct network
     n_vars = model['n_vars']
     hidden_dims = model['hidden_dims']
+    use_fitness_guidance = model.get('use_fitness_guidance', False)
+    list_act_functs = model.get('list_act_functs', None)
+    list_init_functs = model.get('list_init_functs', None)
 
-    network = BinaryDeblendingNet(n_vars, hidden_dims)
+    network = BinaryDeblendingNet(n_vars, hidden_dims, use_fitness_guidance,
+                                 list_act_functs, list_init_functs)
     network.load_state_dict(model['network_state'])
     network.eval()
 
@@ -281,8 +288,12 @@ def sample_binary_dbd_cs(
     # Reconstruct network
     n_vars = model['n_vars']
     hidden_dims = model['hidden_dims']
+    use_fitness_guidance = model.get('use_fitness_guidance', False)
+    list_act_functs = model.get('list_act_functs', None)
+    list_init_functs = model.get('list_init_functs', None)
 
-    network = BinaryDeblendingNet(n_vars, hidden_dims)
+    network = BinaryDeblendingNet(n_vars, hidden_dims, use_fitness_guidance,
+                                 list_act_functs, list_init_functs)
     network.load_state_dict(model['network_state'])
     network.eval()
 
@@ -290,6 +301,11 @@ def sample_binary_dbd_cs(
         # Initialize from selected population
         sel_indices = np.random.randint(0, len(selected_pop), size=n_samples)
         x = torch.FloatTensor(selected_pop[sel_indices])
+
+        # Prepare fitness tensor if needed (use high fitness values for all samples during sampling)
+        fitness_tensor = None
+        if use_fitness_guidance:
+            fitness_tensor = torch.ones(n_samples, 1) * 1.0  # Maximum normalized fitness
 
         # Iterative denoising
         alphas = np.linspace(0, 1, n_steps + 1)[1:]
@@ -299,7 +315,10 @@ def sample_binary_dbd_cs(
             alpha = torch.full((n_samples,), alpha_val)
 
             # Network predicts difference (velocity)
-            predicted_diff = network(x, alpha)
+            if use_fitness_guidance:
+                predicted_diff = network(x, alpha, fitness_tensor)
+            else:
+                predicted_diff = network(x, alpha)
 
             # Update using difference
             delta_alpha = alpha_val - alpha_current
@@ -345,8 +364,12 @@ def sample_binary_dbd_cd(
     # Reconstruct network
     n_vars = model['n_vars']
     hidden_dims = model['hidden_dims']
+    use_fitness_guidance = model.get('use_fitness_guidance', False)
+    list_act_functs = model.get('list_act_functs', None)
+    list_init_functs = model.get('list_init_functs', None)
 
-    network = BinaryDeblendingNet(n_vars, hidden_dims)
+    network = BinaryDeblendingNet(n_vars, hidden_dims, use_fitness_guidance,
+                                 list_act_functs, list_init_functs)
     network.load_state_dict(model['network_state'])
     network.eval()
 
@@ -354,6 +377,11 @@ def sample_binary_dbd_cd(
         # Initialize from current population
         cur_indices = np.random.randint(0, len(current_pop), size=n_samples)
         x = torch.FloatTensor(current_pop[cur_indices])
+
+        # Prepare fitness tensor if needed
+        fitness_tensor = None
+        if use_fitness_guidance:
+            fitness_tensor = torch.ones(n_samples, 1) * 1.0  # Maximum normalized fitness
 
         # Iterative denoising
         alphas = np.linspace(0, 1, n_steps + 1)[1:]
@@ -363,7 +391,10 @@ def sample_binary_dbd_cd(
             alpha = torch.full((n_samples,), alpha_val)
 
             # Network predicts difference (velocity)
-            predicted_diff = network(x, alpha)
+            if use_fitness_guidance:
+                predicted_diff = network(x, alpha, fitness_tensor)
+            else:
+                predicted_diff = network(x, alpha)
 
             # Update using difference
             delta_alpha = alpha_val - alpha_current
@@ -411,8 +442,12 @@ def sample_binary_dbd_uc(
     n_vars = model['n_vars']
     hidden_dims = model['hidden_dims']
     marginal_probs = model['marginal_probs']
+    use_fitness_guidance = model.get('use_fitness_guidance', False)
+    list_act_functs = model.get('list_act_functs', None)
+    list_init_functs = model.get('list_init_functs', None)
 
-    network = BinaryDeblendingNet(n_vars, hidden_dims)
+    network = BinaryDeblendingNet(n_vars, hidden_dims, use_fitness_guidance,
+                                 list_act_functs, list_init_functs)
     network.load_state_dict(model['network_state'])
     network.eval()
 
@@ -422,6 +457,11 @@ def sample_binary_dbd_uc(
         x_init = sample_from_univariate_binary(marginal_probs, n_samples)
         x = torch.FloatTensor(x_init)
 
+        # Prepare fitness tensor if needed
+        fitness_tensor = None
+        if use_fitness_guidance:
+            fitness_tensor = torch.ones(n_samples, 1) * 1.0  # Maximum normalized fitness
+
         # Iterative denoising
         alphas = np.linspace(0, 1, n_steps + 1)[1:]
 
@@ -430,7 +470,10 @@ def sample_binary_dbd_uc(
             alpha = torch.full((n_samples,), alpha_val)
 
             # Network predicts difference (velocity)
-            predicted_diff = network(x, alpha)
+            if use_fitness_guidance:
+                predicted_diff = network(x, alpha, fitness_tensor)
+            else:
+                predicted_diff = network(x, alpha)
 
             # Update using difference
             delta_alpha = alpha_val - alpha_current
@@ -479,8 +522,12 @@ def sample_binary_dbd_us(
     n_vars = model['n_vars']
     hidden_dims = model['hidden_dims']
     marginal_probs = model['marginal_probs']
+    use_fitness_guidance = model.get('use_fitness_guidance', False)
+    list_act_functs = model.get('list_act_functs', None)
+    list_init_functs = model.get('list_init_functs', None)
 
-    network = BinaryDeblendingNet(n_vars, hidden_dims)
+    network = BinaryDeblendingNet(n_vars, hidden_dims, use_fitness_guidance,
+                                 list_act_functs, list_init_functs)
     network.load_state_dict(model['network_state'])
     network.eval()
 
@@ -490,6 +537,11 @@ def sample_binary_dbd_us(
         x_init = sample_from_univariate_binary(marginal_probs, n_samples)
         x = torch.FloatTensor(x_init)
 
+        # Prepare fitness tensor if needed
+        fitness_tensor = None
+        if use_fitness_guidance:
+            fitness_tensor = torch.ones(n_samples, 1) * 1.0  # Maximum normalized fitness
+
         # Iterative denoising
         alphas = np.linspace(0, 1, n_steps + 1)[1:]
 
@@ -498,7 +550,10 @@ def sample_binary_dbd_us(
             alpha = torch.full((n_samples,), alpha_val)
 
             # Network predicts difference (velocity)
-            predicted_diff = network(x, alpha)
+            if use_fitness_guidance:
+                predicted_diff = network(x, alpha, fitness_tensor)
+            else:
+                predicted_diff = network(x, alpha)
 
             # Update using difference
             delta_alpha = alpha_val - alpha_current
