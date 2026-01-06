@@ -144,7 +144,8 @@ class BinaryDeblendingNet(nn.Module):
     Supports optional fitness guidance for conditional generation
     """
 
-    def __init__(self, n_vars: int, hidden_dims: list = None, use_fitness_guidance: bool = False):
+    def __init__(self, n_vars: int, hidden_dims: list = None, use_fitness_guidance: bool = False, 
+                 list_act_functs: list = None, list_init_functs: list = None):
         super(BinaryDeblendingNet, self).__init__()
 
         if hidden_dims is None:
@@ -158,12 +159,22 @@ class BinaryDeblendingNet(nn.Module):
         if use_fitness_guidance:
             input_dim += 1  # Add fitness dimension
 
+        # Validate and set activation/initialization functions
+        n_hidden = len(hidden_dims)
+        list_act_functs, list_init_functs = validate_list_params(
+            hidden_dims, list_act_functs, list_init_functs
+        )
+
         layers = []
         prev_dim = input_dim
 
-        for hidden_dim in hidden_dims:
-            layers.append(nn.Linear(prev_dim, hidden_dim))
-            layers.append(nn.ReLU())
+        for i, hidden_dim in enumerate(hidden_dims):
+            linear = nn.Linear(prev_dim, hidden_dim)
+            # Apply initialization
+            apply_weight_init(linear, list_init_functs[i])
+            layers.append(linear)
+            # Apply activation function
+            layers.append(get_activation(list_act_functs[i], in_features=hidden_dim))
             layers.append(nn.Dropout(0.2))
             prev_dim = hidden_dim
 
@@ -558,8 +569,9 @@ def learn_binary_dbd(
         p0, p1, num_alpha_samples, fitness0, fitness1
     )
 
-    # Create network with optional fitness guidance
-    network = BinaryDeblendingNet(n_vars, hidden_dims, use_fitness_guidance)
+    # Create network with optional fitness guidance and activation functions
+    network = BinaryDeblendingNet(n_vars, hidden_dims, use_fitness_guidance, 
+                                 list_act_functs, list_init_functs)
     optimizer = optim.Adam(network.parameters(), lr=learning_rate)
 
     # Training
@@ -610,6 +622,8 @@ def learn_binary_dbd(
         'n_vars': n_vars,
         'hidden_dims': hidden_dims,
         'use_fitness_guidance': use_fitness_guidance,
+        'list_act_functs': list_act_functs if list_act_functs else ['relu'] * len(hidden_dims),
+        'list_init_functs': list_init_functs if list_init_functs else ['xavier_uniform'] * len(hidden_dims),
         'type': 'binary_dbd'
     }
 
