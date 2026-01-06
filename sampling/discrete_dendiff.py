@@ -23,6 +23,18 @@ from pateda.learning.discrete_dendiff_corruption import (
     CorruptionDenoisingMLP
 )
 
+# Try to import enhanced versions with fitness guidance support
+try:
+    from pateda.learning.discrete_dendiff_gumbel_enhanced import (
+        FitnessGuidedDiscreteDenoisingMLP
+    )
+    from pateda.learning.discrete_dendiff_corruption_enhanced import (
+        FitnessGuidedCorruptionDenoisingMLP
+    )
+    ENHANCED_AVAILABLE = True
+except ImportError:
+    ENHANCED_AVAILABLE = False
+
 
 def sample_discrete_dendiff_gumbel(
     model_data: Dict[str, Any],
@@ -48,6 +60,7 @@ def sample_discrete_dendiff_gumbel(
         - 'temperature': sampling temperature (default: 0.5)
         - 'n_steps': number of denoising steps (default: use all timesteps)
         - 'deterministic': use argmax instead of sampling (default: False)
+        - 'target_fitness': target fitness value for fitness-guided sampling (default: 1.0)
     
     Returns
     -------
@@ -66,17 +79,30 @@ def sample_discrete_dendiff_gumbel(
     list_act_functs = model_data.get('list_act_functs', None)
     list_init_functs = model_data.get('list_init_functs', None)
     
+    # Check for fitness guidance
+    use_fitness_guidance = model_data.get('use_fitness_guidance', False)
+    fitness_emb_dim = model_data.get('fitness_emb_dim', 8)
+    
     # Sampling parameters
     temperature = params.get('temperature', model_data.get('final_temperature', 0.5))
     n_steps = params.get('n_steps', n_timesteps)
     deterministic = params.get('deterministic', False)
     
-    # Recreate model
-    model = DiscreteDenoisingMLP(
-        input_dim, time_emb_dim, hidden_dims,
-        list_act_functs=list_act_functs,
-        list_init_functs=list_init_functs
-    )
+    # Recreate model - use fitness-guided version if needed
+    if use_fitness_guidance:
+        if not ENHANCED_AVAILABLE:
+            raise ImportError("Fitness-guided model was used for training, but enhanced modules are not available for sampling")
+        model = FitnessGuidedDiscreteDenoisingMLP(
+            input_dim, time_emb_dim, fitness_emb_dim, hidden_dims,
+            list_act_functs=list_act_functs,
+            list_init_functs=list_init_functs
+        )
+    else:
+        model = DiscreteDenoisingMLP(
+            input_dim, time_emb_dim, hidden_dims,
+            list_act_functs=list_act_functs,
+            list_init_functs=list_init_functs
+        )
     model.load_state_dict(model_data['model_state'])
     model.eval()
     
@@ -85,6 +111,16 @@ def sample_discrete_dendiff_gumbel(
     
     # Start from random binary data
     x_t = torch.randint(0, 2, (n_samples, input_dim), dtype=torch.float32)
+    
+    # For fitness-guided sampling, we need target fitness values
+    # Fitness values are normalized to [0, 1] during training, where:
+    # - 0.0 represents the worst fitness in the training set
+    # - 1.0 represents the best fitness in the training set
+    # Using high values (default 1.0) guides generation toward good solutions
+    # This can be customized via params['target_fitness']
+    if use_fitness_guidance:
+        target_fitness_value = params.get('target_fitness', 1.0)
+        target_fitness = torch.full((n_samples, 1), target_fitness_value, dtype=torch.float32)
     
     # Create timestep schedule (possibly strided for faster sampling)
     if n_steps < n_timesteps:
@@ -97,7 +133,10 @@ def sample_discrete_dendiff_gumbel(
             t = torch.full((n_samples,), t_idx, dtype=torch.long)
             
             # Predict clean data probabilities
-            logits = model(x_t, t)  # Shape: [batch, n_vars, 2]
+            if use_fitness_guidance:
+                logits = model(x_t, t, target_fitness)  # Shape: [batch, n_vars, 2]
+            else:
+                logits = model(x_t, t)  # Shape: [batch, n_vars, 2]
             
             if deterministic:
                 # Use argmax (most likely value)
@@ -157,6 +196,7 @@ def sample_discrete_dendiff_corruption(
         - 'n_steps': number of denoising steps (default: use all)
         - 'temperature': sampling temperature (default: 0.5)
         - 'deterministic': use thresholding instead of sampling
+        - 'target_fitness': target fitness value for fitness-guided sampling (default: 1.0)
     
     Returns
     -------
@@ -175,22 +215,45 @@ def sample_discrete_dendiff_corruption(
     list_act_functs = model_data.get('list_act_functs', None)
     list_init_functs = model_data.get('list_init_functs', None)
     
+    # Check for fitness guidance
+    use_fitness_guidance = model_data.get('use_fitness_guidance', False)
+    fitness_emb_dim = model_data.get('fitness_emb_dim', 8)
+    
     # Sampling parameters
     n_steps = params.get('n_steps', n_timesteps)
     temperature = params.get('temperature', 0.5)
     deterministic = params.get('deterministic', False)
     
-    # Recreate model
-    model = CorruptionDenoisingMLP(
-        input_dim, time_emb_dim, hidden_dims,
-        list_act_functs=list_act_functs,
-        list_init_functs=list_init_functs
-    )
+    # Recreate model - use fitness-guided version if needed
+    if use_fitness_guidance:
+        if not ENHANCED_AVAILABLE:
+            raise ImportError("Fitness-guided model was used for training, but enhanced modules are not available for sampling")
+        model = FitnessGuidedCorruptionDenoisingMLP(
+            input_dim, time_emb_dim, fitness_emb_dim, hidden_dims,
+            list_act_functs=list_act_functs,
+            list_init_functs=list_init_functs
+        )
+    else:
+        model = CorruptionDenoisingMLP(
+            input_dim, time_emb_dim, hidden_dims,
+            list_act_functs=list_act_functs,
+            list_init_functs=list_init_functs
+        )
     model.load_state_dict(model_data['model_state'])
     model.eval()
     
     # Start from random binary data (maximally corrupted)
     x_t = torch.randint(0, 2, (n_samples, input_dim), dtype=torch.float32)
+    
+    # For fitness-guided sampling, we need target fitness values
+    # Fitness values are normalized to [0, 1] during training, where:
+    # - 0.0 represents the worst fitness in the training set
+    # - 1.0 represents the best fitness in the training set
+    # Using high values (default 1.0) guides generation toward good solutions
+    # This can be customized via params['target_fitness']
+    if use_fitness_guidance:
+        target_fitness_value = params.get('target_fitness', 1.0)
+        target_fitness = torch.full((n_samples, 1), target_fitness_value, dtype=torch.float32)
     
     # Create timestep schedule
     if n_steps < n_timesteps:
@@ -203,7 +266,10 @@ def sample_discrete_dendiff_corruption(
             t = torch.full((n_samples,), t_idx, dtype=torch.long)
             
             # Predict clean data probabilities
-            logits = model(x_t, t)  # Shape: [batch, n_vars]
+            if use_fitness_guidance:
+                logits = model(x_t, t, target_fitness)  # Shape: [batch, n_vars]
+            else:
+                logits = model(x_t, t)  # Shape: [batch, n_vars]
             probs = torch.sigmoid(logits)
             
             if deterministic:
