@@ -23,7 +23,8 @@ from pateda.learning.discrete_dbd import BinaryDeblendingNet, CategoricalDeblend
 def sample_binary_dbd(
     model: Dict[str, Any],
     n_samples: int,
-    params: Optional[Dict[str, Any]] = None
+    params: Optional[Dict[str, Any]] = None,
+    target_fitness: np.ndarray = None
 ) -> np.ndarray:
     """
     Sample from Binary DbD model via iterative denoising
@@ -38,6 +39,7 @@ def sample_binary_dbd(
             - 'n_steps': number of denoising steps (default: 20)
             - 'temperature': softmax temperature (default: 1.0)
             - 'init_method': 'random' or 'uniform' (default: 'random')
+        target_fitness: Optional target fitness values for conditional generation [n_samples]
 
     Returns:
         samples: Binary samples [n_samples, n_vars]
@@ -53,10 +55,20 @@ def sample_binary_dbd(
     # Reconstruct network
     n_vars = model['n_vars']
     hidden_dims = model['hidden_dims']
+    use_fitness_guidance = model.get('use_fitness_guidance', False)
 
-    network = BinaryDeblendingNet(n_vars, hidden_dims)
+    network = BinaryDeblendingNet(n_vars, hidden_dims, use_fitness_guidance)
     network.load_state_dict(model['network_state'])
     network.eval()
+    
+    # Prepare fitness tensor if needed
+    fitness_tensor = None
+    if use_fitness_guidance:
+        if target_fitness is None:
+            # If no target fitness provided, use high fitness value for all samples
+            # to encourage generation of high-quality solutions
+            target_fitness = np.ones(n_samples) * 1.0  # Maximum normalized fitness
+        fitness_tensor = torch.FloatTensor(target_fitness.reshape(-1, 1))
 
     with torch.no_grad():
         # Initialize samples
@@ -74,7 +86,10 @@ def sample_binary_dbd(
 
             # CRITICAL FIX: Network now predicts DIFFERENCE
             # Use it as velocity to update x
-            predicted_diff = network(x, alpha)
+            if use_fitness_guidance:
+                predicted_diff = network(x, alpha, fitness_tensor)
+            else:
+                predicted_diff = network(x, alpha)
 
             # Update: x_new = x + (alpha_t+1 - alpha_t) * diff
             delta_alpha = alpha_val - alpha_current

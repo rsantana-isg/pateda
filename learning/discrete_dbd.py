@@ -141,19 +141,25 @@ class BinaryDeblendingNet(nn.Module):
     Network for binary discrete deblending
 
     Predicts p1(x=1) given blended binary sample and alpha
+    Supports optional fitness guidance for conditional generation
     """
 
-    def __init__(self, n_vars: int, hidden_dims: list = None):
+    def __init__(self, n_vars: int, hidden_dims: list = None, use_fitness_guidance: bool = False):
         super(BinaryDeblendingNet, self).__init__()
 
         if hidden_dims is None:
             hidden_dims = [128, 64]
 
         self.n_vars = n_vars
+        self.use_fitness_guidance = use_fitness_guidance
 
-        # Input: binary variables + alpha (scalar)
+        # Input: binary variables + alpha (scalar) + optional fitness (scalar)
+        input_dim = n_vars + 1
+        if use_fitness_guidance:
+            input_dim += 1  # Add fitness dimension
+
         layers = []
-        prev_dim = n_vars + 1
+        prev_dim = input_dim
 
         for hidden_dim in hidden_dims:
             layers.append(nn.Linear(prev_dim, hidden_dim))
@@ -166,13 +172,14 @@ class BinaryDeblendingNet(nn.Module):
 
         self.network = nn.Sequential(*layers)
 
-    def forward(self, x: torch.Tensor, alpha: torch.Tensor):
+    def forward(self, x: torch.Tensor, alpha: torch.Tensor, fitness: torch.Tensor = None):
         """
         Predict target distribution probabilities
 
         Args:
             x: Binary input [batch_size, n_vars]
             alpha: Blending parameter [batch_size, 1] or [batch_size]
+            fitness: Optional fitness values [batch_size, 1] or [batch_size]
 
         Returns:
             Logits for p1 [batch_size, n_vars]
@@ -181,7 +188,17 @@ class BinaryDeblendingNet(nn.Module):
             alpha = alpha.unsqueeze(1)
 
         # Concatenate input with alpha
-        h = torch.cat([x, alpha], dim=1)
+        inputs = [x, alpha]
+        
+        # Add fitness if using fitness guidance
+        if self.use_fitness_guidance:
+            if fitness is None:
+                raise ValueError("Fitness must be provided when use_fitness_guidance=True")
+            if fitness.dim() == 1:
+                fitness = fitness.unsqueeze(1)
+            inputs.append(fitness)
+
+        h = torch.cat(inputs, dim=1)
 
         # Predict logits
         logits = self.network(h)
@@ -250,8 +267,10 @@ class CategoricalDeblendingNet(nn.Module):
 def create_blended_binary_samples(
     p0: np.ndarray,
     p1: np.ndarray,
-    num_alpha_samples: int
-) -> Tuple[torch.Tensor, torch.Tensor, torch.Tensor]:
+    num_alpha_samples: int,
+    fitness0: np.ndarray = None,
+    fitness1: np.ndarray = None
+) -> Tuple[torch.Tensor, torch.Tensor, torch.Tensor, torch.Tensor]:
     """
     Create blended binary samples for training
 
@@ -262,11 +281,14 @@ def create_blended_binary_samples(
         p0: Source population [n_samples, n_vars] (binary)
         p1: Target population [n_samples, n_vars] (binary)
         num_alpha_samples: Number of alpha values per pair
+        fitness0: Optional fitness values for p0 [n_samples]
+        fitness1: Optional fitness values for p1 [n_samples]
 
     Returns:
         alpha: Alpha values [n_total, 1]
         x_blended: Blended samples [n_total, n_vars]
         diff_target: Difference (x1 - x0) [n_total, n_vars]
+        fitness_blended: Blended fitness values [n_total, 1] (or None if not provided)
     """
     n, m = p0.shape
 
@@ -286,12 +308,22 @@ def create_blended_binary_samples(
     # This matches continuous DbD formulation where network learns velocity/direction
     diff_target = x1 - x0  # Values in {-1, 0, 1} for binary variables
 
+    # Blend fitness values if provided
+    fitness_blended = None
+    if fitness0 is not None and fitness1 is not None:
+        # Repeat fitness values
+        f0 = np.repeat(fitness0.reshape(-1, 1), num_alpha_samples, axis=0)
+        f1 = np.repeat(fitness1.reshape(-1, 1), num_alpha_samples, axis=0)
+        # Linear blend of fitness: f_blend = (1-alpha)*f0 + alpha*f1
+        fitness_blended = (1 - alpha) * f0 + alpha * f1
+
     # Convert to tensors
     alpha_tensor = torch.FloatTensor(alpha)
     x_blended_tensor = torch.FloatTensor(x_blended)
     diff_tensor = torch.FloatTensor(diff_target)
+    fitness_tensor = torch.FloatTensor(fitness_blended) if fitness_blended is not None else None
 
-    return alpha_tensor, x_blended_tensor, diff_tensor
+    return alpha_tensor, x_blended_tensor, diff_tensor, fitness_tensor
 
 
 def create_blended_categorical_samples(
@@ -367,10 +399,105 @@ def create_blended_categorical_samples(
     return alpha_tensor, x_blended_tensor, x1_tensor
 
 
+def compute_loss(
+    predicted: torch.Tensor,
+    target: torch.Tensor,
+    loss_function: str = 'mse',
+    fitness: torch.Tensor = None,
+    fitness_weight: float = 0.1
+) -> torch.Tensor:
+    """
+    Compute loss with different loss functions
+    
+    Args:
+        predicted: Predicted values [batch_size, n_vars]
+        target: Target values [batch_size, n_vars]
+        loss_function: Type of loss ('mse', 'weighted_mse', 'ranking', 'huber')
+        fitness: Fitness values for weighting [batch_size, 1] (required for weighted_mse and ranking)
+        fitness_weight: Weight for fitness guidance (default: 0.1)
+    
+    Returns:
+        loss: Computed loss value
+    """
+    if loss_function == 'mse':
+        # Standard MSE loss
+        criterion = nn.MSELoss()
+        return criterion(predicted, target)
+    
+    elif loss_function == 'weighted_mse':
+        # Fitness-weighted MSE: higher fitness solutions get more weight
+        if fitness is None:
+            raise ValueError("Fitness values required for weighted_mse loss")
+        
+        # Normalize fitness to [0, 1] range
+        # Handle case when all fitness values are identical
+        fitness_range = fitness.max() - fitness.min()
+        if fitness_range < 1e-8:
+            # All fitness values are the same, use uniform weights
+            fitness_normalized = torch.ones_like(fitness) * 0.5
+        else:
+            fitness_normalized = (fitness - fitness.min()) / fitness_range
+        
+        # Compute weights: higher fitness → higher weight
+        # Add fitness_weight to ensure minimum weight
+        weights = fitness_weight + (1 - fitness_weight) * fitness_normalized
+        
+        # Weighted MSE
+        squared_errors = (predicted - target) ** 2
+        weighted_errors = weights * squared_errors
+        return weighted_errors.mean()
+    
+    elif loss_function == 'ranking':
+        # Ranking loss: focus on relative ordering of solutions
+        if fitness is None:
+            raise ValueError("Fitness values required for ranking loss")
+        
+        # Standard MSE loss
+        mse_loss = F.mse_loss(predicted, target)
+        
+        # Ranking loss component: encourage network to preserve fitness ordering
+        # For pairs with different fitness, the difference in predictions should correlate with fitness difference
+        batch_size = predicted.shape[0]
+        if batch_size > 1:
+            # Sample pairs randomly for ranking
+            n_pairs = min(batch_size // 2, 10)  # Sample up to 10 pairs
+            idx1 = torch.randint(0, batch_size, (n_pairs,))
+            idx2 = torch.randint(0, batch_size, (n_pairs,))
+            
+            # Fitness differences
+            fitness_diff = fitness[idx1] - fitness[idx2]
+            
+            # Prediction magnitude differences (L2 norm of predicted difference vectors)
+            pred_norm1 = torch.norm(predicted[idx1], dim=1, keepdim=True)
+            pred_norm2 = torch.norm(predicted[idx2], dim=1, keepdim=True)
+            pred_diff = pred_norm1 - pred_norm2
+            
+            # Ranking loss: sign of prediction difference should match sign of fitness difference
+            # Use Huber loss for robustness
+            # Scale factor for ranking: normalize to similar magnitude as MSE loss
+            RANKING_SCALE_FACTOR = 0.1
+            ranking_loss = F.smooth_l1_loss(pred_diff, fitness_diff.sign() * RANKING_SCALE_FACTOR)
+            
+            # Combine MSE and ranking loss
+            return mse_loss + fitness_weight * ranking_loss
+        else:
+            return mse_loss
+    
+    elif loss_function == 'huber':
+        # Huber loss: robust to outliers
+        criterion = nn.SmoothL1Loss()  # Huber loss in PyTorch
+        return criterion(predicted, target)
+    
+    else:
+        raise ValueError(f"Unknown loss function: {loss_function}. Must be one of: mse, weighted_mse, ranking, huber")
+
+
 def learn_binary_dbd(
     p0: np.ndarray,
     p1: np.ndarray,
-    params: Optional[Dict[str, Any]] = None
+    params: Optional[Dict[str, Any]] = None,
+    fitness0: np.ndarray = None,
+    fitness1: np.ndarray = None
 ) -> Dict[str, Any]:
     """
     Learn binary discrete deblending model
@@ -387,6 +514,11 @@ def learn_binary_dbd(
             - 'batch_size': batch size (default: max(8, n_vars/50))
             - 'learning_rate': learning rate (default: 0.001)
             - 'num_alpha_samples': alpha samples per pair (default: 20)
+            - 'loss_function': loss type ('mse', 'weighted_mse', 'ranking', 'huber')
+            - 'use_fitness_guidance': use fitness as conditional input (default: False)
+            - 'fitness_weight': weight for fitness-based losses (default: 0.1)
+        fitness0: Optional fitness values for p0 [n_samples]
+        fitness1: Optional fitness values for p1 [n_samples]
 
     Returns:
         model: Model dictionary
@@ -410,6 +542,11 @@ def learn_binary_dbd(
     learning_rate = params.get('learning_rate', 0.001)
     # CRITICAL FIX: Increase training data from 10 to 20 alpha samples
     num_alpha_samples = params.get('num_alpha_samples', 20)
+    
+    # NEW: Loss function and fitness guidance parameters
+    loss_function = params.get('loss_function', 'mse')
+    use_fitness_guidance = params.get('use_fitness_guidance', False)
+    fitness_weight = params.get('fitness_weight', 0.1)
 
     # Extract activation and initialization function lists
     list_act_functs = params.get('list_act_functs', None)
@@ -417,18 +554,13 @@ def learn_binary_dbd(
 
     # Create training dataset
     # CRITICAL FIX: Now returns difference (x1-x0) instead of x1
-    alpha, x_blended, diff_target = create_blended_binary_samples(
-        p0, p1, num_alpha_samples
+    alpha, x_blended, diff_target, fitness_blended = create_blended_binary_samples(
+        p0, p1, num_alpha_samples, fitness0, fitness1
     )
 
-    # Create network
-    network = BinaryDeblendingNet(n_vars, hidden_dims)
+    # Create network with optional fitness guidance
+    network = BinaryDeblendingNet(n_vars, hidden_dims, use_fitness_guidance)
     optimizer = optim.Adam(network.parameters(), lr=learning_rate)
-
-    # CRITICAL FIX: Use MSE loss for regression to difference
-    # Old: BCEWithLogitsLoss (for classification)
-    # New: MSELoss (for regression to velocity/direction)
-    criterion = nn.MSELoss()
 
     # Training
     network.train()
@@ -444,12 +576,22 @@ def learn_binary_dbd(
             batch_alpha = alpha[idx]
             batch_x = x_blended[idx]
             batch_diff_target = diff_target[idx]
+            batch_fitness = fitness_blended[idx] if fitness_blended is not None else None
 
             # Predict difference (x1 - x0)
-            predicted_diff = network(batch_x, batch_alpha)
+            if use_fitness_guidance:
+                predicted_diff = network(batch_x, batch_alpha, batch_fitness)
+            else:
+                predicted_diff = network(batch_x, batch_alpha)
 
-            # Loss: predict difference from blended sample
-            loss = criterion(predicted_diff, batch_diff_target)
+            # Compute loss using specified loss function
+            loss = compute_loss(
+                predicted_diff, 
+                batch_diff_target, 
+                loss_function,
+                batch_fitness,
+                fitness_weight
+            )
 
             optimizer.zero_grad()
             loss.backward()
@@ -467,6 +609,7 @@ def learn_binary_dbd(
         'network_state': network.state_dict(),
         'n_vars': n_vars,
         'hidden_dims': hidden_dims,
+        'use_fitness_guidance': use_fitness_guidance,
         'type': 'binary_dbd'
     }
 
@@ -647,7 +790,9 @@ def sample_from_univariate_binary(
 def learn_binary_dbd_cs(
     current_pop: np.ndarray,
     selected_pop: np.ndarray,
-    params: Optional[Dict[str, Any]] = None
+    params: Optional[Dict[str, Any]] = None,
+    fitness_current: np.ndarray = None,
+    fitness_selected: np.ndarray = None
 ) -> Dict[str, Any]:
     """
     Learn DbD-CS (Current to Selected) model
@@ -659,12 +804,14 @@ def learn_binary_dbd_cs(
         current_pop: Current population samples [n_samples, n_vars] (binary)
         selected_pop: Selected population samples [n_samples, n_vars] (binary)
         params: Training parameters
+        fitness_current: Optional fitness values for current_pop [n_samples]
+        fitness_selected: Optional fitness values for selected_pop [n_samples]
 
     Returns:
         model: Model dictionary with 'variant' field set to 'cs'
     """
     # DbD-CS is the same as the standard DbD
-    model = learn_binary_dbd(current_pop, selected_pop, params)
+    model = learn_binary_dbd(current_pop, selected_pop, params, fitness_current, fitness_selected)
     model['variant'] = 'cs'
     model['marginal_probs'] = None  # Not used in CS variant
     return model
@@ -673,7 +820,9 @@ def learn_binary_dbd_cs(
 def learn_binary_dbd_cd(
     current_pop: np.ndarray,
     selected_pop: np.ndarray,
-    params: Optional[Dict[str, Any]] = None
+    params: Optional[Dict[str, Any]] = None,
+    fitness_current: np.ndarray = None,
+    fitness_selected: np.ndarray = None
 ) -> Dict[str, Any]:
     """
     Learn DbD-CD (Current to Closest in selected - Distance) model
@@ -685,15 +834,29 @@ def learn_binary_dbd_cd(
         current_pop: Current population samples [n_samples, n_vars] (binary)
         selected_pop: Selected population samples [n_samples, n_vars] (binary)
         params: Training parameters
+        fitness_current: Optional fitness values for current_pop [n_samples]
+        fitness_selected: Optional fitness values for selected_pop [n_samples]
 
     Returns:
         model: Model dictionary with 'variant' field set to 'cd'
     """
     # Find closest neighbors in selected population
     p1_closest = find_closest_neighbors_binary(current_pop, selected_pop)
+    
+    # If fitness is provided, also match fitness values to closest neighbors
+    fitness1_matched = None
+    if fitness_selected is not None:
+        # Get indices of closest neighbors
+        n_current = current_pop.shape[0]
+        fitness1_matched = np.zeros(n_current)
+        for i in range(n_current):
+            # Find the index of the closest neighbor
+            dists = np.sum(np.abs(current_pop[i] - selected_pop), axis=1)
+            closest_idx = np.argmin(dists)
+            fitness1_matched[i] = fitness_selected[closest_idx]
 
     # Learn model from current to closest selected
-    model = learn_binary_dbd(current_pop, p1_closest, params)
+    model = learn_binary_dbd(current_pop, p1_closest, params, fitness_current, fitness1_matched)
     model['variant'] = 'cd'
     model['marginal_probs'] = None  # Not used in CD variant
     return model
@@ -702,7 +865,9 @@ def learn_binary_dbd_cd(
 def learn_binary_dbd_uc(
     current_pop: np.ndarray,
     selected_pop: np.ndarray,
-    params: Optional[Dict[str, Any]] = None
+    params: Optional[Dict[str, Any]] = None,
+    fitness_current: np.ndarray = None,
+    fitness_selected: np.ndarray = None
 ) -> Dict[str, Any]:
     """
     Learn DbD-UC (Univariate approximation to Current) model
@@ -715,6 +880,8 @@ def learn_binary_dbd_uc(
         current_pop: Current population samples [n_samples, n_vars] (binary)
         selected_pop: Selected population (not used for p1, but needed for consistency)
         params: Training parameters
+        fitness_current: Optional fitness values for current_pop [n_samples]
+        fitness_selected: Optional fitness values for selected_pop [n_samples] (not used)
 
     Returns:
         model: Model dictionary with 'variant' field set to 'uc'
@@ -735,9 +902,15 @@ def learn_binary_dbd_uc(
     # Sample from current population
     p1_indices = np.random.randint(0, n_samples, size=to_take)
     p1_samples = current_pop[p1_indices, :]
+    
+    # Match fitness if provided
+    fitness1_matched = None
+    if fitness_current is not None:
+        fitness1_matched = fitness_current[p1_indices]
 
     # Learn model from univariate to current
-    model = learn_binary_dbd(p0_univariate, p1_samples, params)
+    # Note: p0 (univariate) has no fitness, so we pass None for fitness0
+    model = learn_binary_dbd(p0_univariate, p1_samples, params, None, fitness1_matched)
     model['variant'] = 'uc'
     model['marginal_probs'] = marginal_probs
     return model
@@ -746,7 +919,9 @@ def learn_binary_dbd_uc(
 def learn_binary_dbd_us(
     current_pop: np.ndarray,
     selected_pop: np.ndarray,
-    params: Optional[Dict[str, Any]] = None
+    params: Optional[Dict[str, Any]] = None,
+    fitness_current: np.ndarray = None,
+    fitness_selected: np.ndarray = None
 ) -> Dict[str, Any]:
     """
     Learn DbD-US (Univariate approximation to Selected) model
@@ -759,6 +934,8 @@ def learn_binary_dbd_us(
         current_pop: Current population samples [n_samples, n_vars] (binary)
         selected_pop: Selected population samples [n_samples, n_vars] (binary)
         params: Training parameters
+        fitness_current: Optional fitness values for current_pop [n_samples] (not used)
+        fitness_selected: Optional fitness values for selected_pop [n_samples]
 
     Returns:
         model: Model dictionary with 'variant' field set to 'us'
@@ -779,9 +956,15 @@ def learn_binary_dbd_us(
     # Sample from selected population
     p1_indices = np.random.randint(0, n_selected, size=to_take)
     p1_samples = selected_pop[p1_indices, :]
+    
+    # Match fitness if provided
+    fitness1_matched = None
+    if fitness_selected is not None:
+        fitness1_matched = fitness_selected[p1_indices]
 
     # Learn model from univariate to selected
-    model = learn_binary_dbd(p0_univariate, p1_samples, params)
+    # Note: p0 (univariate) has no fitness, so we pass None for fitness0
+    model = learn_binary_dbd(p0_univariate, p1_samples, params, None, fitness1_matched)
     model['variant'] = 'us'
     model['marginal_probs'] = marginal_probs
     return model
@@ -940,7 +1123,9 @@ def transform_binary_to_continuous(
 def learn_binary_dbd_cs_t(
     current_pop: np.ndarray,
     selected_pop: np.ndarray,
-    params: Optional[Dict[str, Any]] = None
+    params: Optional[Dict[str, Any]] = None,
+    fitness_current: np.ndarray = None,
+    fitness_selected: np.ndarray = None
 ) -> Dict[str, Any]:
     """
     Learn DbD-CS-T (Current to Selected with Transformation) model
@@ -993,7 +1178,9 @@ def learn_binary_dbd_cs_t(
 def learn_binary_dbd_cd_t(
     current_pop: np.ndarray,
     selected_pop: np.ndarray,
-    params: Optional[Dict[str, Any]] = None
+    params: Optional[Dict[str, Any]] = None,
+    fitness_current: np.ndarray = None,
+    fitness_selected: np.ndarray = None
 ) -> Dict[str, Any]:
     """
     Learn DbD-CD-T (Current to Closest in selected - Distance with Transformation)
@@ -1002,6 +1189,8 @@ def learn_binary_dbd_cd_t(
         current_pop: Current population samples [n_samples, n_vars] (binary)
         selected_pop: Selected population samples [n_samples, n_vars] (binary)
         params: Training parameters
+        fitness_current: Optional fitness values for current_pop [n_samples] (not used in _t variants)
+        fitness_selected: Optional fitness values for selected_pop [n_samples] (not used in _t variants)
     
     Returns:
         model: Model dictionary with 'variant' field set to 'cd_t'
@@ -1040,7 +1229,9 @@ def learn_binary_dbd_cd_t(
 def learn_binary_dbd_uc_t(
     current_pop: np.ndarray,
     selected_pop: np.ndarray,
-    params: Optional[Dict[str, Any]] = None
+    params: Optional[Dict[str, Any]] = None,
+    fitness_current: np.ndarray = None,
+    fitness_selected: np.ndarray = None
 ) -> Dict[str, Any]:
     """
     Learn DbD-UC-T (Univariate to Current with Transformation)
@@ -1049,6 +1240,8 @@ def learn_binary_dbd_uc_t(
         current_pop: Current population samples [n_samples, n_vars] (binary)
         selected_pop: Selected population (not used for p1, but needed for consistency)
         params: Training parameters
+        fitness_current: Optional fitness values for current_pop [n_samples] (not used in _t variants)
+        fitness_selected: Optional fitness values for selected_pop [n_samples] (not used in _t variants)
     
     Returns:
         model: Model dictionary with 'variant' field set to 'uc_t'
@@ -1098,7 +1291,9 @@ def learn_binary_dbd_uc_t(
 def learn_binary_dbd_us_t(
     current_pop: np.ndarray,
     selected_pop: np.ndarray,
-    params: Optional[Dict[str, Any]] = None
+    params: Optional[Dict[str, Any]] = None,
+    fitness_current: np.ndarray = None,
+    fitness_selected: np.ndarray = None
 ) -> Dict[str, Any]:
     """
     Learn DbD-US-T (Univariate to Selected with Transformation)
@@ -1107,6 +1302,8 @@ def learn_binary_dbd_us_t(
         current_pop: Current population samples [n_samples, n_vars] (binary)
         selected_pop: Selected population samples [n_samples, n_vars] (binary)
         params: Training parameters
+        fitness_current: Optional fitness values for current_pop [n_samples] (not used in _t variants)
+        fitness_selected: Optional fitness values for selected_pop [n_samples] (not used in _t variants)
     
     Returns:
         model: Model dictionary with 'variant' field set to 'us_t'

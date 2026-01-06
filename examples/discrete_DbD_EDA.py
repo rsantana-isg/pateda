@@ -112,6 +112,9 @@ from pateda.functions.discrete.additive_decomposable import (
 # Success threshold as a fraction of optimal fitness
 SUCCESS_THRESHOLD = 0.01
 
+# Loss functions that require fitness values for computation
+LOSS_FUNCTIONS_REQUIRING_FITNESS = ['weighted_mse', 'ranking']
+
 
 # ==============================================================================
 # Seeding Utilities
@@ -617,6 +620,9 @@ class DbDEDA:
             # Pass activation function as a list for all hidden layers
             n_hidden = len(learning_params['hidden_dims'])
             learning_params['list_act_functs'] = [self.activation] * n_hidden
+            
+            # NEW: Pass loss function parameter
+            learning_params['loss_function'] = self.loss_function
 
             # For transformation variants, pass k and alpha_smooth
             if '_t' in self.variant:
@@ -639,6 +645,11 @@ class DbDEDA:
                     # First generation: use random as current population
                     current_pop = np.random.randint(0, self.cardinality,
                                                   (len(selected_pop), self.n_vars))
+                    # Evaluate fitness for random population if needed for loss function
+                    if self.loss_function in LOSS_FUNCTIONS_REQUIRING_FITNESS:
+                        fitness_current = fitness_func(current_pop)
+                    else:
+                        fitness_current = None
                 else:
                     # Sample from previous population to match selected population size
                     n_to_sample = len(selected_pop)
@@ -647,9 +658,18 @@ class DbDEDA:
                     else:
                         indices = np.random.choice(len(prev_population), n_to_sample, replace=True)
                     current_pop = prev_population[indices]
+                    
+                    # Sample corresponding fitness values if needed
+                    if self.loss_function in LOSS_FUNCTIONS_REQUIRING_FITNESS or self.fitness_guided:
+                        # Get fitness for sampled current population
+                        fitness_current = fitness_func(current_pop)
+                    else:
+                        fitness_current = None
 
-                # Learn model with current and selected populations
-                model = learn_fn(current_pop, selected_pop, learning_params)
+                # Learn model with current and selected populations, including fitness
+                # Pass fitness values to learning function
+                model = learn_fn(current_pop, selected_pop, learning_params, 
+                                fitness_current, selected_fitness)
 
                 # Save for next iteration
                 prev_population = population.copy()
