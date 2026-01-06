@@ -430,7 +430,13 @@ def compute_loss(
             raise ValueError("Fitness values required for weighted_mse loss")
         
         # Normalize fitness to [0, 1] range
-        fitness_normalized = (fitness - fitness.min()) / (fitness.max() - fitness.min() + 1e-8)
+        # Handle case when all fitness values are identical
+        fitness_range = fitness.max() - fitness.min()
+        if fitness_range < 1e-8:
+            # All fitness values are the same, use uniform weights
+            fitness_normalized = torch.ones_like(fitness) * 0.5
+        else:
+            fitness_normalized = (fitness - fitness.min()) / fitness_range
         
         # Compute weights: higher fitness → higher weight
         # Add fitness_weight to ensure minimum weight
@@ -468,7 +474,9 @@ def compute_loss(
             
             # Ranking loss: sign of prediction difference should match sign of fitness difference
             # Use Huber loss for robustness
-            ranking_loss = F.smooth_l1_loss(pred_diff, fitness_diff.sign() * 0.1)
+            # Scale factor for ranking: normalize to similar magnitude as MSE loss
+            RANKING_SCALE_FACTOR = 0.1
+            ranking_loss = F.smooth_l1_loss(pred_diff, fitness_diff.sign() * RANKING_SCALE_FACTOR)
             
             # Combine MSE and ranking loss
             return mse_loss + fitness_weight * ranking_loss

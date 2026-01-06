@@ -112,6 +112,9 @@ from pateda.functions.discrete.additive_decomposable import (
 # Success threshold as a fraction of optimal fitness
 SUCCESS_THRESHOLD = 0.01
 
+# Loss functions that require fitness values for computation
+LOSS_FUNCTIONS_REQUIRING_FITNESS = ['weighted_mse', 'ranking']
+
 
 # ==============================================================================
 # Seeding Utilities
@@ -643,7 +646,7 @@ class DbDEDA:
                     current_pop = np.random.randint(0, self.cardinality,
                                                   (len(selected_pop), self.n_vars))
                     # Evaluate fitness for random population if needed for loss function
-                    if self.loss_function in ['weighted_mse', 'ranking']:
+                    if self.loss_function in LOSS_FUNCTIONS_REQUIRING_FITNESS:
                         fitness_current = fitness_func(current_pop)
                     else:
                         fitness_current = None
@@ -657,7 +660,7 @@ class DbDEDA:
                     current_pop = prev_population[indices]
                     
                     # Sample corresponding fitness values if needed
-                    if self.loss_function in ['weighted_mse', 'ranking'] or self.fitness_guided:
+                    if self.loss_function in LOSS_FUNCTIONS_REQUIRING_FITNESS or self.fitness_guided:
                         # Get fitness for sampled current population
                         fitness_current = fitness_func(current_pop)
                     else:
