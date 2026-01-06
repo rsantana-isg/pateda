@@ -646,7 +646,7 @@ class DbDEDA:
                     current_pop = np.random.randint(0, self.cardinality,
                                                   (len(selected_pop), self.n_vars))
                     # Evaluate fitness for random population if needed for loss function
-                    if self.loss_function in LOSS_FUNCTIONS_REQUIRING_FITNESS:
+                    if self.loss_function in LOSS_FUNCTIONS_REQUIRING_FITNESS or self.fitness_guided:
                         fitness_current = fitness_func(current_pop)
                     else:
                         fitness_current = None
