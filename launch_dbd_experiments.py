@@ -13,8 +13,9 @@ if __name__ == '__main__':
     # DbD variants to test
     #dbd_variants = ['dbd', 'dbd_cs', 'dbd_cd', 'dbd_uc', 'dbd_us',
     #                'dbd_cs_t', 'dbd_cd_t', 'dbd_uc_t', 'dbd_us_t']
-    dbd_variants = ['dbd', 'dbd_cs', 'dbd_cd', 'dbd_uc', 
-                    'dbd_cs_t', 'dbd_cd_t', 'dbd_uc_t']
+    #dbd_variants = ['dbd', 'dbd_cs', 'dbd_cd', 'dbd_uc', 
+    #                'dbd_cs_t', 'dbd_cd_t', 'dbd_uc_t']
+    dbd_variants = ['dbd_cs_t', 'dbd_cd_t', 'dbd_uc_t']
 
 
     # Activation functions (all in the specified set)
@@ -30,7 +31,7 @@ if __name__ == '__main__':
     n_steps_list = [20]
 
     # Markov chain orders (for transformation variants)
-    k_values = [1, 2]
+    k_values = [2]
 
     # Alpha smoothing parameter (fixed)
     alpha_smooth = 0.1
@@ -42,7 +43,7 @@ if __name__ == '__main__':
     use_markov_init_values = [0]
 
     # Seeds to test
-    seeds = np.arange(1, 2)  # 30 different seeds
+    seeds = np.arange(1, 11)  # 30 different seeds
 
     # Generate all combinations
     for seed in seeds:
