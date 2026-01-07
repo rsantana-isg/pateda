@@ -601,13 +601,15 @@ class DendiffEDA:
                      self.loss_function != 'mse')
                 )
 
-                if use_enhanced:
+                # Only dendiff_gumbel and dendiff_corruption have enhanced versions
+                # For other variants (ste, hard_concrete, deterministic), use standard functions
+                if use_enhanced and self.variant in ['dendiff_gumbel', 'dendiff_corruption']:
                     # Use enhanced learning functions with loss/fitness support
                     if self.variant == 'dendiff_gumbel':
                         model = learn_discrete_dendiff_gumbel_enhanced(
                             selected_pop, selected_fitness, learning_params
                         )
-                    else:  # dendiff_corruption
+                    elif self.variant == 'dendiff_corruption':
                         model = learn_discrete_dendiff_corruption_enhanced(
                             selected_pop, selected_fitness, learning_params
                         )
