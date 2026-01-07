@@ -3,24 +3,28 @@ Enhanced Discrete Denoising Diffusion Model with Deterministic Softmax
 
 This module extends the base deterministic dendiff with:
 1. Alternative loss functions (weighted_mse, ranking, huber)
-2. Flexible architecture configurations
+2. Fitness guidance/conditioning (inspired by C-VAE and fitness-guided DbD)
+3. Flexible architecture configurations
 
 Enhancements inspired by:
-- discrete_dendiff_gumbel_enhanced.py: Loss function patterns
+- discrete_dendiff_gumbel_enhanced.py: Loss function patterns and fitness guidance
 - discrete_backdrive_weighted_mse.py: Fitness-weighted loss
 - discrete_backdrive_ranking.py: Ranking loss
 - discrete_backdrive_huber.py: Huber loss
 """
 
 import numpy as np
-from typing import Dict, Any, Optional
+from typing import Dict, Any, Optional, List
 import torch
 import torch.nn as nn
 import torch.nn.functional as F
 
 from pateda.learning.nn_utils import (
+    get_activation,
+    apply_weight_init,
     compute_default_hidden_dims,
     compute_default_batch_size,
+    validate_list_params,
 )
 
 # Import base components from the standard deterministic implementation
@@ -30,9 +34,125 @@ from pateda.learning.discrete_dendiff_deterministic import (
 )
 
 from pateda.learning.discrete_dendiff_utils import (
+    TimeEmbedding,
     make_noise_schedule,
     compute_diffusion_params,
 )
+
+
+class FitnessGuidedDeterministicDenoisingMLP(nn.Module):
+    """
+    Fitness-guided deterministic denoising network for binary variables.
+
+    This variant conditions the denoising on fitness information,
+    similar to conditional VAE (C-VAE) and fitness-guided DbD.
+
+    Parameters
+    ----------
+    input_dim : int
+        Number of binary variables
+    time_emb_dim : int
+        Dimension of time embedding
+    fitness_emb_dim : int
+        Dimension of fitness embedding
+    hidden_dims : list
+        Hidden layer dimensions
+    list_act_functs : list, optional
+        Activation functions
+    list_init_functs : list, optional
+        Weight initialization functions
+    """
+
+    def __init__(
+        self,
+        input_dim: int,
+        time_emb_dim: int = 32,
+        fitness_emb_dim: int = 8,
+        hidden_dims: List[int] = None,
+        list_act_functs: List[str] = None,
+        list_init_functs: List[str] = None
+    ):
+        super(FitnessGuidedDeterministicDenoisingMLP, self).__init__()
+
+        if hidden_dims is None:
+            hidden_dims = [64, 32]
+
+        self.input_dim = input_dim
+        self.time_emb_dim = time_emb_dim
+        self.fitness_emb_dim = fitness_emb_dim
+        self.hidden_dims = hidden_dims
+
+        n_hidden = len(hidden_dims)
+
+        # Validate and set defaults
+        if list_act_functs is None:
+            list_act_functs = ['relu'] * n_hidden
+        if list_init_functs is None:
+            list_init_functs = ['default'] * n_hidden
+
+        list_act_functs, list_init_functs = validate_list_params(
+            hidden_dims, list_act_functs, list_init_functs
+        )
+
+        # Time embedding
+        self.time_embed = TimeEmbedding(time_emb_dim)
+
+        # Fitness embedding: simple linear projection
+        self.fitness_embed = nn.Linear(1, fitness_emb_dim)
+
+        # MLP layers
+        layers = []
+        prev_dim = input_dim + time_emb_dim + fitness_emb_dim
+
+        for i, hidden_dim in enumerate(hidden_dims):
+            linear = nn.Linear(prev_dim, hidden_dim)
+            apply_weight_init(linear, list_init_functs[i])
+            layers.append(linear)
+            layers.append(get_activation(list_act_functs[i], in_features=hidden_dim))
+            layers.append(nn.Dropout(0.1))
+            prev_dim = hidden_dim
+
+        # Output layer: predict logits for binary [0, 1] for each variable
+        # Output shape: [batch, n_vars, 2]
+        output_layer = nn.Linear(prev_dim, input_dim * 2)
+        layers.append(output_layer)
+
+        self.mlp = nn.Sequential(*layers)
+
+    def forward(self, x_t: torch.Tensor, t: torch.Tensor, fitness: torch.Tensor) -> torch.Tensor:
+        """
+        Predict clean data probabilities given noisy input, timestep, and fitness.
+
+        Parameters
+        ----------
+        x_t : torch.Tensor
+            Noisy binary input of shape (batch_size, input_dim)
+        t : torch.Tensor
+            Timestep indices of shape (batch_size,)
+        fitness : torch.Tensor
+            Fitness values of shape (batch_size, 1)
+
+        Returns
+        -------
+        logits : torch.Tensor
+            Logits for binary variables of shape (batch_size, input_dim, 2)
+        """
+        # Embed timestep
+        t_emb = self.time_embed(t)
+
+        # Embed fitness
+        f_emb = self.fitness_embed(fitness)
+
+        # Concatenate noisy input with time and fitness embeddings
+        h = torch.cat([x_t, t_emb, f_emb], dim=1)
+
+        # Pass through MLP
+        out = self.mlp(h)
+
+        # Reshape to [batch, n_vars, 2] for binary logits
+        logits = out.reshape(-1, self.input_dim, 2)
+
+        return logits
 
 
 def compute_weighted_loss(logits: torch.Tensor, target: torch.Tensor,
@@ -163,8 +283,9 @@ def learn_discrete_dendiff_deterministic_enhanced(
 
     This variant supports:
     1. Multiple loss functions: mse, weighted_mse, ranking, huber
-    2. Deterministic softmax without Gumbel noise
-    3. Cleaner, more stable gradients
+    2. Fitness guidance/conditioning (inspired by C-VAE and fitness-guided DbD)
+    3. Deterministic softmax without Gumbel noise
+    4. Cleaner, more stable gradients
 
     Parameters
     ----------
@@ -184,6 +305,9 @@ def learn_discrete_dendiff_deterministic_enhanced(
         - 'batch_size': batch size (default: computed)
         - 'learning_rate': learning rate (default: 1e-3)
         - 'loss_function': 'mse', 'weighted_mse', 'ranking', 'huber' (default: 'mse')
+        - 'use_fitness_guidance': use fitness conditioning (default: False)
+        - 'fitness_weight': weight for fitness guidance (default: 0.1)
+        - 'fitness_emb_dim': fitness embedding dimension (default: 8)
 
     Returns
     -------
@@ -213,15 +337,24 @@ def learn_discrete_dendiff_deterministic_enhanced(
     learning_rate = params.get('learning_rate', 1e-3)
     loss_function = params.get('loss_function', 'mse')
 
+    # Enhanced parameters
+    use_fitness_guidance = params.get('use_fitness_guidance', False)
+    fitness_weight = params.get('fitness_weight', 0.1)
+    fitness_emb_dim = params.get('fitness_emb_dim', 8)
+
     list_act_functs = params.get('list_act_functs', None)
     list_init_functs = params.get('list_init_functs', None)
 
     # Ensure binary
     population = (population > 0.5).astype(np.float32)
 
+    # Normalize fitness for conditioning
+    fitness_normalized = (fitness - fitness.min()) / (fitness.max() - fitness.min() + 1e-8)
+    fitness_normalized = fitness_normalized.astype(np.float32)
+
     # Convert to tensors
     data = torch.FloatTensor(population)
-    fitness_tensor = torch.FloatTensor(fitness).unsqueeze(1)
+    fitness_tensor = torch.FloatTensor(fitness_normalized).unsqueeze(1)
 
     # Create beta schedule using shared utility
     betas = make_noise_schedule(schedule, n_timesteps, beta_start, beta_end, 'beta')
@@ -230,12 +363,19 @@ def learn_discrete_dendiff_deterministic_enhanced(
     # Convert to tensors
     alphas_cumprod = torch.FloatTensor(diffusion_params['alphas_cumprod'])
 
-    # Create model
-    model = DeterministicDenoisingMLP(
-        input_dim, time_emb_dim, hidden_dims,
-        list_act_functs=list_act_functs,
-        list_init_functs=list_init_functs
-    )
+    # Create denoising network
+    if use_fitness_guidance:
+        model = FitnessGuidedDeterministicDenoisingMLP(
+            input_dim, time_emb_dim, fitness_emb_dim, hidden_dims,
+            list_act_functs=list_act_functs,
+            list_init_functs=list_init_functs
+        )
+    else:
+        model = DeterministicDenoisingMLP(
+            input_dim, time_emb_dim, hidden_dims,
+            list_act_functs=list_act_functs,
+            list_init_functs=list_init_functs
+        )
 
     # Optimizer
     optimizer = torch.optim.Adam(model.parameters(), lr=learning_rate)
@@ -262,7 +402,10 @@ def learn_discrete_dendiff_deterministic_enhanced(
             x_noisy = add_noise_binary_deterministic(batch, alphas_cumprod, t)
 
             # Predict original data distribution
-            logits = model(x_noisy, t)
+            if use_fitness_guidance:
+                logits = model(x_noisy, t, batch_fitness)
+            else:
+                logits = model(x_noisy, t)
 
             # Target: one-hot encoding of original binary values
             target_indices = batch.long()
@@ -292,7 +435,7 @@ def learn_discrete_dendiff_deterministic_enhanced(
             epoch_loss += loss.item()
             n_batches += 1
 
-    # Return model
+    # Return model with all configuration
     return {
         'model_state': model.state_dict(),
         'input_dim': input_dim,
@@ -304,5 +447,7 @@ def learn_discrete_dendiff_deterministic_enhanced(
         'list_init_functs': list_init_functs if list_init_functs else ['default'] * len(hidden_dims),
         'time_emb_dim': time_emb_dim,
         'loss_function': loss_function,
+        'use_fitness_guidance': use_fitness_guidance,
+        'fitness_emb_dim': fitness_emb_dim if use_fitness_guidance else 0,
         'type': 'discrete_dendiff_deterministic_enhanced'
     }
