@@ -128,6 +128,9 @@ from pateda.functions.discrete.ubqp import UBQPInstance
 # Success threshold as a fraction of optimal fitness
 SUCCESS_THRESHOLD = 0.01
 
+# Constant for unknown optimal values
+UNKNOWN_OPTIMAL = "Unknown"
+
 
 # ==============================================================================
 # Real-World Problem Instance Loading and Evaluation
@@ -189,7 +192,7 @@ def load_sat_instance(instance_name: str):
                 # Skip lines that can't be parsed as integers
                 continue
     
-    return n_vars, clauses, "Unknown"
+    return n_vars, clauses, UNKNOWN_OPTIMAL
 
 
 def evaluate_sat(solution: np.ndarray, clauses) -> float:
@@ -297,7 +300,7 @@ def load_ising_instance(instance_name: str):
                 for j in range(n_neighbors):
                     inter[i, j] = float(line[1 + n_neighbors + j])
     
-    return n_vars, lattice, inter, "Unknown"
+    return n_vars, lattice, inter, UNKNOWN_OPTIMAL
 
 
 def evaluate_ising(solution: np.ndarray, lattice, inter) -> float:
@@ -373,7 +376,7 @@ def load_ubqp_instance(instance_name: str):
             weight = float(parts[2])
             ubqp_instance.add_interaction(0, i, j, weight)
     
-    return n_vars, ubqp_instance, "Unknown"
+    return n_vars, ubqp_instance, UNKNOWN_OPTIMAL
 
 
 def evaluate_ubqp(solution: np.ndarray, ubqp_instance: UBQPInstance) -> float:
@@ -474,7 +477,7 @@ def parse_rw_problem(problem_type: str, instance_name: str):
     n_vars : int
         Number of variables
     optimal : str or float
-        Optimal fitness value ("Unknown" for these instances)
+        Optimal fitness value (UNKNOWN_OPTIMAL for these instances)
     """
     problem_type = problem_type.upper()
     
@@ -1033,7 +1036,7 @@ def main():
         selection_ratio = 0.5
         selected_pop_size = int(pop_size * selection_ratio)
         adaptive_hidden_dims = [max(10, n_vars // 2), max(10, n_vars // 4)]
-        batch_s =  min(32, int(selected_pop_size/10))
+        batch_s = min(32, selected_pop_size // 10)
         
         # Configure learning parameters
         params_map = {
@@ -1278,7 +1281,7 @@ def main():
     print(f"Optimal Fitness:  {optimal_fitness}")
     
     # Only compute gap and success if optimal is known
-    if optimal_fitness != "Unknown":
+    if optimal_fitness != UNKNOWN_OPTIMAL:
         gap = abs(best_fitness - float(optimal_fitness))
         success = gap < SUCCESS_THRESHOLD * float(optimal_fitness)
         print(f"Gap:              {gap:.4f}")
