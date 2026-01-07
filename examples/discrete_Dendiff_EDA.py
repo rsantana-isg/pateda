@@ -11,6 +11,11 @@ Supports comprehensive Dendiff-EDA variants:
 - Dendiff-Gumbel: Gumbel-Softmax based discrete diffusion
 - Dendiff-Corruption: Corruption/denoising based discrete diffusion (BERT-style)
 
+**New Alternative Sampling Strategies:**
+- Dendiff-STE: Straight-Through Estimator - hard values in forward, gradient flow in backward
+- Dendiff-HardConcrete: Hard Concrete distribution with stretching/folding for exact 0s and 1s
+- Dendiff-Deterministic: Deterministic softmax without Gumbel noise for cleaner gradients
+
 **Enhanced Dendiff Variants (with alternative loss functions):**
 - Dendiff-Gumbel-WeightedMSE: Gumbel variant with fitness-weighted loss
 - Dendiff-Gumbel-Ranking: Gumbel variant with ranking loss
@@ -30,8 +35,8 @@ Configurable Parameters (all positional):
 - pop_size: Population size
 - n_gen: Number of generations
 - trunc: Truncation percent (selection ratio, e.g., 0.5 for 50%)
-- variant: Dendiff variant (see list above)
-- sampling_strategy: Differentiable sampling strategy (gumbel, corruption)
+- variant: Dendiff variant (dendiff_gumbel, dendiff_corruption, dendiff_ste, dendiff_hard_concrete, dendiff_deterministic)
+- sampling_strategy: Differentiable sampling strategy (gumbel, corruption, ste, hard_concrete, deterministic)
 - activation: Activation function (relu, tanh, sigmoid, leakyrelu, elu, selu, gelu, etc.)
 - loss: Loss function (mse, weighted_mse, ranking, huber)
 - n_timesteps: Number of diffusion timesteps (e.g., 50 or 100)
@@ -52,6 +57,15 @@ Examples:
 
     # Dendiff-Corruption with tanh activation
     python discrete_Dendiff_EDA.py 1 Deceptive3 30 100 30 0.5 dendiff_corruption corruption tanh mse 50 20 0 0.5 0.01 0.5
+    
+    # Dendiff-STE (Straight-Through Estimator)
+    python discrete_Dendiff_EDA.py 0 OneMax 20 80 20 0.5 dendiff_ste ste relu mse 50 20 0 0.5 0.01 0.5
+    
+    # Dendiff-HardConcrete with exact 0s and 1s
+    python discrete_Dendiff_EDA.py 0 OneMax 20 80 20 0.5 dendiff_hard_concrete hard_concrete relu mse 100 20 0 0.1 0.0001 0.3
+    
+    # Dendiff-Deterministic for optimization tasks
+    python discrete_Dendiff_EDA.py 0 OneMax 20 80 20 0.5 dendiff_deterministic deterministic relu mse 100 20 0 1.0 0.0001 0.3
 
     # Dendiff-Gumbel with weighted MSE and fitness guidance
     python discrete_Dendiff_EDA.py 2 HIFF 64 200 50 0.5 dendiff_gumbel gumbel elu weighted_mse 100 20 1 1.0 0.0001 0.3
@@ -79,6 +93,9 @@ import warnings
 # Dendiff learning modules - base and enhanced versions
 from pateda.learning.discrete_dendiff_gumbel import learn_discrete_dendiff_gumbel
 from pateda.learning.discrete_dendiff_corruption import learn_discrete_dendiff_corruption
+from pateda.learning.discrete_dendiff_ste import learn_discrete_dendiff_ste
+from pateda.learning.discrete_dendiff_hard_concrete import learn_discrete_dendiff_hard_concrete
+from pateda.learning.discrete_dendiff_deterministic import learn_discrete_dendiff_deterministic
 
 # Try to import enhanced versions, fall back to base versions if not available
 try:
@@ -92,7 +109,10 @@ except ImportError:
 # Dendiff sampling modules
 from pateda.sampling.discrete_dendiff import (
     sample_discrete_dendiff_gumbel,
-    sample_discrete_dendiff_corruption
+    sample_discrete_dendiff_corruption,
+    sample_discrete_dendiff_ste,
+    sample_discrete_dendiff_hard_concrete,
+    sample_discrete_dendiff_deterministic
 )
 
 # Benchmark functions
@@ -452,6 +472,9 @@ class DendiffEDA:
         self.variant_map = {
             'dendiff_gumbel': (learn_discrete_dendiff_gumbel, sample_discrete_dendiff_gumbel),
             'dendiff_corruption': (learn_discrete_dendiff_corruption, sample_discrete_dendiff_corruption),
+            'dendiff_ste': (learn_discrete_dendiff_ste, sample_discrete_dendiff_ste),
+            'dendiff_hard_concrete': (learn_discrete_dendiff_hard_concrete, sample_discrete_dendiff_hard_concrete),
+            'dendiff_deterministic': (learn_discrete_dendiff_deterministic, sample_discrete_dendiff_deterministic),
         }
 
         if variant not in self.variant_map:
@@ -535,6 +558,23 @@ class DendiffEDA:
                 learning_params['schedule'] = 'linear'
                 learning_params['corruption_start'] = self.beta_start
                 learning_params['corruption_end'] = self.beta_end
+            elif self.variant == 'dendiff_ste':
+                learning_params['n_timesteps'] = self.n_timesteps
+                learning_params['schedule'] = 'linear'
+                learning_params['noise_start'] = self.beta_start
+                learning_params['noise_end'] = self.beta_end
+            elif self.variant == 'dendiff_hard_concrete':
+                learning_params['n_timesteps'] = self.n_timesteps
+                learning_params['schedule'] = 'linear'
+                learning_params['beta_start'] = self.beta_start
+                learning_params['beta_end'] = self.beta_end
+                learning_params['temperature'] = self.temperature
+                learning_params['stretch_limits'] = (-0.1, 1.1)
+            elif self.variant == 'dendiff_deterministic':
+                learning_params['n_timesteps'] = self.n_timesteps
+                learning_params['schedule'] = 'linear'
+                learning_params['beta_start'] = self.beta_start
+                learning_params['beta_end'] = self.beta_end
 
             # Time embedding dimension (smaller for smaller problems)
             learning_params['time_emb_dim'] = learning_params.get('time_emb_dim', min(32, max(4, self.n_vars // 8)))
@@ -651,10 +691,10 @@ Examples:
     parser.add_argument('n_gen', type=int, help='Number of generations')
     parser.add_argument('trunc', type=float, help='Truncation percent (selection ratio, e.g., 0.5 for 50%%)')
     parser.add_argument('variant', type=str,
-                        choices=['dendiff_gumbel', 'dendiff_corruption'],
+                        choices=['dendiff_gumbel', 'dendiff_corruption', 'dendiff_ste', 'dendiff_hard_concrete', 'dendiff_deterministic'],
                         help='Dendiff variant')
     parser.add_argument('sampling_strategy', type=str,
-                        choices=['gumbel', 'corruption'],
+                        choices=['gumbel', 'corruption', 'ste', 'hard_concrete', 'deterministic'],
                         help='Differentiable sampling strategy')
     parser.add_argument('activation', type=str,
                         help='Activation function (relu, tanh, sigmoid, leakyrelu, elu, selu, gelu, etc.)')

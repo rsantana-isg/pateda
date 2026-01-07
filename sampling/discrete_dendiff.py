@@ -22,6 +22,16 @@ from pateda.learning.discrete_dendiff_gumbel import (
 from pateda.learning.discrete_dendiff_corruption import (
     CorruptionDenoisingMLP
 )
+from pateda.learning.discrete_dendiff_ste import (
+    STEDenoisingMLP, straight_through_binarize
+)
+from pateda.learning.discrete_dendiff_hard_concrete import (
+    HardConcreteDenoisingMLP, sample_hard_concrete
+)
+from pateda.learning.discrete_dendiff_deterministic import (
+    DeterministicDenoisingMLP, deterministic_softmax
+)
+from pateda.learning.discrete_dendiff_utils import binarize_samples
 
 # Try to import enhanced versions with fitness guidance support
 try:
@@ -345,5 +355,322 @@ def sample_discrete_dendiff_fast(
         return sample_discrete_dendiff_gumbel(model_data, n_samples, fast_params)
     elif model_type == 'discrete_dendiff_corruption':
         return sample_discrete_dendiff_corruption(model_data, n_samples, fast_params)
+    elif model_type == 'discrete_dendiff_ste':
+        return sample_discrete_dendiff_ste(model_data, n_samples, fast_params)
+    elif model_type == 'discrete_dendiff_hard_concrete':
+        return sample_discrete_dendiff_hard_concrete(model_data, n_samples, fast_params)
+    elif model_type == 'discrete_dendiff_deterministic':
+        return sample_discrete_dendiff_deterministic(model_data, n_samples, fast_params)
     else:
         raise ValueError(f"Unknown model type: {model_type}")
+
+
+def sample_discrete_dendiff_ste(
+    model_data: Dict[str, Any],
+    n_samples: int,
+    params: Optional[Dict[str, Any]] = None
+) -> np.ndarray:
+    """
+    Sample from STE-based discrete dendiff.
+    
+    Uses Straight-Through Estimator for sampling, which provides
+    clean discrete values throughout the sampling process.
+    
+    Parameters
+    ----------
+    model_data : dict
+        Trained model from learn_discrete_dendiff_ste
+    n_samples : int
+        Number of samples to generate
+    params : dict, optional
+        Sampling parameters:
+        - 'n_steps': number of denoising steps (default: use all)
+        - 'temperature': sampling temperature (default: 0.5)
+        - 'deterministic': use thresholding instead of sampling
+    
+    Returns
+    -------
+    samples : np.ndarray
+        Binary samples of shape (n_samples, n_vars)
+    """
+    if params is None:
+        params = {}
+    
+    # Extract model parameters
+    input_dim = model_data['input_dim']
+    n_timesteps = model_data['n_timesteps']
+    hidden_dims = model_data['hidden_dims']
+    time_emb_dim = model_data['time_emb_dim']
+    noise_rates = np.array(model_data['noise_rates'])
+    list_act_functs = model_data.get('list_act_functs', None)
+    list_init_functs = model_data.get('list_init_functs', None)
+    
+    # Sampling parameters
+    n_steps = params.get('n_steps', n_timesteps)
+    temperature = params.get('temperature', 0.5)
+    deterministic = params.get('deterministic', False)
+    
+    # Recreate model
+    model = STEDenoisingMLP(
+        input_dim, time_emb_dim, hidden_dims,
+        list_act_functs=list_act_functs,
+        list_init_functs=list_init_functs
+    )
+    model.load_state_dict(model_data['model_state'])
+    model.eval()
+    
+    # Start from random binary data
+    x_t = torch.randint(0, 2, (n_samples, input_dim), dtype=torch.float32)
+    
+    # Create timestep schedule
+    if n_steps < n_timesteps:
+        timestep_schedule = np.linspace(n_timesteps-1, 0, n_steps, dtype=int)
+    else:
+        timestep_schedule = list(reversed(range(n_timesteps)))
+    
+    with torch.no_grad():
+        for t_idx in timestep_schedule:
+            t = torch.full((n_samples,), t_idx, dtype=torch.long)
+            
+            # Predict clean data probabilities
+            logits = model(x_t, t, use_ste=False)  # No STE during sampling
+            probs = torch.sigmoid(logits)
+            
+            if deterministic:
+                # Threshold at 0.5
+                x_pred = (probs > 0.5).float()
+            else:
+                # Sample from Bernoulli with temperature
+                probs_tempered = torch.sigmoid(logits / temperature)
+                x_pred = torch.bernoulli(probs_tempered)
+            
+            # Progressive denoising
+            if t_idx > 0:
+                # Current noise rate
+                noise_t = noise_rates[t_idx]
+                noise_prev = noise_rates[t_idx - 1]
+                
+                # Trust factor: as noise decreases, trust prediction more
+                trust_factor = 1.0 - noise_prev / (noise_t + 1e-8)
+                trust_factor = max(0.0, min(1.0, trust_factor))
+                
+                # Mix current data with prediction
+                keep_pred = torch.rand_like(x_t) < trust_factor
+                x_t = torch.where(keep_pred, x_pred, x_t)
+            else:
+                # Final step: fully trust prediction
+                x_t = x_pred
+    
+    # Convert to numpy
+    samples = x_t.numpy()
+    samples = (samples > 0.5).astype(int)
+    
+    return samples
+
+
+def sample_discrete_dendiff_hard_concrete(
+    model_data: Dict[str, Any],
+    n_samples: int,
+    params: Optional[Dict[str, Any]] = None
+) -> np.ndarray:
+    """
+    Sample from Hard Concrete-based discrete dendiff.
+    
+    Uses Hard Concrete distribution which can produce exact 0s and 1s
+    through stretching and folding mechanism.
+    
+    Parameters
+    ----------
+    model_data : dict
+        Trained model from learn_discrete_dendiff_hard_concrete
+    n_samples : int
+        Number of samples to generate
+    params : dict, optional
+        Sampling parameters:
+        - 'n_steps': number of denoising steps (default: use all)
+        - 'temperature': Hard Concrete temperature (default: 0.1)
+        - 'deterministic': use hard selection (default: False)
+    
+    Returns
+    -------
+    samples : np.ndarray
+        Binary samples of shape (n_samples, n_vars)
+    """
+    if params is None:
+        params = {}
+    
+    # Extract model parameters
+    input_dim = model_data['input_dim']
+    n_timesteps = model_data['n_timesteps']
+    hidden_dims = model_data['hidden_dims']
+    time_emb_dim = model_data['time_emb_dim']
+    betas = np.array(model_data['betas'])
+    list_act_functs = model_data.get('list_act_functs', None)
+    list_init_functs = model_data.get('list_init_functs', None)
+    temperature = model_data.get('temperature', 0.1)
+    stretch_limits = model_data.get('stretch_limits', (-0.1, 1.1))
+    
+    # Sampling parameters
+    n_steps = params.get('n_steps', n_timesteps)
+    temp_override = params.get('temperature', temperature)
+    deterministic = params.get('deterministic', False)
+    
+    # Compute alphas_cumprod
+    alphas = 1.0 - betas
+    alphas_cumprod = np.cumprod(alphas)
+    alphas_cumprod_tensor = torch.FloatTensor(alphas_cumprod)
+    
+    # Recreate model
+    model = HardConcreteDenoisingMLP(
+        input_dim, time_emb_dim, hidden_dims,
+        list_act_functs=list_act_functs,
+        list_init_functs=list_init_functs
+    )
+    model.load_state_dict(model_data['model_state'])
+    model.eval()
+    
+    # Start from random binary data
+    x_t = torch.randint(0, 2, (n_samples, input_dim), dtype=torch.float32)
+    
+    # Create timestep schedule
+    if n_steps < n_timesteps:
+        timestep_schedule = np.linspace(n_timesteps-1, 0, n_steps, dtype=int)
+    else:
+        timestep_schedule = list(reversed(range(n_timesteps)))
+    
+    with torch.no_grad():
+        for t_idx in timestep_schedule:
+            t = torch.full((n_samples,), t_idx, dtype=torch.long)
+            
+            # Predict logits
+            logits = model(x_t, t)
+            
+            if deterministic:
+                # Use argmax through sigmoid
+                probs = torch.sigmoid(logits)
+                x_pred = (probs > 0.5).float()
+            else:
+                # Sample from Hard Concrete
+                x_pred = sample_hard_concrete(logits, temp_override, stretch_limits)
+            
+            # Progressive denoising
+            if t_idx > 0:
+                alpha_bar_t = alphas_cumprod_tensor[t_idx]
+                alpha_bar_prev = alphas_cumprod_tensor[t_idx - 1]
+                
+                # Mixing factor
+                mixing_prob = (alpha_bar_prev / (alpha_bar_t + 1e-8)).clamp(0, 1)
+                
+                # Mix prediction with current
+                keep_pred = torch.rand_like(x_t) < mixing_prob
+                x_t = torch.where(keep_pred, x_pred, x_t)
+            else:
+                # Final step
+                x_t = x_pred
+    
+    # Convert to numpy
+    samples = x_t.numpy()
+    samples = (samples > 0.5).astype(int)
+    
+    return samples
+
+
+def sample_discrete_dendiff_deterministic(
+    model_data: Dict[str, Any],
+    n_samples: int,
+    params: Optional[Dict[str, Any]] = None
+) -> np.ndarray:
+    """
+    Sample from deterministic softmax-based discrete dendiff.
+    
+    Uses clean deterministic softmax without Gumbel noise,
+    providing stable sampling for optimization tasks.
+    
+    Parameters
+    ----------
+    model_data : dict
+        Trained model from learn_discrete_dendiff_deterministic
+    n_samples : int
+        Number of samples to generate
+    params : dict, optional
+        Sampling parameters:
+        - 'n_steps': number of denoising steps (default: use all)
+        - 'deterministic': use argmax selection (default: True for this variant)
+    
+    Returns
+    -------
+    samples : np.ndarray
+        Binary samples of shape (n_samples, n_vars)
+    """
+    if params is None:
+        params = {}
+    
+    # Extract model parameters
+    input_dim = model_data['input_dim']
+    n_timesteps = model_data['n_timesteps']
+    hidden_dims = model_data['hidden_dims']
+    time_emb_dim = model_data['time_emb_dim']
+    diffusion_params = model_data['diffusion_params']
+    list_act_functs = model_data.get('list_act_functs', None)
+    list_init_functs = model_data.get('list_init_functs', None)
+    
+    # Sampling parameters
+    n_steps = params.get('n_steps', n_timesteps)
+    deterministic = params.get('deterministic', True)  # Default to deterministic for this variant
+    
+    # Recreate model
+    model = DeterministicDenoisingMLP(
+        input_dim, time_emb_dim, hidden_dims,
+        list_act_functs=list_act_functs,
+        list_init_functs=list_init_functs
+    )
+    model.load_state_dict(model_data['model_state'])
+    model.eval()
+    
+    # Diffusion parameters
+    alphas_cumprod = torch.FloatTensor(diffusion_params['alphas_cumprod'])
+    
+    # Start from random binary data
+    x_t = torch.randint(0, 2, (n_samples, input_dim), dtype=torch.float32)
+    
+    # Create timestep schedule
+    if n_steps < n_timesteps:
+        timestep_schedule = np.linspace(n_timesteps-1, 0, n_steps, dtype=int)
+    else:
+        timestep_schedule = list(reversed(range(n_timesteps)))
+    
+    with torch.no_grad():
+        for t_idx in timestep_schedule:
+            t = torch.full((n_samples,), t_idx, dtype=torch.long)
+            
+            # Predict clean data probabilities
+            logits = model(x_t, t)  # Shape: [batch, n_vars, 2]
+            
+            if deterministic:
+                # Use argmax (most likely value)
+                x_pred = logits.argmax(dim=-1).float()
+            else:
+                # Use deterministic softmax with soft sampling
+                probs = deterministic_softmax(logits, hard=False)
+                x_pred = probs[:, :, 1]  # Take probability of bit being 1
+            
+            # Progressive denoising
+            if t_idx > 0:
+                alpha_bar_t = alphas_cumprod[t_idx]
+                alpha_bar_prev = alphas_cumprod[t_idx - 1]
+                
+                # Mixing probability
+                mixing_prob = (alpha_bar_prev / (alpha_bar_t + 1e-8)).clamp(0, 1)
+                
+                # Mix prediction with current
+                keep_pred = torch.rand_like(x_t) < mixing_prob
+                x_t = torch.where(keep_pred, x_pred, x_t)
+            else:
+                # Final step: use prediction directly
+                x_t = x_pred
+    
+    # Convert to numpy
+    samples = x_t.numpy()
+    samples = (samples > 0.5).astype(int)
+    
+    return samples
