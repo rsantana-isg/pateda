@@ -16,17 +16,26 @@ Fixed Parameters:
 - n_sampling_steps: 20
 
 Variable Parameters:
-- variant: dendiff_gumbel, dendiff_corruption
+- variant: dendiff_gumbel, dendiff_corruption, dendiff_ste, dendiff_hard_concrete, dendiff_deterministic
 - activation: leaky_relu, relu, tanh, sigmoid
 - loss: mse, weighted_mse, ranking, huber
 - fitness_guided: 0, 1
 
 Dependent Parameters (set based on variant):
-- sampling_strategy: matches variant (gumbel or corruption)
-- n_timesteps: 100 for gumbel, 50 for corruption
-- temperature: 1.0 for gumbel, 0.5 for corruption
-- beta_start: 0.0001 for gumbel, 0.01 for corruption
-- beta_end: 0.3 for gumbel, 0.5 for corruption
+- sampling_strategy: matches variant (gumbel, corruption, ste, hard_concrete, deterministic)
+- n_timesteps: 
+  - 100 for gumbel, hard_concrete, deterministic
+  - 50 for corruption, ste
+- temperature: 
+  - 1.0 for gumbel, deterministic
+  - 0.5 for corruption, ste
+  - 0.1 for hard_concrete
+- beta_start: 
+  - 0.0001 for gumbel, hard_concrete, deterministic
+  - 0.01 for corruption, ste
+- beta_end: 
+  - 0.3 for gumbel, hard_concrete, deterministic
+  - 0.5 for corruption, ste
 
 Usage:
     python launch_dendiff_experiments.py
@@ -47,7 +56,7 @@ if __name__ == '__main__':
     obj_functions = ['OneMax']
 
     # Dendiff variants
-    variants = ['dendiff_gumbel', 'dendiff_corruption']
+    variants = ['dendiff_gumbel', 'dendiff_corruption', 'dendiff_ste', 'dendiff_hard_concrete', 'dendiff_deterministic']
 
     # Activation functions
     activations = ['leaky_relu', 'relu', 'tanh', 'sigmoid']
@@ -79,12 +88,30 @@ if __name__ == '__main__':
                     temperature = 1.0
                     beta_start = 0.0001
                     beta_end = 0.3
-                else:  # dendiff_corruption
+                elif variant == 'dendiff_corruption':
                     sampling_strategy = 'corruption'
                     n_timesteps = 50
                     temperature = 0.5
                     beta_start = 0.01
                     beta_end = 0.5
+                elif variant == 'dendiff_ste':
+                    sampling_strategy = 'ste'
+                    n_timesteps = 50
+                    temperature = 0.5
+                    beta_start = 0.01
+                    beta_end = 0.5
+                elif variant == 'dendiff_hard_concrete':
+                    sampling_strategy = 'hard_concrete'
+                    n_timesteps = 100
+                    temperature = 0.1
+                    beta_start = 0.0001
+                    beta_end = 0.3
+                elif variant == 'dendiff_deterministic':
+                    sampling_strategy = 'deterministic'
+                    n_timesteps = 100
+                    temperature = 1.0
+                    beta_start = 0.0001
+                    beta_end = 0.3
 
                 for activation in activations:
                     for loss in loss_functions:
