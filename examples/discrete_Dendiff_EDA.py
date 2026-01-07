@@ -101,6 +101,9 @@ from pateda.learning.discrete_dendiff_deterministic import learn_discrete_dendif
 try:
     from pateda.learning.discrete_dendiff_gumbel_enhanced import learn_discrete_dendiff_gumbel_enhanced
     from pateda.learning.discrete_dendiff_corruption_enhanced import learn_discrete_dendiff_corruption_enhanced
+    from pateda.learning.discrete_dendiff_ste_enhanced import learn_discrete_dendiff_ste_enhanced
+    from pateda.learning.discrete_dendiff_hard_concrete_enhanced import learn_discrete_dendiff_hard_concrete_enhanced
+    from pateda.learning.discrete_dendiff_deterministic_enhanced import learn_discrete_dendiff_deterministic_enhanced
     ENHANCED_AVAILABLE = True
 except ImportError:
     ENHANCED_AVAILABLE = False
@@ -601,9 +604,8 @@ class DendiffEDA:
                      self.loss_function != 'mse')
                 )
 
-                # Only dendiff_gumbel and dendiff_corruption have enhanced versions
-                # For other variants (ste, hard_concrete, deterministic), use standard functions
-                if use_enhanced and self.variant in ['dendiff_gumbel', 'dendiff_corruption']:
+                # All variants now have enhanced versions
+                if use_enhanced:
                     # Use enhanced learning functions with loss/fitness support
                     if self.variant == 'dendiff_gumbel':
                         model = learn_discrete_dendiff_gumbel_enhanced(
@@ -613,6 +615,21 @@ class DendiffEDA:
                         model = learn_discrete_dendiff_corruption_enhanced(
                             selected_pop, selected_fitness, learning_params
                         )
+                    elif self.variant == 'dendiff_ste':
+                        model = learn_discrete_dendiff_ste_enhanced(
+                            selected_pop, selected_fitness, learning_params
+                        )
+                    elif self.variant == 'dendiff_hard_concrete':
+                        model = learn_discrete_dendiff_hard_concrete_enhanced(
+                            selected_pop, selected_fitness, learning_params
+                        )
+                    elif self.variant == 'dendiff_deterministic':
+                        model = learn_discrete_dendiff_deterministic_enhanced(
+                            selected_pop, selected_fitness, learning_params
+                        )
+                    else:
+                        # Fallback to standard function
+                        model = learn_fn(selected_pop, selected_fitness, learning_params)
                 else:
                     # Use standard learning functions
                     model = learn_fn(selected_pop, selected_fitness, learning_params)
