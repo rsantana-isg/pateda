@@ -169,8 +169,8 @@ def load_sat_instance(instance_name: str):
     with open(instance_file, 'r') as f:
         for line in f:
             line = line.strip()
-            # Skip comments and empty lines
-            if not line or line.startswith('c'):
+            # Skip comments, empty lines, and special markers
+            if not line or line.startswith('c') or line.startswith('%'):
                 continue
             
             # Parse problem line
@@ -180,11 +180,14 @@ def load_sat_instance(instance_name: str):
                 n_clauses = int(parts[3])
                 continue
             
-            # Parse clause
-            if line and not line.startswith('c') and not line.startswith('p'):
+            # Parse clause - only if we have valid numbers
+            try:
                 literals = [int(x) for x in line.split() if x != '0']
                 if len(literals) == 3:  # 3-SAT
                     clauses.append(tuple(literals))
+            except ValueError:
+                # Skip lines that can't be parsed as integers
+                continue
     
     return n_vars, clauses, "Unknown"
 
@@ -253,8 +256,46 @@ def load_ising_instance(instance_name: str):
     script_dir = os.path.dirname(os.path.abspath(__file__))
     instances_dir = os.path.join(os.path.dirname(script_dir), 'functions', 'Ising_Instances')
     
-    # Load the instance
-    lattice, inter = load_ising(n_vars, inst, instances_dir)
+    # Add .txt extension if not present
+    if not instance_name.endswith('.txt'):
+        instance_name = instance_name + '.txt'
+    
+    instance_file = os.path.join(instances_dir, instance_name)
+    
+    if not os.path.exists(instance_file):
+        raise FileNotFoundError(f"Ising instance file not found: {instance_file}")
+    
+    with open(instance_file, 'r') as fp:
+        # Read header
+        num_vars = int(fp.readline().strip())
+        dim = int(fp.readline().strip())
+        neigh = int(fp.readline().strip())
+        width = int(fp.readline().strip())
+        
+        # Verify consistency
+        if num_vars != n_vars:
+            raise ValueError(f"Instance name suggests {n_vars} variables but file has {num_vars}")
+        
+        # Initialize lattice and inter
+        # Each line has format: num_neighbors node1 node2 ... interaction1 interaction2 ...
+        neighbor = int(2**neigh * dim)
+        lattice = np.zeros((num_vars, neighbor + 1), dtype=int)
+        inter = np.zeros((num_vars, neighbor), dtype=float)
+        
+        # Read the structures from file
+        for i in range(num_vars):
+            line = fp.readline().strip().split()
+            n_neighbors = int(line[0])
+            lattice[i, 0] = n_neighbors
+            
+            if n_neighbors > 0:
+                # Read neighbor indices
+                for j in range(n_neighbors):
+                    lattice[i, j + 1] = int(line[1 + j]) + 1  # Convert to 1-indexed
+                
+                # Read interaction values
+                for j in range(n_neighbors):
+                    inter[i, j] = float(line[1 + n_neighbors + j])
     
     return n_vars, lattice, inter, "Unknown"
 
