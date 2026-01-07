@@ -279,6 +279,7 @@ def learn_discrete_dendiff_ste_enhanced(
         Training parameters:
         - Standard STE dendiff params (n_timesteps, schedule, etc.)
         - 'loss_function': 'mse', 'weighted_bce', 'ranking', 'huber' (default: 'mse')
+          Note: 'mse' uses standard binary cross-entropy loss for this variant
         - 'use_fitness_guidance': whether to condition on fitness (default: False)
         - 'fitness_weight': weight for fitness guidance (default: 0.1)
         - 'fitness_emb_dim': fitness embedding dimension (default: 8)
