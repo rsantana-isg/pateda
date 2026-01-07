@@ -31,6 +31,11 @@ from pateda.learning.nn_utils import (
     compute_default_batch_size,
     validate_list_params,
 )
+from pateda.learning.discrete_dendiff_utils import (
+    TimeEmbedding,
+    make_noise_schedule,
+    compute_diffusion_params,
+)
 
 
 def deterministic_softmax(logits: torch.Tensor, hard: bool = False) -> torch.Tensor:
@@ -59,26 +64,6 @@ def deterministic_softmax(logits: torch.Tensor, hard: bool = False) -> torch.Ten
         probs = (probs_hard - probs).detach() + probs
     
     return probs
-
-
-class TimeEmbedding(nn.Module):
-    """Sinusoidal time step embedding."""
-    
-    def __init__(self, embed_dim: int):
-        super(TimeEmbedding, self).__init__()
-        self.embed_dim = embed_dim
-    
-    def forward(self, timesteps: torch.Tensor) -> torch.Tensor:
-        half_dim = self.embed_dim // 2
-        embeddings = math.log(10000) / (half_dim - 1)
-        embeddings = torch.exp(torch.arange(half_dim, dtype=torch.float32, device=timesteps.device) * -embeddings)
-        embeddings = timesteps[:, None].float() * embeddings[None, :]
-        embeddings = torch.cat([torch.sin(embeddings), torch.cos(embeddings)], dim=-1)
-        
-        if self.embed_dim % 2 == 1:
-            embeddings = F.pad(embeddings, (0, 1))
-        
-        return embeddings
 
 
 class DeterministicDenoisingMLP(nn.Module):
@@ -183,76 +168,16 @@ class DeterministicDenoisingMLP(nn.Module):
         return logits
 
 
-def make_beta_schedule(
-    schedule: str,
-    n_timesteps: int,
-    beta_start: float = 0.0001,
-    beta_end: float = 0.3
-) -> np.ndarray:
-    """
-    Create beta schedule for diffusion process.
-    
-    Parameters
-    ----------
-    schedule : str
-        'linear' or 'cosine'
-    n_timesteps : int
-        Number of timesteps
-    beta_start : float
-        Starting noise level
-    beta_end : float
-        Ending noise level
-    
-    Returns
-    -------
-    betas : np.ndarray
-        Noise schedule
-    """
-    if schedule == 'linear':
-        betas = np.linspace(beta_start, beta_end, n_timesteps, dtype=np.float32)
-    elif schedule == 'cosine':
-        timesteps = np.arange(n_timesteps + 1, dtype=np.float32) / n_timesteps
-        alphas_cumprod = np.cos((timesteps + 0.008) / 1.008 * np.pi / 2) ** 2
-        alphas_cumprod = alphas_cumprod / alphas_cumprod[0]
-        betas = 1 - (alphas_cumprod[1:] / alphas_cumprod[:-1])
-        betas = np.clip(betas * beta_end, beta_start, beta_end)
-    else:
-        raise ValueError(f"Unknown schedule: {schedule}")
-    
-    return betas
-
-
-def compute_diffusion_params(betas: np.ndarray) -> Dict[str, np.ndarray]:
-    """
-    Precompute diffusion parameters.
-    
-    Parameters
-    ----------
-    betas : np.ndarray
-        Noise schedule
-    
-    Returns
-    -------
-    params : dict
-        Diffusion parameters
-    """
-    alphas = 1.0 - betas
-    alphas_cumprod = np.cumprod(alphas, axis=0)
-    
-    return {
-        'betas': betas,
-        'alphas': alphas,
-        'alphas_cumprod': alphas_cumprod,
-    }
-
-
-def add_noise_binary(
+# Helper function for deterministic variant's specific noise adding
+def add_noise_binary_deterministic(
     x: torch.Tensor,
     alphas_cumprod: torch.Tensor,
     t: torch.Tensor
 ) -> torch.Tensor:
     """
-    Add noise to binary data by flipping bits.
+    Add noise to binary data by flipping bits (deterministic variant).
+    
+    This is a wrapper that adapts the interface for the deterministic variant.
     
     Parameters
     ----------
@@ -344,8 +269,8 @@ def learn_discrete_dendiff_deterministic(
     # Convert to tensors
     data = torch.FloatTensor(population)
     
-    # Create beta schedule
-    betas = make_beta_schedule(schedule, n_timesteps, beta_start, beta_end)
+    # Create beta schedule using shared utility
+    betas = make_noise_schedule(schedule, n_timesteps, beta_start, beta_end, 'beta')
     diffusion_params = compute_diffusion_params(betas)
     
     # Convert to tensors
@@ -379,7 +304,7 @@ def learn_discrete_dendiff_deterministic(
             t = torch.randint(0, n_timesteps, (current_batch_size,), dtype=torch.long)
             
             # Add noise to the data
-            x_noisy = add_noise_binary(batch, alphas_cumprod, t)
+            x_noisy = add_noise_binary_deterministic(batch, alphas_cumprod, t)
             
             # Predict original data distribution
             logits = model(x_noisy, t)

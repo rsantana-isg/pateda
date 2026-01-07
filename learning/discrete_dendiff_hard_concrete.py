@@ -31,6 +31,12 @@ from pateda.learning.nn_utils import (
     compute_default_batch_size,
     validate_list_params,
 )
+from pateda.learning.discrete_dendiff_utils import (
+    TimeEmbedding,
+    make_noise_schedule,
+    add_noise_binary,
+    compute_diffusion_params,
+)
 
 
 def sample_hard_concrete(
@@ -121,26 +127,6 @@ def hard_concrete_sample_with_ste(
     else:
         # During training: use soft values directly (they already include 0s and 1s at boundaries)
         return s_hard
-
-
-class TimeEmbedding(nn.Module):
-    """Sinusoidal time step embedding."""
-    
-    def __init__(self, embed_dim: int):
-        super(TimeEmbedding, self).__init__()
-        self.embed_dim = embed_dim
-    
-    def forward(self, timesteps: torch.Tensor) -> torch.Tensor:
-        half_dim = self.embed_dim // 2
-        embeddings = math.log(10000) / (half_dim - 1)
-        embeddings = torch.exp(torch.arange(half_dim, dtype=torch.float32, device=timesteps.device) * -embeddings)
-        embeddings = timesteps[:, None].float() * embeddings[None, :]
-        embeddings = torch.cat([torch.sin(embeddings), torch.cos(embeddings)], dim=-1)
-        
-        if self.embed_dim % 2 == 1:
-            embeddings = F.pad(embeddings, (0, 1))
-        
-        return embeddings
 
 
 class HardConcreteDenoisingMLP(nn.Module):
@@ -241,69 +227,6 @@ class HardConcreteDenoisingMLP(nn.Module):
         return logits
 
 
-def make_beta_schedule(
-    schedule: str,
-    n_timesteps: int,
-    beta_start: float = 0.0001,
-    beta_end: float = 0.3
-) -> np.ndarray:
-    """
-    Create beta schedule for diffusion process.
-    
-    Parameters
-    ----------
-    schedule : str
-        'linear' or 'cosine'
-    n_timesteps : int
-        Number of timesteps
-    beta_start : float
-        Starting noise level
-    beta_end : float
-        Ending noise level
-    
-    Returns
-    -------
-    betas : np.ndarray
-        Noise schedule
-    """
-    if schedule == 'linear':
-        betas = np.linspace(beta_start, beta_end, n_timesteps, dtype=np.float32)
-    elif schedule == 'cosine':
-        timesteps = np.arange(n_timesteps + 1, dtype=np.float32) / n_timesteps
-        alphas_cumprod = np.cos((timesteps + 0.008) / 1.008 * np.pi / 2) ** 2
-        alphas_cumprod = alphas_cumprod / alphas_cumprod[0]
-        betas = 1 - (alphas_cumprod[1:] / alphas_cumprod[:-1])
-        betas = np.clip(betas * beta_end, beta_start, beta_end)
-    else:
-        raise ValueError(f"Unknown schedule: {schedule}")
-    
-    return betas
-
-
-def add_noise_binary(
-    x: torch.Tensor,
-    noise_rate: torch.Tensor
-) -> torch.Tensor:
-    """
-    Add noise to binary data by flipping bits.
-    
-    Parameters
-    ----------
-    x : torch.Tensor
-        Original binary data (batch_size, n_vars)
-    noise_rate : torch.Tensor
-        Noise probability (batch_size, 1) or scalar
-    
-    Returns
-    -------
-    noisy : torch.Tensor
-        Noisy binary data
-    """
-    flip_mask = (torch.rand_like(x) < noise_rate).float()
-    noisy = (x + flip_mask) % 2
-    return noisy
-
-
 def learn_discrete_dendiff_hard_concrete(
     population: np.ndarray,
     fitness: np.ndarray,
@@ -376,8 +299,8 @@ def learn_discrete_dendiff_hard_concrete(
     # Convert to tensors
     data = torch.FloatTensor(population)
     
-    # Create noise schedule
-    betas = make_beta_schedule(schedule, n_timesteps, beta_start, beta_end)
+    # Create noise schedule using shared utility
+    betas = make_noise_schedule(schedule, n_timesteps, beta_start, beta_end, 'beta')
     betas_tensor = torch.FloatTensor(betas)
     
     # Create model

@@ -31,6 +31,7 @@ from pateda.learning.discrete_dendiff_hard_concrete import (
 from pateda.learning.discrete_dendiff_deterministic import (
     DeterministicDenoisingMLP, deterministic_softmax
 )
+from pateda.learning.discrete_dendiff_utils import binarize_samples
 
 # Try to import enhanced versions with fitness guidance support
 try:
