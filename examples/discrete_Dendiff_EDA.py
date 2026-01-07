@@ -17,16 +17,30 @@ Supports comprehensive Dendiff-EDA variants:
 - Dendiff-Deterministic: Deterministic softmax without Gumbel noise for cleaner gradients
 
 **Enhanced Dendiff Variants (with alternative loss functions):**
+All variants now support alternative loss functions:
 - Dendiff-Gumbel-WeightedMSE: Gumbel variant with fitness-weighted loss
 - Dendiff-Gumbel-Ranking: Gumbel variant with ranking loss
 - Dendiff-Gumbel-Huber: Gumbel variant with Huber loss (robust to outliers)
 - Dendiff-Corruption-WeightedMSE: Corruption variant with fitness-weighted loss
 - Dendiff-Corruption-Ranking: Corruption variant with ranking loss
 - Dendiff-Corruption-Huber: Corruption variant with Huber loss
+- Dendiff-STE-WeightedMSE: STE variant with fitness-weighted loss
+- Dendiff-STE-Ranking: STE variant with ranking loss
+- Dendiff-STE-Huber: STE variant with Huber loss
+- Dendiff-HardConcrete-WeightedMSE: Hard Concrete variant with fitness-weighted loss
+- Dendiff-HardConcrete-Ranking: Hard Concrete variant with ranking loss
+- Dendiff-HardConcrete-Huber: Hard Concrete variant with Huber loss
+- Dendiff-Deterministic-WeightedMSE: Deterministic variant with fitness-weighted loss
+- Dendiff-Deterministic-Ranking: Deterministic variant with ranking loss
+- Dendiff-Deterministic-Huber: Deterministic variant with Huber loss
 
 **Fitness-Guided Dendiff Variants:**
+All variants now support fitness guidance/conditioning:
 - Dendiff-Gumbel-FitnessGuided: Conditional on fitness (inspired by C-VAE)
 - Dendiff-Corruption-FitnessGuided: Corruption variant with fitness conditioning
+- Dendiff-STE-FitnessGuided: STE variant with fitness conditioning
+- Dendiff-HardConcrete-FitnessGuided: Hard Concrete variant with fitness conditioning
+- Dendiff-Deterministic-FitnessGuided: Deterministic variant with fitness conditioning
 
 Configurable Parameters (all positional):
 - seed: Random seed
@@ -58,20 +72,23 @@ Examples:
     # Dendiff-Corruption with tanh activation
     python discrete_Dendiff_EDA.py 1 Deceptive3 30 100 30 0.5 dendiff_corruption corruption tanh mse 50 20 0 0.5 0.01 0.5
     
-    # Dendiff-STE (Straight-Through Estimator)
-    python discrete_Dendiff_EDA.py 0 OneMax 20 80 20 0.5 dendiff_ste ste relu mse 50 20 0 0.5 0.01 0.5
+    # Dendiff-STE (Straight-Through Estimator) with weighted MSE
+    python discrete_Dendiff_EDA.py 0 OneMax 20 80 20 0.5 dendiff_ste ste relu weighted_mse 50 20 0 0.5 0.01 0.5
     
-    # Dendiff-HardConcrete with exact 0s and 1s
-    python discrete_Dendiff_EDA.py 0 OneMax 20 80 20 0.5 dendiff_hard_concrete hard_concrete relu mse 100 20 0 0.1 0.0001 0.3
+    # Dendiff-HardConcrete with exact 0s and 1s and Huber loss
+    python discrete_Dendiff_EDA.py 0 OneMax 20 80 20 0.5 dendiff_hard_concrete hard_concrete relu huber 100 20 0 0.1 0.0001 0.3
     
-    # Dendiff-Deterministic for optimization tasks
-    python discrete_Dendiff_EDA.py 0 OneMax 20 80 20 0.5 dendiff_deterministic deterministic relu mse 100 20 0 1.0 0.0001 0.3
+    # Dendiff-Deterministic for optimization tasks with ranking loss
+    python discrete_Dendiff_EDA.py 0 OneMax 20 80 20 0.5 dendiff_deterministic deterministic relu ranking 100 20 0 1.0 0.0001 0.3
 
     # Dendiff-Gumbel with weighted MSE and fitness guidance
     python discrete_Dendiff_EDA.py 2 HIFF 64 200 50 0.5 dendiff_gumbel gumbel elu weighted_mse 100 20 1 1.0 0.0001 0.3
 
     # Dendiff-Corruption with fitness guidance and ranking loss
     python discrete_Dendiff_EDA.py 3 FC3 30 150 40 0.5 dendiff_corruption corruption relu ranking 50 20 1 0.5 0.01 0.5
+    
+    # Dendiff-STE with fitness guidance and Huber loss
+    python discrete_Dendiff_EDA.py 4 KDeceptive3 30 150 40 0.5 dendiff_ste ste relu huber 50 20 1 0.5 0.01 0.5
 
 ==============================================================================
 """
