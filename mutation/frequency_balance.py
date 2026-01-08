@@ -104,10 +104,14 @@ def frequency_balance_mutation(
         # Check if either frequency exceeds alpha
         if freq_ones > alpha or freq_zeros > alpha:
             # Calculate how many positions to flip
-            n_to_flip = int(np.ceil((1 - alpha) * n_individuals))
+            n_to_flip = int((1 - alpha) * n_individuals)
             
-            # Ensure we flip at least 1 and at most n_individuals
-            n_to_flip = max(1, min(n_to_flip, n_individuals))
+            # Only flip if n_to_flip > 0
+            if n_to_flip == 0:
+                continue
+            
+            # Ensure we don't flip more than n_individuals
+            n_to_flip = min(n_to_flip, n_individuals)
             
             # Randomly select positions to flip
             flip_indices = np.random.choice(n_individuals, n_to_flip, replace=False)

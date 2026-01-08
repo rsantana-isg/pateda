@@ -912,7 +912,6 @@ def run_traditional_eda(
         replacement=ElitistReplacement(),
         stop_condition=MaxGenerations(max_gen=max_generations),
         mutation=FrequencyBalanceMutation(alpha=alpha) if alpha > 0 else None,
-        mutation_params={'alpha': alpha} if alpha > 0 else {},
     )
     
     # Create and run EDA

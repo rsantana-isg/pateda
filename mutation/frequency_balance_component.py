@@ -44,16 +44,13 @@ class FrequencyBalanceMutation(MutationMethod):
             n_vars: Number of variables
             cardinality: Variable cardinalities or ranges
             population: Population to mutate
-            **params: Additional parameters (alpha can override instance alpha)
+            **params: Additional parameters (not used, alpha is set in constructor)
         
         Returns:
             Mutated population
         """
-        # Get alpha from params or use instance alpha
-        alpha = params.get('alpha', self.alpha)
-        
-        # Create mutation params dict
-        mutation_params = {'alpha': alpha}
+        # Use instance alpha (no runtime override for consistency)
+        mutation_params = {'alpha': self.alpha}
         
         # Apply frequency balance mutation
         return frequency_balance_mutation(
