@@ -754,8 +754,15 @@ class UnifiedDiscreteNeuralEDA:
                 population = np.random.randint(0, self.cardinality,
                                              (self.pop_size, self.n_vars))
 
+            # Evaluate the newly sampled population
+            fitness = fitness_func(population)
+            
             # Apply frequency balance mutation if alpha > 0
             if self.alpha > 0:
+                # Store the best solution before mutation to enforce elitism
+                best_idx = np.argmax(fitness)
+                best_solution_pre_mutation = population[best_idx].copy()
+                
                 mutation_params = {'alpha': self.alpha}
                 population = frequency_balance_mutation(
                     self.n_vars,
@@ -763,9 +770,15 @@ class UnifiedDiscreteNeuralEDA:
                     population,
                     mutation_params
                 )
-
-            # Evaluate
-            fitness = fitness_func(population)
+                
+                # Enforce elitism: ensure the best solution is not mutated
+                # Replace the individual at best_idx with the original best solution
+                population[best_idx] = best_solution_pre_mutation
+                
+                # Re-evaluate only if mutation was applied
+                # Note: We could optimize further by only evaluating changed individuals,
+                # but for simplicity and since fitness is typically fast, we re-evaluate all
+                fitness = fitness_func(population)
 
             # Update best
             gen_best = np.max(fitness)
