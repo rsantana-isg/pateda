@@ -1,20 +1,32 @@
 """
-Discrete GAN EDA - Real-World Combinatorial Problems
+Discrete DbD EDA - Real-World Combinatorial Problems
 ====================================================
 
-This program combines discrete_GAN_EDA.py and discrete_EDA_RW.py to provide
-a unified interface to run various GAN-EDA algorithm variants on real-world
+This program combines discrete_DbD_EDA.py and discrete_EDA_RW.py to provide
+a unified interface to run various DbD-EDA algorithm variants on real-world
 combinatorial problems (SAT, Ising, UBQP) with different seeds for cluster execution.
 
-Supports seven GAN-EDA variants as described in Deeper_GAN_Critical_Analysis.md:
+Supports comprehensive DbD-EDA variants:
 
-1. V1-WGAN-GP: Wasserstein Loss + Gradient Penalty
-2. V2-Cond-Fit-GAN: Condition input on target fitness percentiles
-3. V3-Aux-GAN: Auxiliary head for fitness prediction
-4. V4-Repulsion-GAN: Batch-wide diversity penalty in Generator
-5. V5-Weighted-D-GAN: Fitness-weighted Real/Fake classification
-6. V6-Statistic-Match: MSE loss on mean/std of generated batch
-7. V7-Hybrid-GAN-VAE: GAN with an Encoder (BiGAN)
+**Standard DbD Variants:**
+- DbD: Standard Diffusion-by-Deblending
+- DbD-CS: Current to Selected population
+- DbD-CD: Current to Closest in selected (Distance-based)
+- DbD-UC: Univariate approximation to Current
+- DbD-US: Univariate approximation to Selected
+
+**DbD with Markov Transformation (DbD-T Variants):**
+- DbD-CS-T: CS with Markov transformation (k=0,1,2)
+- DbD-CD-T: CD with Markov transformation (k=0,1,2)
+- DbD-UC-T: UC with Markov transformation (k=0,1,2)
+- DbD-US-T: US with Markov transformation (k=0,1,2)
+
+**Enhanced DbD Variants:**
+- DbD-Weighted: DbD with fitness-weighted MSE loss
+- DbD-Ranking: DbD with ranking loss
+- DbD-Huber: DbD with Huber loss (robust to outliers)
+- C-DbD: Conditional DbD with fitness guidance
+- M-DbD: DbD with Markov model initialization
 
 Supports real-world combinatorial problems:
 - SAT: Boolean satisfiability problem
@@ -22,25 +34,22 @@ Supports real-world combinatorial problems:
 - UBQP: Unconstrained Binary Quadratic Programming
 
 Configurable Parameters:
-- Activation Function for Generator: relu, tanh, sigmoid, leakyrelu, etc.
-- Activation Function for Discriminator: relu, tanh, sigmoid, leakyrelu, etc.
-- Activation Function for Encoder (V7 only): relu, tanh, sigmoid, leakyrelu, etc.
-- Dropout rate: Discriminator dropout rate (default: 0.5 for stability)
-- Temperature: Gumbel-Softmax temperature
-- Learning rates: Separate for Generator and Discriminator
-- Hidden dimensions: Automatically computed from n_vars and pop_size
-- Batch size: Automatically computed from selected population size
-- Truncation Percent: Selection ratio for truncation selection
+- Activation Function: relu, tanh, sigmoid, leakyrelu, elu, selu, gelu, etc.
+- Loss Function: mse, weighted_mse, ranking, huber
+- Number of Alpha Samples: For blending
+- Denoising Steps: Number of steps during sampling
+- Markov Order: k=0,1,2 for transformation variants
 - Alpha: Maximum allowed frequency for ones or zeros (mutation control)
 
 Usage:
-    python discrete_GAN_EDA_RW.py <seed> <problem_type> <instance_name> <pop_size> <n_gen> <trunc> <variant> \\
-        <activation_g> <activation_d> <activation_e> <dropout> <temperature> <use_surrogate> <alpha>
+    python discrete_DbD_EDA_RW.py <seed> <problem_type> <instance_name> <pop_size> <n_gen> <trunc> \\
+        <variant> <activation> <loss> <num_alpha_samples> <n_steps> <k> <alpha_smooth> \\
+        <fitness_guided> <use_markov_init> <alpha>
 
 Example:
-    python discrete_GAN_EDA_RW.py 0 SAT uf20-01 80 20 0.5 WGAN-GP relu leaky_relu relu 0.5 1.0 0 0.0
-    python discrete_GAN_EDA_RW.py 1 Ising SG_16_1 100 30 0.5 Cond-Fit-GAN tanh leaky_relu relu 0.5 1.0 0 0.95
-    python discrete_GAN_EDA_RW.py 0 UBQP bqp50 200 50 0.5 Aux-GAN relu leaky_relu relu 0.5 1.0 1 0.0
+    python discrete_DbD_EDA_RW.py 0 SAT uf20-01 80 20 0.5 dbd relu mse 20 20 0 0.1 0 0 0.0
+    python discrete_DbD_EDA_RW.py 1 Ising SG_16_1 100 30 0.5 dbd_cs tanh weighted_mse 20 20 0 0.1 0 0 0.95
+    python discrete_DbD_EDA_RW.py 0 UBQP bqp50 200 50 0.5 dbd_cs_t elu mse 20 20 1 0.1 1 0 0.0
 
 ==============================================================================
 """
@@ -59,24 +68,20 @@ import math
 from typing import Dict, Any, Optional
 import warnings
 
-# GAN learning modules
-from pateda.learning.discrete_gan import (
-    learn_binary_gan,
-    learn_binary_gan_wgan_gp,
-    learn_binary_gan_cond_fit,
-    learn_binary_gan_aux,
-    learn_binary_gan_repulsion,
-    learn_binary_gan_weighted_d,
-    learn_binary_gan_statistic_match,
-    learn_binary_gan_hybrid_vae,
+# DbD learning modules
+from pateda.learning.discrete_dbd import (
+    learn_binary_dbd, learn_binary_dbd_cs, learn_binary_dbd_cd,
+    learn_binary_dbd_uc, learn_binary_dbd_us,
+    learn_binary_dbd_cs_t, learn_binary_dbd_cd_t,
+    learn_binary_dbd_uc_t, learn_binary_dbd_us_t
 )
 
-# GAN sampling modules
-from pateda.sampling.discrete_neural import (
-    sample_binary_gan,
-    sample_binary_gan_cond_fit,
-    sample_binary_gan_aux,
-    sample_binary_gan_hybrid_vae,
+# DbD sampling modules
+from pateda.sampling.discrete_dbd import (
+    sample_binary_dbd, sample_binary_dbd_cs, sample_binary_dbd_cd,
+    sample_binary_dbd_uc, sample_binary_dbd_us,
+    sample_binary_dbd_cs_t, sample_binary_dbd_cd_t,
+    sample_binary_dbd_uc_t, sample_binary_dbd_us_t
 )
 
 # Real-world problem functions
@@ -96,6 +101,9 @@ SUCCESS_THRESHOLD = 0.01
 
 # Constant for unknown optimal values
 UNKNOWN_OPTIMAL = "Unknown"
+
+# Loss functions that require fitness values for computation
+LOSS_FUNCTIONS_REQUIRING_FITNESS = ['weighted_mse', 'ranking']
 
 
 # ==============================================================================
@@ -469,12 +477,12 @@ def parse_rw_problem(problem_type: str, instance_name: str):
 
 
 # ==============================================================================
-# GAN EDA Implementation
+# DbD EDA Implementation
 # ==============================================================================
 
-class GANEDA:
+class DbDEDA:
     """
-    Configurable GAN-EDA framework with seven variant options
+    Unified framework for DbD-based EDAs with configurable parameters
     """
 
     def __init__(
@@ -485,24 +493,27 @@ class GANEDA:
         pop_size: int = 100,
         selection_ratio: float = 0.5,
         max_generations: int = 50,
-        activation_g: str = 'relu',
-        activation_d: str = 'leaky_relu',
-        activation_e: str = 'relu',
-        dropout: float = 0.5,
-        temperature: float = 1.0,
+        activation: str = 'relu',
+        loss_function: str = 'mse',
+        num_alpha_samples: int = 20,
+        n_steps: int = 20,
+        k: int = 1,
+        alpha_smooth: float = 0.1,
+        fitness_guided: bool = False,
+        use_markov_init: bool = False,
         learning_params: Optional[Dict[str, Any]] = None,
         sampling_params: Optional[Dict[str, Any]] = None,
         random_seed: Optional[int] = None,
         alpha: float = 0.0,
     ):
         """
-        Initialize GAN EDA
+        Initialize DbD EDA
 
         Parameters
         ----------
         variant : str
-            GAN variant: 'GAN', 'WGAN-GP', 'Cond-Fit-GAN', 'Aux-GAN',
-                        'Repulsion-GAN', 'Weighted-D-GAN', 'Statistic-Match', 'Hybrid-GAN-VAE'
+            DbD variant: 'dbd', 'dbd_cs', 'dbd_cd', 'dbd_uc', 'dbd_us',
+                        'dbd_cs_t', 'dbd_cd_t', 'dbd_uc_t', 'dbd_us_t'
         n_vars : int
             Number of variables
         cardinality : np.ndarray
@@ -513,16 +524,22 @@ class GANEDA:
             Selection ratio (truncation percent)
         max_generations : int
             Maximum generations
-        activation_g : str
-            Activation function for Generator (relu, tanh, sigmoid, leaky_relu, etc.)
-        activation_d : str
-            Activation function for Discriminator (relu, tanh, sigmoid, leaky_relu, etc.)
-        activation_e : str
-            Activation function for Encoder (for Hybrid-GAN-VAE variant)
-        dropout : float
-            Dropout rate for discriminator (default: 0.5 for stability)
-        temperature : float
-            Gumbel-Softmax temperature
+        activation : str
+            Activation function (relu, tanh, sigmoid, leakyrelu, elu, selu, gelu, etc.)
+        loss_function : str
+            Loss function (mse, weighted_mse, ranking, huber)
+        num_alpha_samples : int
+            Number of alpha samples for training blending
+        n_steps : int
+            Number of denoising steps during sampling
+        k : int
+            Order of Markov chain for transformation variants
+        alpha_smooth : float
+            Smoothing parameter for Markov probabilities
+        fitness_guided : bool
+            Use fitness guidance (inspired by C-VAE)
+        use_markov_init : bool
+            Use Markov model for initialization
         learning_params : dict, optional
             Additional learning parameters
         sampling_params : dict, optional
@@ -539,11 +556,14 @@ class GANEDA:
         self.pop_size = pop_size
         self.selection_ratio = selection_ratio
         self.max_generations = max_generations
-        self.activation_g = activation_g
-        self.activation_d = activation_d
-        self.activation_e = activation_e
-        self.dropout = dropout
-        self.temperature = temperature
+        self.activation = activation
+        self.loss_function = loss_function
+        self.num_alpha_samples = num_alpha_samples
+        self.n_steps = n_steps
+        self.k = k
+        self.alpha_smooth = alpha_smooth
+        self.fitness_guided = fitness_guided
+        self.use_markov_init = use_markov_init
         self.learning_params = learning_params or {}
         self.sampling_params = sampling_params or {}
         self.random_seed = random_seed
@@ -553,38 +573,105 @@ class GANEDA:
         if random_seed is not None:
             set_seed(random_seed)
 
-        # Validate parameters
-        valid_variants = ['GAN', 'WGAN-GP', 'Cond-Fit-GAN', 'Aux-GAN',
-                         'Repulsion-GAN', 'Weighted-D-GAN', 'Statistic-Match', 'Hybrid-GAN-VAE']
-        if variant not in valid_variants:
-            raise ValueError(f"Invalid variant: {variant}. Must be one of {valid_variants}")
-
         # Map variant to learning and sampling functions
-        self.learning_function_map = {
-            'GAN': learn_binary_gan,
-            'WGAN-GP': learn_binary_gan_wgan_gp,
-            'Cond-Fit-GAN': learn_binary_gan_cond_fit,
-            'Aux-GAN': learn_binary_gan_aux,
-            'Repulsion-GAN': learn_binary_gan_repulsion,
-            'Weighted-D-GAN': learn_binary_gan_weighted_d,
-            'Statistic-Match': learn_binary_gan_statistic_match,
-            'Hybrid-GAN-VAE': learn_binary_gan_hybrid_vae,
+        self.variant_map = {
+            'dbd': (learn_binary_dbd, sample_binary_dbd),
+            'dbd_cs': (learn_binary_dbd_cs, sample_binary_dbd_cs),
+            'dbd_cd': (learn_binary_dbd_cd, sample_binary_dbd_cd),
+            'dbd_uc': (learn_binary_dbd_uc, sample_binary_dbd_uc),
+            'dbd_us': (learn_binary_dbd_us, sample_binary_dbd_us),
+            'dbd_cs_t': (learn_binary_dbd_cs_t, sample_binary_dbd_cs_t),
+            'dbd_cd_t': (learn_binary_dbd_cd_t, sample_binary_dbd_cd_t),
+            'dbd_uc_t': (learn_binary_dbd_uc_t, sample_binary_dbd_uc_t),
+            'dbd_us_t': (learn_binary_dbd_us_t, sample_binary_dbd_us_t),
         }
 
-        self.sampling_function_map = {
-            'GAN': sample_binary_gan,
-            'WGAN-GP': sample_binary_gan,
-            'Cond-Fit-GAN': sample_binary_gan_cond_fit,
-            'Aux-GAN': sample_binary_gan_aux,
-            'Repulsion-GAN': sample_binary_gan,
-            'Weighted-D-GAN': sample_binary_gan,
-            'Statistic-Match': sample_binary_gan,
-            'Hybrid-GAN-VAE': sample_binary_gan_hybrid_vae,
+        if variant not in self.variant_map:
+            raise ValueError(f"Invalid variant: {variant}. Must be one of {list(self.variant_map.keys())}")
+
+        # Store Markov model if using Markov initialization
+        self.markov_model = None
+
+    def _learn_markov_model(self, population: np.ndarray, markov_k: int = 1):
+        """
+        Learn a k-order Markov chain model from population
+
+        Parameters
+        ----------
+        population : np.ndarray
+            Binary population [n_samples, n_vars]
+        markov_k : int
+            Order of Markov chain
+
+        Returns
+        -------
+        dict
+            Markov model with conditional probabilities
+        """
+        from pateda.learning.discrete_dbd import compute_conditional_probabilities
+
+        conditional_probs = compute_conditional_probabilities(
+            population.astype(int),
+            markov_k,
+            self.alpha_smooth
+        )
+
+        return {
+            'conditional_probs': conditional_probs,
+            'k': markov_k,
+            'n_vars': self.n_vars
         }
+
+    def _sample_from_markov_model(self, model: dict, n_samples: int) -> np.ndarray:
+        """
+        Sample from a Markov chain model
+
+        Parameters
+        ----------
+        model : dict
+            Markov model
+        n_samples : int
+            Number of samples
+
+        Returns
+        -------
+        np.ndarray
+            Sampled binary population [n_samples, n_vars]
+        """
+        conditional_probs = model['conditional_probs']
+        k = model['k']
+        n_vars = model['n_vars']
+
+        samples = np.zeros((n_samples, n_vars), dtype=int)
+
+        for var in range(n_vars):
+            cpd = conditional_probs[var]
+
+            if var < k:
+                # For first k variables, use marginal probabilities
+                # cpd is [P(X=0), P(X=1)]
+                prob_1 = cpd[1]
+                samples[:, var] = (np.random.rand(n_samples) < prob_1).astype(int)
+            else:
+                # For remaining variables, use conditional probabilities
+                n_parents = min(k, var)
+                parent_vars = list(range(var - n_parents, var))
+
+                for sample_idx in range(n_samples):
+                    # Calculate parent configuration index
+                    config_idx = 0
+                    for i, parent_var in enumerate(parent_vars):
+                        config_idx += int(samples[sample_idx, parent_var]) * (2 ** i)
+
+                    # Get conditional probability P(X_i = 1 | parents)
+                    prob_1_given_parents = cpd[config_idx, 1]
+                    samples[sample_idx, var] = 1 if np.random.rand() < prob_1_given_parents else 0
+
+        return samples
 
     def run(self, fitness_func, verbose=True):
         """
-        Run the GAN EDA
+        Run the DbD EDA
 
         Parameters
         ----------
@@ -602,12 +689,15 @@ class GANEDA:
         history : dict
             History dictionary
         """
-        # Get learning and sampling functions
-        learn_fn = self.learning_function_map[self.variant]
-        sample_fn = self.sampling_function_map[self.variant]
+        learn_fn, sample_fn = self.variant_map[self.variant]
 
         # Initialize population
-        population = np.random.randint(0, self.cardinality, (self.pop_size, self.n_vars))
+        if self.use_markov_init and self.markov_model is not None:
+            # Initialize from Markov model
+            population = self._sample_from_markov_model(self.markov_model, self.pop_size)
+        else:
+            # Random initialization
+            population = np.random.randint(0, self.cardinality, (self.pop_size, self.n_vars))
 
         # Evaluate
         fitness = fitness_func(population)
@@ -621,6 +711,10 @@ class GANEDA:
         if verbose:
             print(f"Generation 0: Best Fitness = {best_fitness:.4f}")
 
+        # Keep track of previous population for DbD variants
+        prev_population = None
+        prev_selected_pop = None
+
         for gen in range(self.max_generations):
             # Selection
             n_selected = int(self.pop_size * self.selection_ratio)
@@ -628,43 +722,110 @@ class GANEDA:
             selected_pop = population[selected_idx]
             selected_fitness = fitness[selected_idx]
 
+            # Update Markov model if using Markov initialization
+            if self.use_markov_init:
+                # Learn/update Markov model from selected population
+                markov_k = self.learning_params.get('markov_k', 1)
+                self.markov_model = self._learn_markov_model(selected_pop, markov_k)
+
             # Prepare learning parameters
+            # Dynamic hidden layer computation based on n_vars and population size
+            adaptive_hidden_dims = [
+                max(10, self.n_vars // 2),
+                max(10, self.n_vars // 4)
+            ]
+
+            # Adaptive batch size: max(10, selected_pop_size/20)
+            batch_s = max(10, int(n_selected / 20))
+
             learning_params = self.learning_params.copy()
+            learning_params['hidden_dims'] = learning_params.get('hidden_dims', adaptive_hidden_dims)
+            learning_params['batch_size'] = learning_params.get('batch_size', batch_s)
+            learning_params['epochs'] = learning_params.get('epochs', 50)
+            learning_params['num_alpha_samples'] = self.num_alpha_samples
 
-            # Add activation functions
-            if 'hidden_dims_g' in learning_params:
-                n_hidden_g = len(learning_params['hidden_dims_g'])
-                learning_params['list_act_functs_g'] = [self.activation_g] * n_hidden_g
-            if 'hidden_dims_d' in learning_params:
-                n_hidden_d = len(learning_params['hidden_dims_d'])
-                learning_params['list_act_functs_d'] = [self.activation_d] * n_hidden_d
+            # Pass activation function as a list for all hidden layers
+            n_hidden = len(learning_params['hidden_dims'])
+            learning_params['list_act_functs'] = [self.activation] * n_hidden
+            
+            # Pass loss function parameter
+            learning_params['loss_function'] = self.loss_function
 
-            # For Hybrid-GAN-VAE, add encoder activations
-            if self.variant == 'Hybrid-GAN-VAE' and 'hidden_dims_e' in learning_params:
-                n_hidden_e = len(learning_params['hidden_dims_e'])
-                learning_params['list_act_functs_e'] = [self.activation_e] * n_hidden_e
+            # For transformation variants, pass k and alpha_smooth
+            if '_t' in self.variant:
+                learning_params['k'] = self.k
+                learning_params['alpha'] = self.alpha_smooth
 
-            # Add dropout and temperature
-            learning_params['dropout'] = self.dropout
-            learning_params['temperature'] = self.temperature
+            # For UC/US variants, pass to_take parameter
+            if self.variant in ['dbd_uc', 'dbd_us', 'dbd_uc_t', 'dbd_us_t']:
+                learning_params['to_take'] = self.pop_size * 4
+
+            # Fitness guidance (inspired by C-VAE)
+            if self.fitness_guided:
+                learning_params['use_fitness_guidance'] = True
+                learning_params['fitness_weight'] = learning_params.get('fitness_weight', 0.1)
 
             # Learn model
             try:
-                model = learn_fn(selected_pop, selected_fitness, learning_params)
+                # DbD variants need two populations (source and target)
+                if prev_population is None:
+                    # First generation: use random as current population
+                    current_pop = np.random.randint(0, self.cardinality,
+                                                  (len(selected_pop), self.n_vars))
+                    # Evaluate fitness for random population if needed for loss function
+                    if self.loss_function in LOSS_FUNCTIONS_REQUIRING_FITNESS or self.fitness_guided:
+                        fitness_current = fitness_func(current_pop)
+                    else:
+                        fitness_current = None
+                else:
+                    # Sample from previous population to match selected population size
+                    n_to_sample = len(selected_pop)
+                    if len(prev_population) >= n_to_sample:
+                        indices = np.random.choice(len(prev_population), n_to_sample, replace=False)
+                    else:
+                        indices = np.random.choice(len(prev_population), n_to_sample, replace=True)
+                    current_pop = prev_population[indices]
+                    
+                    # Sample corresponding fitness values if needed
+                    if self.loss_function in LOSS_FUNCTIONS_REQUIRING_FITNESS or self.fitness_guided:
+                        # Get fitness for sampled current population
+                        fitness_current = fitness_func(current_pop)
+                    else:
+                        fitness_current = None
+
+                # Learn model with current and selected populations, including fitness
+                # Pass fitness values to learning function
+                model = learn_fn(current_pop, selected_pop, learning_params, 
+                                fitness_current, selected_fitness)
+
+                # Save for next iteration
+                prev_population = population.copy()
+                prev_selected_pop = selected_pop.copy()
 
                 # Prepare sampling parameters
                 sampling_params = self.sampling_params.copy()
+                sampling_params['n_steps'] = self.n_steps
+                sampling_params['temperature'] = sampling_params.get('temperature', 1.0)
 
-                # For Cond-Fit-GAN, add fitness percentile information
-                if self.variant == 'Cond-Fit-GAN':
-                    sampling_params['selected_fitness'] = selected_fitness
+                # For transformation variants, pass sampling parameters
+                if '_t' in self.variant:
+                    sampling_params['num_iterations'] = sampling_params.get('num_iterations', 10)
+                    sampling_params['prob_min'] = sampling_params.get('prob_min', 0.01)
+                    sampling_params['prob_max'] = sampling_params.get('prob_max', 0.99)
 
-                # For Aux-GAN, add surrogate filtering option
-                if self.variant == 'Aux-GAN':
-                    sampling_params['use_surrogate'] = sampling_params.get('use_surrogate', False)
-
-                # Sample new population
-                population = sample_fn(model, self.pop_size, sampling_params)
+                # Sample new population based on variant
+                if self.variant in ['dbd_cs', 'dbd_us', 'dbd_cs_t', 'dbd_us_t']:
+                    # DbD-CS and DbD-US variants: initialize from selected population
+                    population = sample_fn(model, self.pop_size, selected_pop, sampling_params)
+                elif self.variant in ['dbd_cd', 'dbd_uc', 'dbd_cd_t', 'dbd_uc_t']:
+                    # DbD-CD and DbD-UC: initialize from current population
+                    population = sample_fn(model, self.pop_size, population, sampling_params)
+                elif self.variant == 'dbd':
+                    # Original DbD: use default sampling
+                    population = sample_fn(model, self.pop_size, sampling_params)
+                else:
+                    # Other variants
+                    population = sample_fn(model, self.pop_size, sampling_params)
 
             except Exception as e:
                 if verbose:
@@ -710,7 +871,7 @@ class GANEDA:
 
         # Print completion summary
         if verbose:
-            print(f"\nGAN-EDA completed after {self.max_generations} generations")
+            print(f"\nDbD-EDA completed after {self.max_generations} generations")
             print(f"Best fitness found: {best_fitness:.6f}")
             print(f"  at generation {generation_found}")
 
@@ -726,18 +887,18 @@ def main():
 
     # Create argument parser
     parser = argparse.ArgumentParser(
-        description='Discrete GAN EDA - Real-World Combinatorial Problems',
+        description='Discrete DbD EDA - Real-World Combinatorial Problems',
         formatter_class=argparse.RawDescriptionHelpFormatter,
         epilog="""
 Examples:
-  # SAT problem with WGAN-GP variant
-  python discrete_GAN_EDA_RW.py 0 SAT uf20-01 80 20 0.5 WGAN-GP relu leaky_relu relu 0.5 1.0 0 0.0
+  # SAT problem with standard DbD
+  python discrete_DbD_EDA_RW.py 0 SAT uf20-01 80 20 0.5 dbd relu mse 20 20 0 0.1 0 0 0.0
 
-  # Ising problem with Cond-Fit-GAN and mutation
-  python discrete_GAN_EDA_RW.py 1 Ising SG_16_1 100 30 0.5 Cond-Fit-GAN tanh leaky_relu relu 0.5 1.0 0 0.95
+  # Ising problem with DbD-CS and mutation
+  python discrete_DbD_EDA_RW.py 1 Ising SG_16_1 100 30 0.5 dbd_cs tanh weighted_mse 20 20 0 0.1 0 0 0.95
 
-  # UBQP problem with Aux-GAN and surrogate filtering
-  python discrete_GAN_EDA_RW.py 0 UBQP bqp50 200 50 0.5 Aux-GAN relu leaky_relu relu 0.5 1.0 1 0.0
+  # UBQP problem with DbD-CS-T
+  python discrete_DbD_EDA_RW.py 0 UBQP bqp50 200 50 0.5 dbd_cs_t elu mse 20 20 1 0.1 1 0 0.0
         """
     )
 
@@ -749,21 +910,26 @@ Examples:
     parser.add_argument('n_gen', type=int, help='Number of generations')
     parser.add_argument('trunc', type=float, help='Truncation percent (selection ratio, e.g., 0.5 for 50%)')
     parser.add_argument('variant', type=str,
-                       choices=['GAN', 'WGAN-GP', 'Cond-Fit-GAN', 'Aux-GAN',
-                               'Repulsion-GAN', 'Weighted-D-GAN', 'Statistic-Match', 'Hybrid-GAN-VAE'],
-                       help='GAN variant to use')
-    parser.add_argument('activation_g', type=str,
-                       help='Activation function for Generator. Options: relu, tanh, sigmoid, leaky_relu, elu, selu, gelu, etc.')
-    parser.add_argument('activation_d', type=str,
-                       help='Activation function for Discriminator')
-    parser.add_argument('activation_e', type=str,
-                       help='Activation function for Encoder (Hybrid-GAN-VAE only)')
-    parser.add_argument('dropout', type=float,
-                       help='Dropout rate for discriminator')
-    parser.add_argument('temperature', type=float,
-                       help='Gumbel-Softmax temperature')
-    parser.add_argument('use_surrogate', type=int, choices=[0, 1],
-                       help='Use surrogate model for pre-filtering solutions (1=yes, 0=no, Aux-GAN only)')
+                       choices=['dbd', 'dbd_cs', 'dbd_cd', 'dbd_uc', 'dbd_us',
+                               'dbd_cs_t', 'dbd_cd_t', 'dbd_uc_t', 'dbd_us_t'],
+                       help='DbD variant to use')
+    parser.add_argument('activation', type=str,
+                       help='Activation function. Options: relu, tanh, sigmoid, leaky_relu, elu, selu, gelu, etc.')
+    parser.add_argument('loss', type=str,
+                       choices=['mse', 'weighted_mse', 'ranking', 'huber'],
+                       help='Loss function')
+    parser.add_argument('num_alpha_samples', type=int,
+                       help='Number of alpha samples for blending')
+    parser.add_argument('n_steps', type=int,
+                       help='Number of denoising steps during sampling')
+    parser.add_argument('k', type=int,
+                       help='Order of Markov chain for transformation variants (0, 1, 2)')
+    parser.add_argument('alpha_smooth', type=float,
+                       help='Smoothing parameter for Markov probabilities')
+    parser.add_argument('fitness_guided', type=int, choices=[0, 1],
+                       help='Use fitness guidance (1=yes, 0=no)')
+    parser.add_argument('use_markov_init', type=int, choices=[0, 1],
+                       help='Use Markov model for initialization (1=yes, 0=no)')
     parser.add_argument('alpha', type=float,
                        help='Max frequency threshold for mutation (default: 0.0, no mutation)')
 
@@ -771,7 +937,8 @@ Examples:
     args = parser.parse_args()
 
     # Convert integer flags to boolean
-    args.use_surrogate = bool(args.use_surrogate)
+    args.fitness_guided = bool(args.fitness_guided)
+    args.use_markov_init = bool(args.use_markov_init)
 
     # Validate truncation percent
     if args.trunc <= 0 or args.trunc > 1:
@@ -794,7 +961,7 @@ Examples:
 
     # Print configuration
     print("=" * 80)
-    print("DISCRETE GAN EDA - Real-World Problem Configuration")
+    print("DISCRETE DBD EDA - Real-World Problem Configuration")
     print("=" * 80)
     print(f"Seed:               {args.seed}")
     print(f"Problem Type:       {args.problem_type}")
@@ -804,74 +971,43 @@ Examples:
     print(f"Population Size:    {args.pop_size}")
     print(f"Generations:        {args.n_gen}")
     print(f"Truncation Percent: {args.trunc}")
-    print(f"Variant:            {args.variant}")
-    print(f"Activation (Gen):   {args.activation_g}")
-    print(f"Activation (Disc):  {args.activation_d}")
-    if args.variant == 'Hybrid-GAN-VAE':
-        print(f"Activation (Enc):   {args.activation_e}")
-    print(f"Dropout:            {args.dropout}")
-    print(f"Temperature:        {args.temperature}")
-    if args.variant == 'Aux-GAN':
-        print(f"Use Surrogate:      {args.use_surrogate}")
+    print(f"DbD Variant:        {args.variant}")
+    print(f"Activation:         {args.activation}")
+    print(f"Loss Function:      {args.loss}")
+    print(f"Num Alpha Samples:  {args.num_alpha_samples}")
+    print(f"Denoising Steps:    {args.n_steps}")
+    print(f"Markov Order (k):   {args.k}")
+    print(f"Alpha Smooth:       {args.alpha_smooth}")
+    print(f"Fitness Guided:     {args.fitness_guided}")
+    print(f"Use Markov Init:    {args.use_markov_init}")
     print(f"Alpha (mutation):   {args.alpha}")
     print("=" * 80)
     print()
 
     start_time = time.time()
 
-    # Compute common parameters based on pop_size and n_vars
-    selected_pop_size = int(args.pop_size * args.trunc)
-
-    # CRITICAL: Dynamic hidden layer sizing based on population and problem size
-    # As described in Deeper_GAN_Critical_Analysis.md:
-    # "hidden layer width is a function of the number of selected individuals"
-    adaptive_hidden_dims_g = [max(10, n_vars // 2), max(10, n_vars // 4)]
-    adaptive_hidden_dims_d = list(reversed(adaptive_hidden_dims_g))
-
-    # CRITICAL: Batch size depends on selected population size
-    # "batch size depends on the size of the selected population, e.g., max(10,selected_pop_size/20)"
-    batch_s = max(10, selected_pop_size // 20)
-
-    # Configure learning parameters
-    learning_params = {
-        'epochs': 60,
-        'latent_dim': max(10, n_vars // 2),
-        'hidden_dims_g': adaptive_hidden_dims_g,
-        'hidden_dims_d': adaptive_hidden_dims_d,
-        'batch_size': batch_s,
-        'learning_rate_g': 0.0002,
-        'learning_rate_d': 0.0002,
-        'dropout': args.dropout,
-        'temperature': args.temperature,
-    }
-
-    # For Hybrid-GAN-VAE, add encoder dimensions
-    if args.variant == 'Hybrid-GAN-VAE':
-        learning_params['hidden_dims_e'] = adaptive_hidden_dims_g
-
-    # Configure sampling parameters
-    sampling_params = {
-        'temperature': args.temperature,
-    }
-
-    if args.variant == 'Aux-GAN':
-        sampling_params['use_surrogate'] = args.use_surrogate
+    # Configure learning and sampling parameters
+    learning_params = {}
+    sampling_params = {}
 
     cardinality = np.full(n_vars, 2)
 
-    # Create and run GAN EDA
-    eda = GANEDA(
+    # Create and run DbD EDA
+    eda = DbDEDA(
         variant=args.variant,
         n_vars=n_vars,
         cardinality=cardinality,
         pop_size=args.pop_size,
         selection_ratio=args.trunc,
         max_generations=args.n_gen,
-        activation_g=args.activation_g,
-        activation_d=args.activation_d,
-        activation_e=args.activation_e,
-        dropout=args.dropout,
-        temperature=args.temperature,
+        activation=args.activation,
+        loss_function=args.loss,
+        num_alpha_samples=args.num_alpha_samples,
+        n_steps=args.n_steps,
+        k=args.k,
+        alpha_smooth=args.alpha_smooth,
+        fitness_guided=args.fitness_guided,
+        use_markov_init=args.use_markov_init,
         learning_params=learning_params,
         sampling_params=sampling_params,
         random_seed=args.seed,
