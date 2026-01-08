@@ -120,6 +120,9 @@ from pateda.functions.discrete.additive_decomposable import (
 from pateda.functions.discrete.ising import load_ising, eval_ising
 from pateda.functions.discrete.ubqp import UBQPInstance
 
+# Mutation operators
+from pateda.mutation import frequency_balance_mutation, FrequencyBalanceMutation
+
 
 # ==============================================================================
 # Constants
@@ -562,6 +565,7 @@ class UnifiedDiscreteNeuralEDA:
         learning_params: Dict[str, Any] = None,
         sampling_params: Dict[str, Any] = None,
         random_seed: int = None,
+        alpha: float = 0.0,
     ):
         """
         Initialize Unified Neural EDA
@@ -587,6 +591,9 @@ class UnifiedDiscreteNeuralEDA:
             Sampling parameters
         random_seed : int
             Random seed for reproducibility
+        alpha : float
+            Maximum allowed frequency for ones or zeros (default 0.0, no mutation)
+            If alpha > 0, applies frequency balance mutation
         """
         self.method = method
         self.n_vars = n_vars
@@ -597,6 +604,7 @@ class UnifiedDiscreteNeuralEDA:
         self.learning_params = learning_params or {}
         self.sampling_params = sampling_params or {}
         self.random_seed = random_seed
+        self.alpha = alpha
 
         # Set random seed if provided
         if random_seed is not None:
@@ -746,6 +754,16 @@ class UnifiedDiscreteNeuralEDA:
                 population = np.random.randint(0, self.cardinality,
                                              (self.pop_size, self.n_vars))
 
+            # Apply frequency balance mutation if alpha > 0
+            if self.alpha > 0:
+                mutation_params = {'alpha': self.alpha}
+                population = frequency_balance_mutation(
+                    self.n_vars,
+                    self.cardinality,
+                    population,
+                    mutation_params
+                )
+
             # Evaluate
             fitness = fitness_func(population)
 
@@ -782,6 +800,8 @@ def run_traditional_eda(
     max_generations: int,
     random_seed: int = None,
     verbose: bool = True,
+    alpha: float = 0.0,
+    truncation_ratio: float = 0.5,
 ):
     """
     Run a traditional EDA algorithm
@@ -803,6 +823,10 @@ def run_traditional_eda(
         Random seed
     verbose : bool
         Print progress
+    alpha : float
+        Maximum allowed frequency for ones or zeros (default 0.0, no mutation)
+    truncation_ratio : float
+        Truncation selection ratio (default 0.5)
         
     Returns
     -------
@@ -882,11 +906,12 @@ def run_traditional_eda(
     # Create EDA components
     components = EDAComponents(
         seeding=RandomInit(),
-        selection=TruncationSelection(ratio=0.5),
+        selection=TruncationSelection(ratio=truncation_ratio),
         learning=learning,
         sampling=sampling,
         replacement=ElitistReplacement(),
         stop_condition=MaxGenerations(max_gen=max_generations),
+        mutation=FrequencyBalanceMutation(alpha=alpha) if alpha > 0 else None,
     )
     
     # Create and run EDA
@@ -916,9 +941,9 @@ def run_traditional_eda(
 def main():
     """Main entry point for command-line execution"""
     
-    # Check arguments (sys.argv[0] is script name, so 7 total = 6 arguments + script name)
-    if len(sys.argv) != 7:
-        print("Usage: python discrete_EDA_RW.py <seed> <problem_type> <instance_name> <pop_size> <n_gen> <alg>")
+    # Check arguments (sys.argv[0] is script name, so 7-9 total = 6-8 arguments + script name)
+    if len(sys.argv) < 7 or len(sys.argv) > 9:
+        print("Usage: python discrete_EDA_RW.py <seed> <problem_type> <instance_name> <pop_size> <n_gen> <alg> [alpha] [truncation]")
         print()
         print("Arguments:")
         print("  seed          : Random seed (integer)")
@@ -927,6 +952,8 @@ def main():
         print("  pop_size      : Population size (integer)")
         print("  n_gen         : Number of generations (integer)")
         print("  alg           : Algorithm name")
+        print("  alpha         : (Optional) Max frequency threshold for mutation (default: 0.0, no mutation)")
+        print("  truncation    : (Optional) Truncation selection ratio (default: 0.5)")
         print()
         print("Supported problem types:")
         print("  SAT   - Boolean satisfiability problem")
@@ -949,8 +976,8 @@ def main():
         print()
         print("Example:")
         print("  python discrete_EDA_RW.py 0 SAT uf20-01 80 20 VAE")
-        print("  python discrete_EDA_RW.py 1 Ising SG_16_1 100 30 UMDA")
-        print("  python discrete_EDA_RW.py 0 UBQP bqp50 200 50 TreeEDA")
+        print("  python discrete_EDA_RW.py 1 Ising SG_16_1 100 30 UMDA 0.95")
+        print("  python discrete_EDA_RW.py 0 UBQP bqp50 200 50 TreeEDA 0.95 0.5")
         sys.exit(1)
     
     # Parse arguments
@@ -960,6 +987,10 @@ def main():
     pop_size = int(sys.argv[4])
     n_gen = int(sys.argv[5])
     alg = sys.argv[6]
+    
+    # Optional arguments
+    alpha = float(sys.argv[7]) if len(sys.argv) > 7 else 0.0
+    truncation_ratio = float(sys.argv[8]) if len(sys.argv) > 8 else 0.5
     
     # Suppress warnings
     warnings.filterwarnings('ignore', category=UserWarning)
@@ -987,6 +1018,8 @@ def main():
     print(f"Population Size:  {pop_size}")
     print(f"Generations:      {n_gen}")
     print(f"Algorithm:        {alg}")
+    print(f"Alpha (mutation): {alpha}")
+    print(f"Truncation:       {truncation_ratio}")
     print("=" * 80)
     print()
     
@@ -1033,7 +1066,7 @@ def main():
         method_id = method_map[alg]
         
         # Compute common parameters based on pop_size and n_vars
-        selection_ratio = 0.5
+        selection_ratio = truncation_ratio
         selected_pop_size = int(pop_size * selection_ratio)
         adaptive_hidden_dims = [max(10, n_vars // 2), max(10, n_vars // 4)]
         batch_s = min(32, selected_pop_size // 10)
@@ -1244,11 +1277,12 @@ def main():
             n_vars=n_vars,
             cardinality=cardinality,
             pop_size=pop_size,
-            selection_ratio=0.5,
+            selection_ratio=selection_ratio,
             max_generations=n_gen,
             learning_params=learning_params,
             sampling_params=sampling_params,
             random_seed=myseed,
+            alpha=alpha,
         )
         
         best_fitness, best_solution, history = eda.run(fitness_func, verbose=True)
@@ -1263,6 +1297,8 @@ def main():
             max_generations=n_gen,
             random_seed=myseed,
             verbose=True,
+            alpha=alpha,
+            truncation_ratio=truncation_ratio,
         )
         
     else:

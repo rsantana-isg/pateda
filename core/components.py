@@ -245,6 +245,32 @@ class RepairingMethod(ABC):
         pass
 
 
+class MutationMethod(ABC):
+    """Abstract base class for mutation operators"""
+
+    @abstractmethod
+    def mutate(
+        self,
+        n_vars: int,
+        cardinality: np.ndarray,
+        population: np.ndarray,
+        **params: Any,
+    ) -> np.ndarray:
+        """
+        Apply mutation to population
+
+        Args:
+            n_vars: Number of variables
+            cardinality: Variable cardinalities or ranges
+            population: Population to mutate
+            **params: Additional method-specific parameters
+
+        Returns:
+            Mutated population
+        """
+        pass
+
+
 class StatisticsMethod(ABC):
     """Abstract base class for statistics collection methods"""
 
@@ -292,6 +318,7 @@ class EDAComponents:
     replacement: Optional[ReplacementMethod] = None
     local_opt: Optional[LocalOptMethod] = None
     repairing: Optional[RepairingMethod] = None
+    mutation: Optional[MutationMethod] = None
     statistics: Optional[StatisticsMethod] = None
 
     # Component parameters (method-specific)
@@ -303,6 +330,7 @@ class EDAComponents:
     stop_params: Dict[str, Any] = field(default_factory=dict)
     local_opt_params: Dict[str, Any] = field(default_factory=dict)
     repairing_params: Dict[str, Any] = field(default_factory=dict)
+    mutation_params: Dict[str, Any] = field(default_factory=dict)
     statistics_params: Dict[str, Any] = field(default_factory=dict)
 
     def validate(self) -> None:

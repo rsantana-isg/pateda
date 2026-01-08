@@ -307,6 +307,15 @@ class EDA:
                         new_pop, self.cardinality, **self.components.repairing_params
                     )
 
+                # Apply mutation if specified
+                if self.components.mutation is not None:
+                    new_pop = self.components.mutation.mutate(
+                        self.n_vars,
+                        self.cardinality,
+                        new_pop,
+                        **self.components.mutation_params,
+                    )
+
                 # Evaluate fitness
                 new_fitness = self.evaluate_fitness(new_pop)
 
