@@ -110,11 +110,19 @@ def frequency_balance_mutation(
             if n_to_flip == 0:
                 continue
             
-            # Ensure we don't flip more than n_individuals
-            n_to_flip = min(n_to_flip, n_individuals)
+            # Determine which class is the majority and get positions with that class
+            if freq_ones > alpha:
+                # Too many ones - flip only positions that have value 1
+                majority_positions = np.where(var_column == 1)[0]
+            else:
+                # Too many zeros - flip only positions that have value 0
+                majority_positions = np.where(var_column == 0)[0]
             
-            # Randomly select positions to flip
-            flip_indices = np.random.choice(n_individuals, n_to_flip, replace=False)
+            # Ensure we don't flip more positions than available in the majority class
+            n_to_flip = min(n_to_flip, len(majority_positions))
+            
+            # Randomly select positions from the majority class to flip
+            flip_indices = np.random.choice(majority_positions, n_to_flip, replace=False)
             
             # Flip the selected positions for this variable
             new_pop[flip_indices, var_idx] = 1 - new_pop[flip_indices, var_idx]
