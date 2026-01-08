@@ -1,20 +1,28 @@
 """
-Discrete GAN EDA - Real-World Combinatorial Problems
+Discrete VAE EDA - Real-World Combinatorial Problems
 ====================================================
 
-This program combines discrete_GAN_EDA.py and discrete_EDA_RW.py to provide
-a unified interface to run various GAN-EDA algorithm variants on real-world
+This program combines discrete_VAE_EDA.py and discrete_EDA_RW.py to provide
+a unified interface to run various VAE-EDA algorithm variants on real-world
 combinatorial problems (SAT, Ising, UBQP) with different seeds for cluster execution.
 
-Supports seven GAN-EDA variants as described in Deeper_GAN_Critical_Analysis.md:
+Supports twelve VAE-EDA variants:
 
-1. V1-WGAN-GP: Wasserstein Loss + Gradient Penalty
-2. V2-Cond-Fit-GAN: Condition input on target fitness percentiles
-3. V3-Aux-GAN: Auxiliary head for fitness prediction
-4. V4-Repulsion-GAN: Batch-wide diversity penalty in Generator
-5. V5-Weighted-D-GAN: Fitness-weighted Real/Fake classification
-6. V6-Statistic-Match: MSE loss on mean/std of generated batch
-7. V7-Hybrid-GAN-VAE: GAN with an Encoder (BiGAN)
+**Original Variants:**
+- VAE: Standard Variational Autoencoder with β-annealing
+- E-VAE: Enhanced VAE with fitness predictor
+- C-VAE: Conditional VAE conditioned on fitness and statistics
+- Desc-VAE: Descriptor-augmented VAE with landscape information
+- Reg-VAE: Regression-focused VAE with fitness-weighted reconstruction
+- Mom-VAE: Moment-matching VAE with statistical alignment
+
+**Enhanced Variants:**
+- BA-VAE: Beta-Annealed VAE - Addresses posterior collapse
+- AA-VAE: Adaptive-Architecture VAE - Addresses overfitting
+- FW-VAE: Fitness-Weighted VAE - Better fitness guidance
+- GS-VAE: Greedy-Sampling VAE - Deterministic sampling
+- HS-VAE: Hybrid-Sampling VAE - Combined sampling
+- TC-VAE: Temperature-Controlled VAE - Adaptive temperature
 
 Supports real-world combinatorial problems:
 - SAT: Boolean satisfiability problem
@@ -22,25 +30,21 @@ Supports real-world combinatorial problems:
 - UBQP: Unconstrained Binary Quadratic Programming
 
 Configurable Parameters:
-- Activation Function for Generator: relu, tanh, sigmoid, leakyrelu, etc.
-- Activation Function for Discriminator: relu, tanh, sigmoid, leakyrelu, etc.
-- Activation Function for Encoder (V7 only): relu, tanh, sigmoid, leakyrelu, etc.
-- Dropout rate: Discriminator dropout rate (default: 0.5 for stability)
-- Temperature: Gumbel-Softmax temperature
-- Learning rates: Separate for Generator and Discriminator
-- Hidden dimensions: Automatically computed from n_vars and pop_size
-- Batch size: Automatically computed from selected population size
-- Truncation Percent: Selection ratio for truncation selection
+- Activation Functions: For encoder and decoder layers
+- Beta Annealing: KL divergence weight scheduling
+- Latent Dimensions: Size of latent space
+- Hidden Layer Dimensions: Defined in terms of number of variables
+- Batch Size: Adaptive based on selected population size
 - Alpha: Maximum allowed frequency for ones or zeros (mutation control)
 
 Usage:
-    python discrete_GAN_EDA_RW.py <seed> <problem_type> <instance_name> <pop_size> <n_gen> <trunc> <variant> \\
-        <activation_g> <activation_d> <activation_e> <dropout> <temperature> <use_surrogate> <alpha>
+    python discrete_VAE_EDA_RW.py <seed> <problem_type> <instance_name> <pop_size> <n_gen> <trunc> <vae_variant> \\
+        <activation_enc> <activation_dec> <beta_start> <beta_end> <latent_dim> <epochs> <mi_layer> <alpha>
 
 Example:
-    python discrete_GAN_EDA_RW.py 0 SAT uf20-01 80 20 0.5 WGAN-GP relu leaky_relu relu 0.5 1.0 0 0.0
-    python discrete_GAN_EDA_RW.py 1 Ising SG_16_1 100 30 0.5 Cond-Fit-GAN tanh leaky_relu relu 0.5 1.0 0 0.95
-    python discrete_GAN_EDA_RW.py 0 UBQP bqp50 200 50 0.5 Aux-GAN relu leaky_relu relu 0.5 1.0 1 0.0
+    python discrete_VAE_EDA_RW.py 0 SAT uf20-01 80 20 0.5 vae relu relu 0.0 1.0 0 30 0 0.0
+    python discrete_VAE_EDA_RW.py 1 Ising SG_16_1 100 30 0.5 bavae relu relu 0.0 1.0 8 30 1 0.95
+    python discrete_VAE_EDA_RW.py 0 UBQP bqp50 200 50 0.5 cvae relu relu 0.0 1.0 0 30 0 0.0
 
 ==============================================================================
 """
@@ -59,24 +63,31 @@ import math
 from typing import Dict, Any, Optional
 import warnings
 
-# GAN learning modules
-from pateda.learning.discrete_gan import (
-    learn_binary_gan,
-    learn_binary_gan_wgan_gp,
-    learn_binary_gan_cond_fit,
-    learn_binary_gan_aux,
-    learn_binary_gan_repulsion,
-    learn_binary_gan_weighted_d,
-    learn_binary_gan_statistic_match,
-    learn_binary_gan_hybrid_vae,
+# VAE learning modules
+from pateda.learning.discrete_vae import (
+    learn_binary_vae,
+    learn_binary_cvae,
+    learn_binary_descvae,
+    learn_binary_regvae,
+    learn_binary_momvae,
+    learn_binary_bavae,
+    learn_binary_aavae,
+    learn_binary_fwvae
 )
 
-# GAN sampling modules
+# VAE sampling modules
 from pateda.sampling.discrete_neural import (
-    sample_binary_gan,
-    sample_binary_gan_cond_fit,
-    sample_binary_gan_aux,
-    sample_binary_gan_hybrid_vae,
+    sample_binary_vae,
+    sample_binary_cvae,
+    sample_binary_descvae,
+    sample_binary_regvae,
+    sample_binary_momvae,
+    sample_binary_bavae,
+    sample_binary_aavae,
+    sample_binary_fwvae,
+    sample_binary_gsvae,
+    sample_binary_hsvae,
+    sample_binary_tcvae
 )
 
 # Real-world problem functions
@@ -469,12 +480,12 @@ def parse_rw_problem(problem_type: str, instance_name: str):
 
 
 # ==============================================================================
-# GAN EDA Implementation
+# VAE EDA Implementation
 # ==============================================================================
 
-class GANEDA:
+class VAEEDA:
     """
-    Configurable GAN-EDA framework with seven variant options
+    Unified framework for VAE-based EDAs with configurable parameters
     """
 
     def __init__(
@@ -485,24 +496,23 @@ class GANEDA:
         pop_size: int = 100,
         selection_ratio: float = 0.5,
         max_generations: int = 50,
-        activation_g: str = 'relu',
-        activation_d: str = 'leaky_relu',
-        activation_e: str = 'relu',
-        dropout: float = 0.5,
-        temperature: float = 1.0,
+        activation_enc: str = 'relu',
+        activation_dec: str = 'relu',
+        beta_start: float = 0.0,
+        beta_end: float = 1.0,
         learning_params: Optional[Dict[str, Any]] = None,
         sampling_params: Optional[Dict[str, Any]] = None,
         random_seed: Optional[int] = None,
         alpha: float = 0.0,
     ):
         """
-        Initialize GAN EDA
+        Initialize VAE EDA
 
         Parameters
         ----------
         variant : str
-            GAN variant: 'GAN', 'WGAN-GP', 'Cond-Fit-GAN', 'Aux-GAN',
-                        'Repulsion-GAN', 'Weighted-D-GAN', 'Statistic-Match', 'Hybrid-GAN-VAE'
+            VAE variant: 'vae', 'evae', 'cvae', 'descvae', 'regvae', 'momvae',
+                        'bavae', 'aavae', 'fwvae', 'gsvae', 'hsvae', 'tcvae'
         n_vars : int
             Number of variables
         cardinality : np.ndarray
@@ -513,16 +523,14 @@ class GANEDA:
             Selection ratio (truncation percent)
         max_generations : int
             Maximum generations
-        activation_g : str
-            Activation function for Generator (relu, tanh, sigmoid, leaky_relu, etc.)
-        activation_d : str
-            Activation function for Discriminator (relu, tanh, sigmoid, leaky_relu, etc.)
-        activation_e : str
-            Activation function for Encoder (for Hybrid-GAN-VAE variant)
-        dropout : float
-            Dropout rate for discriminator (default: 0.5 for stability)
-        temperature : float
-            Gumbel-Softmax temperature
+        activation_enc : str
+            Activation function for encoder (relu, tanh, sigmoid, leakyrelu, etc.)
+        activation_dec : str
+            Activation function for decoder
+        beta_start : float
+            Initial KL weight for annealing
+        beta_end : float
+            Final KL weight for annealing
         learning_params : dict, optional
             Additional learning parameters
         sampling_params : dict, optional
@@ -539,11 +547,10 @@ class GANEDA:
         self.pop_size = pop_size
         self.selection_ratio = selection_ratio
         self.max_generations = max_generations
-        self.activation_g = activation_g
-        self.activation_d = activation_d
-        self.activation_e = activation_e
-        self.dropout = dropout
-        self.temperature = temperature
+        self.activation_enc = activation_enc
+        self.activation_dec = activation_dec
+        self.beta_start = beta_start
+        self.beta_end = beta_end
         self.learning_params = learning_params or {}
         self.sampling_params = sampling_params or {}
         self.random_seed = random_seed
@@ -553,38 +560,30 @@ class GANEDA:
         if random_seed is not None:
             set_seed(random_seed)
 
-        # Validate parameters
-        valid_variants = ['GAN', 'WGAN-GP', 'Cond-Fit-GAN', 'Aux-GAN',
-                         'Repulsion-GAN', 'Weighted-D-GAN', 'Statistic-Match', 'Hybrid-GAN-VAE']
-        if variant not in valid_variants:
-            raise ValueError(f"Invalid variant: {variant}. Must be one of {valid_variants}")
-
         # Map variant to learning and sampling functions
-        self.learning_function_map = {
-            'GAN': learn_binary_gan,
-            'WGAN-GP': learn_binary_gan_wgan_gp,
-            'Cond-Fit-GAN': learn_binary_gan_cond_fit,
-            'Aux-GAN': learn_binary_gan_aux,
-            'Repulsion-GAN': learn_binary_gan_repulsion,
-            'Weighted-D-GAN': learn_binary_gan_weighted_d,
-            'Statistic-Match': learn_binary_gan_statistic_match,
-            'Hybrid-GAN-VAE': learn_binary_gan_hybrid_vae,
+        self.variant_map = {
+            # Original variants
+            'vae': (learn_binary_vae, sample_binary_vae),
+            'evae': (learn_binary_vae, sample_binary_vae),  # E-VAE uses learn_binary_vae with use_extended=True
+            'cvae': (learn_binary_cvae, sample_binary_cvae),
+            'descvae': (learn_binary_descvae, sample_binary_descvae),
+            'regvae': (learn_binary_regvae, sample_binary_regvae),
+            'momvae': (learn_binary_momvae, sample_binary_momvae),
+            # Enhanced variants
+            'bavae': (learn_binary_bavae, sample_binary_bavae),
+            'aavae': (learn_binary_aavae, sample_binary_aavae),
+            'fwvae': (learn_binary_fwvae, sample_binary_fwvae),
+            'gsvae': (learn_binary_vae, sample_binary_gsvae),  # Uses standard learning, greedy sampling
+            'hsvae': (learn_binary_vae, sample_binary_hsvae),  # Uses standard learning, hybrid sampling
+            'tcvae': (learn_binary_vae, sample_binary_tcvae),  # Uses standard learning, temp-controlled sampling
         }
 
-        self.sampling_function_map = {
-            'GAN': sample_binary_gan,
-            'WGAN-GP': sample_binary_gan,
-            'Cond-Fit-GAN': sample_binary_gan_cond_fit,
-            'Aux-GAN': sample_binary_gan_aux,
-            'Repulsion-GAN': sample_binary_gan,
-            'Weighted-D-GAN': sample_binary_gan,
-            'Statistic-Match': sample_binary_gan,
-            'Hybrid-GAN-VAE': sample_binary_gan_hybrid_vae,
-        }
+        if variant not in self.variant_map:
+            raise ValueError(f"Invalid variant: {variant}. Must be one of {list(self.variant_map.keys())}")
 
     def run(self, fitness_func, verbose=True):
         """
-        Run the GAN EDA
+        Run the VAE EDA
 
         Parameters
         ----------
@@ -602,9 +601,7 @@ class GANEDA:
         history : dict
             History dictionary
         """
-        # Get learning and sampling functions
-        learn_fn = self.learning_function_map[self.variant]
-        sample_fn = self.sampling_function_map[self.variant]
+        learn_fn, sample_fn = self.variant_map[self.variant]
 
         # Initialize population
         population = np.random.randint(0, self.cardinality, (self.pop_size, self.n_vars))
@@ -614,7 +611,7 @@ class GANEDA:
 
         best_fitness = np.max(fitness)
         best_solution = population[np.argmax(fitness)].copy()
-        generation_found = 0  # Track generation where best was found
+        generation_found = 0
 
         history = {'best_fitness': [best_fitness]}
 
@@ -629,24 +626,42 @@ class GANEDA:
             selected_fitness = fitness[selected_idx]
 
             # Prepare learning parameters
+            # Dynamic hidden layer computation based on n_vars and population size
+            h1 = min(self.n_vars, n_selected)
+            latent_dim = self.learning_params.get('latent_dim', max(2, self.n_vars // 4))
+            target_params = 4.5 * n_selected
+            h2 = max(4, int((target_params - self.n_vars * h1) / (h1 + latent_dim)))
+            adaptive_hidden_dims_enc = [h1, h2]
+            adaptive_hidden_dims_dec = list(reversed(adaptive_hidden_dims_enc))
+
+            # Adaptive batch size: max(10, selected_pop_size/20)
+            batch_s = max(10, int(n_selected / 20))
+
             learning_params = self.learning_params.copy()
+            learning_params['latent_dim'] = latent_dim
+            learning_params['hidden_dims_enc'] = learning_params.get('hidden_dims_enc', adaptive_hidden_dims_enc)
+            learning_params['hidden_dims_dec'] = learning_params.get('hidden_dims_dec', adaptive_hidden_dims_dec)
+            learning_params['batch_size'] = learning_params.get('batch_size', batch_s)
+            learning_params['epochs'] = learning_params.get('epochs', 30)
+            learning_params['beta_start'] = self.beta_start
+            learning_params['beta_end'] = self.beta_end
+            learning_params['beta_annealing_epochs'] = learning_params.get('beta_annealing_epochs', 15)
 
-            # Add activation functions
-            if 'hidden_dims_g' in learning_params:
-                n_hidden_g = len(learning_params['hidden_dims_g'])
-                learning_params['list_act_functs_g'] = [self.activation_g] * n_hidden_g
-            if 'hidden_dims_d' in learning_params:
-                n_hidden_d = len(learning_params['hidden_dims_d'])
-                learning_params['list_act_functs_d'] = [self.activation_d] * n_hidden_d
+            # Pass activation functions
+            n_hidden_enc = len(learning_params['hidden_dims_enc'])
+            n_hidden_dec = len(learning_params['hidden_dims_dec'])
+            learning_params['list_act_functs_enc'] = [self.activation_enc] * n_hidden_enc
+            learning_params['list_act_functs_dec'] = [self.activation_dec] * n_hidden_dec
 
-            # For Hybrid-GAN-VAE, add encoder activations
-            if self.variant == 'Hybrid-GAN-VAE' and 'hidden_dims_e' in learning_params:
-                n_hidden_e = len(learning_params['hidden_dims_e'])
-                learning_params['list_act_functs_e'] = [self.activation_e] * n_hidden_e
-
-            # Add dropout and temperature
-            learning_params['dropout'] = self.dropout
-            learning_params['temperature'] = self.temperature
+            # Variant-specific parameters
+            if self.variant == 'evae':
+                learning_params['use_extended'] = True
+                learning_params['fitness_weight'] = learning_params.get('fitness_weight', 0.1)
+            elif self.variant == 'regvae':
+                learning_params['fitness_weight'] = learning_params.get('fitness_weight', 0.1)
+                learning_params['use_fitness_weighting'] = learning_params.get('use_fitness_weighting', True)
+            elif self.variant == 'momvae':
+                learning_params['moment_weight'] = learning_params.get('moment_weight', 0.1)
 
             # Learn model
             try:
@@ -655,13 +670,18 @@ class GANEDA:
                 # Prepare sampling parameters
                 sampling_params = self.sampling_params.copy()
 
-                # For Cond-Fit-GAN, add fitness percentile information
-                if self.variant == 'Cond-Fit-GAN':
-                    sampling_params['selected_fitness'] = selected_fitness
-
-                # For Aux-GAN, add surrogate filtering option
-                if self.variant == 'Aux-GAN':
-                    sampling_params['use_surrogate'] = sampling_params.get('use_surrogate', False)
+                # Variant-specific sampling
+                if self.variant == 'evae':
+                    sampling_params['use_fitness_guidance'] = sampling_params.get('use_fitness_guidance', False)
+                elif self.variant == 'cvae':
+                    # C-VAE: can specify target condition for sampling
+                    pass
+                elif self.variant == 'regvae':
+                    sampling_params['use_fitness_guidance'] = sampling_params.get('use_fitness_guidance', True)
+                elif self.variant == 'tcvae':
+                    # TC-VAE: pass generation info for temperature control
+                    sampling_params['generation'] = gen + 1
+                    sampling_params['max_generations'] = self.max_generations
 
                 # Sample new population
                 population = sample_fn(model, self.pop_size, sampling_params)
@@ -701,7 +721,7 @@ class GANEDA:
             if gen_best > best_fitness:
                 best_fitness = gen_best
                 best_solution = population[np.argmax(fitness)].copy()
-                generation_found = gen + 1  # Update generation where best was found
+                generation_found = gen + 1
 
             history['best_fitness'].append(best_fitness)
 
@@ -710,7 +730,7 @@ class GANEDA:
 
         # Print completion summary
         if verbose:
-            print(f"\nGAN-EDA completed after {self.max_generations} generations")
+            print(f"\nVAE-EDA completed after {self.max_generations} generations")
             print(f"Best fitness found: {best_fitness:.6f}")
             print(f"  at generation {generation_found}")
 
@@ -726,18 +746,18 @@ def main():
 
     # Create argument parser
     parser = argparse.ArgumentParser(
-        description='Discrete GAN EDA - Real-World Combinatorial Problems',
+        description='Discrete VAE EDA - Real-World Combinatorial Problems',
         formatter_class=argparse.RawDescriptionHelpFormatter,
         epilog="""
 Examples:
-  # SAT problem with WGAN-GP variant
-  python discrete_GAN_EDA_RW.py 0 SAT uf20-01 80 20 0.5 WGAN-GP relu leaky_relu relu 0.5 1.0 0 0.0
+  # SAT problem with standard VAE
+  python discrete_VAE_EDA_RW.py 0 SAT uf20-01 80 20 0.5 vae relu relu 0.0 1.0 0 30 0 0.0
 
-  # Ising problem with Cond-Fit-GAN and mutation
-  python discrete_GAN_EDA_RW.py 1 Ising SG_16_1 100 30 0.5 Cond-Fit-GAN tanh leaky_relu relu 0.5 1.0 0 0.95
+  # Ising problem with BA-VAE and mutation
+  python discrete_VAE_EDA_RW.py 1 Ising SG_16_1 100 30 0.5 bavae relu relu 0.0 1.0 8 30 1 0.95
 
-  # UBQP problem with Aux-GAN and surrogate filtering
-  python discrete_GAN_EDA_RW.py 0 UBQP bqp50 200 50 0.5 Aux-GAN relu leaky_relu relu 0.5 1.0 1 0.0
+  # UBQP problem with C-VAE
+  python discrete_VAE_EDA_RW.py 0 UBQP bqp50 200 50 0.5 cvae relu relu 0.0 1.0 0 30 0 0.0
         """
     )
 
@@ -748,22 +768,24 @@ Examples:
     parser.add_argument('pop_size', type=int, help='Population size')
     parser.add_argument('n_gen', type=int, help='Number of generations')
     parser.add_argument('trunc', type=float, help='Truncation percent (selection ratio, e.g., 0.5 for 50%)')
-    parser.add_argument('variant', type=str,
-                       choices=['GAN', 'WGAN-GP', 'Cond-Fit-GAN', 'Aux-GAN',
-                               'Repulsion-GAN', 'Weighted-D-GAN', 'Statistic-Match', 'Hybrid-GAN-VAE'],
-                       help='GAN variant to use')
-    parser.add_argument('activation_g', type=str,
-                       help='Activation function for Generator. Options: relu, tanh, sigmoid, leaky_relu, elu, selu, gelu, etc.')
-    parser.add_argument('activation_d', type=str,
-                       help='Activation function for Discriminator')
-    parser.add_argument('activation_e', type=str,
-                       help='Activation function for Encoder (Hybrid-GAN-VAE only)')
-    parser.add_argument('dropout', type=float,
-                       help='Dropout rate for discriminator')
-    parser.add_argument('temperature', type=float,
-                       help='Gumbel-Softmax temperature')
-    parser.add_argument('use_surrogate', type=int, choices=[0, 1],
-                       help='Use surrogate model for pre-filtering solutions (1=yes, 0=no, Aux-GAN only)')
+    parser.add_argument('vae_variant', type=str,
+                       choices=['vae', 'evae', 'cvae', 'descvae', 'regvae', 'momvae',
+                               'bavae', 'aavae', 'fwvae', 'gsvae', 'hsvae', 'tcvae'],
+                       help='VAE variant to use')
+    parser.add_argument('activation_enc', type=str,
+                       help='Activation function for Encoder. Options: relu, tanh, sigmoid, leaky_relu, elu, selu, gelu, etc.')
+    parser.add_argument('activation_dec', type=str,
+                       help='Activation function for Decoder')
+    parser.add_argument('beta_start', type=float,
+                       help='Initial KL weight for beta annealing')
+    parser.add_argument('beta_end', type=float,
+                       help='Final KL weight for beta annealing')
+    parser.add_argument('latent_dim', type=int,
+                       help='Latent dimension size (0 for automatic sizing)')
+    parser.add_argument('epochs', type=int,
+                       help='Number of training epochs')
+    parser.add_argument('mi_layer', type=int, choices=[0, 1],
+                       help='Use mutual information layer (1=yes, 0=no)')
     parser.add_argument('alpha', type=float,
                        help='Max frequency threshold for mutation (default: 0.0, no mutation)')
 
@@ -771,7 +793,7 @@ Examples:
     args = parser.parse_args()
 
     # Convert integer flags to boolean
-    args.use_surrogate = bool(args.use_surrogate)
+    args.mi_layer = bool(args.mi_layer)
 
     # Validate truncation percent
     if args.trunc <= 0 or args.trunc > 1:
@@ -794,7 +816,7 @@ Examples:
 
     # Print configuration
     print("=" * 80)
-    print("DISCRETE GAN EDA - Real-World Problem Configuration")
+    print("DISCRETE VAE EDA - Real-World Problem Configuration")
     print("=" * 80)
     print(f"Seed:               {args.seed}")
     print(f"Problem Type:       {args.problem_type}")
@@ -804,74 +826,47 @@ Examples:
     print(f"Population Size:    {args.pop_size}")
     print(f"Generations:        {args.n_gen}")
     print(f"Truncation Percent: {args.trunc}")
-    print(f"Variant:            {args.variant}")
-    print(f"Activation (Gen):   {args.activation_g}")
-    print(f"Activation (Disc):  {args.activation_d}")
-    if args.variant == 'Hybrid-GAN-VAE':
-        print(f"Activation (Enc):   {args.activation_e}")
-    print(f"Dropout:            {args.dropout}")
-    print(f"Temperature:        {args.temperature}")
-    if args.variant == 'Aux-GAN':
-        print(f"Use Surrogate:      {args.use_surrogate}")
+    print(f"VAE Variant:        {args.vae_variant}")
+    print(f"Activation (Enc):   {args.activation_enc}")
+    print(f"Activation (Dec):   {args.activation_dec}")
+    print(f"Beta Start:         {args.beta_start}")
+    print(f"Beta End:           {args.beta_end}")
+    print(f"Latent Dim:         {args.latent_dim if args.latent_dim > 0 else 'Auto'}")
+    print(f"Epochs:             {args.epochs}")
+    print(f"MI Layer:           {args.mi_layer}")
     print(f"Alpha (mutation):   {args.alpha}")
     print("=" * 80)
     print()
 
     start_time = time.time()
 
-    # Compute common parameters based on pop_size and n_vars
-    selected_pop_size = int(args.pop_size * args.trunc)
-
-    # CRITICAL: Dynamic hidden layer sizing based on population and problem size
-    # As described in Deeper_GAN_Critical_Analysis.md:
-    # "hidden layer width is a function of the number of selected individuals"
-    adaptive_hidden_dims_g = [max(10, n_vars // 2), max(10, n_vars // 4)]
-    adaptive_hidden_dims_d = list(reversed(adaptive_hidden_dims_g))
-
-    # CRITICAL: Batch size depends on selected population size
-    # "batch size depends on the size of the selected population, e.g., max(10,selected_pop_size/20)"
-    batch_s = max(10, selected_pop_size // 20)
-
     # Configure learning parameters
     learning_params = {
-        'epochs': 60,
-        'latent_dim': max(10, n_vars // 2),
-        'hidden_dims_g': adaptive_hidden_dims_g,
-        'hidden_dims_d': adaptive_hidden_dims_d,
-        'batch_size': batch_s,
-        'learning_rate_g': 0.0002,
-        'learning_rate_d': 0.0002,
-        'dropout': args.dropout,
-        'temperature': args.temperature,
+        'epochs': args.epochs,
+        'use_mi_layer': args.mi_layer,
     }
 
-    # For Hybrid-GAN-VAE, add encoder dimensions
-    if args.variant == 'Hybrid-GAN-VAE':
-        learning_params['hidden_dims_e'] = adaptive_hidden_dims_g
+    # Set latent_dim only if specified (otherwise use automatic)
+    if args.latent_dim > 0:
+        learning_params['latent_dim'] = args.latent_dim
 
     # Configure sampling parameters
-    sampling_params = {
-        'temperature': args.temperature,
-    }
-
-    if args.variant == 'Aux-GAN':
-        sampling_params['use_surrogate'] = args.use_surrogate
+    sampling_params = {}
 
     cardinality = np.full(n_vars, 2)
 
-    # Create and run GAN EDA
-    eda = GANEDA(
-        variant=args.variant,
+    # Create and run VAE EDA
+    eda = VAEEDA(
+        variant=args.vae_variant,
         n_vars=n_vars,
         cardinality=cardinality,
         pop_size=args.pop_size,
         selection_ratio=args.trunc,
         max_generations=args.n_gen,
-        activation_g=args.activation_g,
-        activation_d=args.activation_d,
-        activation_e=args.activation_e,
-        dropout=args.dropout,
-        temperature=args.temperature,
+        activation_enc=args.activation_enc,
+        activation_dec=args.activation_dec,
+        beta_start=args.beta_start,
+        beta_end=args.beta_end,
         learning_params=learning_params,
         sampling_params=sampling_params,
         random_seed=args.seed,
