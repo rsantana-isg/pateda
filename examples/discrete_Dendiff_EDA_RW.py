@@ -1,20 +1,30 @@
 """
-Discrete GAN EDA - Real-World Combinatorial Problems
-====================================================
+Discrete Dendiff EDA - Real-World Combinatorial Problems
+========================================================
 
-This program combines discrete_GAN_EDA.py and discrete_EDA_RW.py to provide
-a unified interface to run various GAN-EDA algorithm variants on real-world
+This program combines discrete_Dendiff_EDA.py and discrete_EDA_RW.py to provide
+a unified interface to run various Dendiff-EDA algorithm variants on real-world
 combinatorial problems (SAT, Ising, UBQP) with different seeds for cluster execution.
 
-Supports seven GAN-EDA variants as described in Deeper_GAN_Critical_Analysis.md:
+Supports comprehensive Dendiff-EDA variants:
 
-1. V1-WGAN-GP: Wasserstein Loss + Gradient Penalty
-2. V2-Cond-Fit-GAN: Condition input on target fitness percentiles
-3. V3-Aux-GAN: Auxiliary head for fitness prediction
-4. V4-Repulsion-GAN: Batch-wide diversity penalty in Generator
-5. V5-Weighted-D-GAN: Fitness-weighted Real/Fake classification
-6. V6-Statistic-Match: MSE loss on mean/std of generated batch
-7. V7-Hybrid-GAN-VAE: GAN with an Encoder (BiGAN)
+**Standard Dendiff Variants:**
+- Dendiff-Gumbel: Gumbel-Softmax based discrete diffusion
+- Dendiff-Corruption: Corruption/denoising based discrete diffusion (BERT-style)
+
+**Alternative Sampling Strategies:**
+- Dendiff-STE: Straight-Through Estimator
+- Dendiff-HardConcrete: Hard Concrete distribution
+- Dendiff-Deterministic: Deterministic softmax
+
+**Enhanced Variants:**
+- Dendiff-Gumbel-WeightedMSE: With fitness-weighted loss
+- Dendiff-Gumbel-Ranking: With ranking loss
+- Dendiff-Gumbel-Huber: With Huber loss
+
+**Fitness-Guided Variants:**
+- Dendiff-Gumbel-FitnessGuided: Conditional on fitness
+- Dendiff-Corruption-FitnessGuided: Corruption with fitness
 
 Supports real-world combinatorial problems:
 - SAT: Boolean satisfiability problem
@@ -22,25 +32,22 @@ Supports real-world combinatorial problems:
 - UBQP: Unconstrained Binary Quadratic Programming
 
 Configurable Parameters:
-- Activation Function for Generator: relu, tanh, sigmoid, leakyrelu, etc.
-- Activation Function for Discriminator: relu, tanh, sigmoid, leakyrelu, etc.
-- Activation Function for Encoder (V7 only): relu, tanh, sigmoid, leakyrelu, etc.
-- Dropout rate: Discriminator dropout rate (default: 0.5 for stability)
-- Temperature: Gumbel-Softmax temperature
-- Learning rates: Separate for Generator and Discriminator
-- Hidden dimensions: Automatically computed from n_vars and pop_size
-- Batch size: Automatically computed from selected population size
-- Truncation Percent: Selection ratio for truncation selection
+- Sampling Strategy: gumbel, corruption, ste, hard_concrete, deterministic
+- Activation Function: relu, tanh, sigmoid, leakyrelu, elu, selu, gelu, etc.
+- Loss Function: mse, weighted_mse, ranking, huber
+- Diffusion Timesteps: Number of timesteps during training
+- Sampling Steps: Number of denoising steps
 - Alpha: Maximum allowed frequency for ones or zeros (mutation control)
 
 Usage:
-    python discrete_GAN_EDA_RW.py <seed> <problem_type> <instance_name> <pop_size> <n_gen> <trunc> <variant> \\
-        <activation_g> <activation_d> <activation_e> <dropout> <temperature> <use_surrogate> <alpha>
+    python discrete_Dendiff_EDA_RW.py <seed> <problem_type> <instance_name> <pop_size> <n_gen> <trunc> \\
+        <variant> <sampling_strategy> <activation> <loss> <n_timesteps> <n_sampling_steps> \\
+        <fitness_guided> <temperature> <beta_start> <beta_end> <alpha>
 
 Example:
-    python discrete_GAN_EDA_RW.py 0 SAT uf20-01 80 20 0.5 WGAN-GP relu leaky_relu relu 0.5 1.0 0 0.0
-    python discrete_GAN_EDA_RW.py 1 Ising SG_16_1 100 30 0.5 Cond-Fit-GAN tanh leaky_relu relu 0.5 1.0 0 0.95
-    python discrete_GAN_EDA_RW.py 0 UBQP bqp50 200 50 0.5 Aux-GAN relu leaky_relu relu 0.5 1.0 1 0.0
+    python discrete_Dendiff_EDA_RW.py 0 SAT uf20-01 80 20 0.5 dendiff_gumbel gumbel relu mse 100 20 0 1.0 0.0001 0.3 0.0
+    python discrete_Dendiff_EDA_RW.py 1 Ising SG_16_1 100 30 0.5 dendiff_corruption corruption tanh mse 50 20 0 0.5 0.01 0.5 0.95
+    python discrete_Dendiff_EDA_RW.py 0 UBQP bqp50 200 50 0.5 dendiff_ste ste relu mse 50 20 0 0.5 0.01 0.5 0.0
 
 ==============================================================================
 """
@@ -59,24 +66,20 @@ import math
 from typing import Dict, Any, Optional
 import warnings
 
-# GAN learning modules
-from pateda.learning.discrete_gan import (
-    learn_binary_gan,
-    learn_binary_gan_wgan_gp,
-    learn_binary_gan_cond_fit,
-    learn_binary_gan_aux,
-    learn_binary_gan_repulsion,
-    learn_binary_gan_weighted_d,
-    learn_binary_gan_statistic_match,
-    learn_binary_gan_hybrid_vae,
-)
+# Dendiff learning modules
+from pateda.learning.discrete_dendiff_gumbel import learn_discrete_dendiff_gumbel
+from pateda.learning.discrete_dendiff_corruption import learn_discrete_dendiff_corruption
+from pateda.learning.discrete_dendiff_ste import learn_discrete_dendiff_ste
+from pateda.learning.discrete_dendiff_hard_concrete import learn_discrete_dendiff_hard_concrete
+from pateda.learning.discrete_dendiff_deterministic import learn_discrete_dendiff_deterministic
 
-# GAN sampling modules
-from pateda.sampling.discrete_neural import (
-    sample_binary_gan,
-    sample_binary_gan_cond_fit,
-    sample_binary_gan_aux,
-    sample_binary_gan_hybrid_vae,
+# Dendiff sampling modules
+from pateda.sampling.discrete_dendiff import (
+    sample_discrete_dendiff_gumbel,
+    sample_discrete_dendiff_corruption,
+    sample_discrete_dendiff_ste,
+    sample_discrete_dendiff_hard_concrete,
+    sample_discrete_dendiff_deterministic
 )
 
 # Real-world problem functions
@@ -96,6 +99,9 @@ SUCCESS_THRESHOLD = 0.01
 
 # Constant for unknown optimal values
 UNKNOWN_OPTIMAL = "Unknown"
+
+# Loss functions that require fitness values for computation
+LOSS_FUNCTIONS_REQUIRING_FITNESS = ['weighted_mse', 'ranking']
 
 
 # ==============================================================================
@@ -469,12 +475,12 @@ def parse_rw_problem(problem_type: str, instance_name: str):
 
 
 # ==============================================================================
-# GAN EDA Implementation
+# Dendiff EDA Implementation
 # ==============================================================================
 
-class GANEDA:
+class DendiffEDA:
     """
-    Configurable GAN-EDA framework with seven variant options
+    Unified framework for Dendiff-based EDAs with configurable parameters
     """
 
     def __init__(
@@ -485,24 +491,28 @@ class GANEDA:
         pop_size: int = 100,
         selection_ratio: float = 0.5,
         max_generations: int = 50,
-        activation_g: str = 'relu',
-        activation_d: str = 'leaky_relu',
-        activation_e: str = 'relu',
-        dropout: float = 0.5,
+        sampling_strategy: str = 'gumbel',
+        activation: str = 'relu',
+        loss_function: str = 'mse',
+        n_timesteps: int = 100,
+        n_sampling_steps: int = 20,
+        fitness_guided: bool = False,
         temperature: float = 1.0,
+        beta_start: float = 0.0001,
+        beta_end: float = 0.3,
         learning_params: Optional[Dict[str, Any]] = None,
         sampling_params: Optional[Dict[str, Any]] = None,
         random_seed: Optional[int] = None,
         alpha: float = 0.0,
     ):
         """
-        Initialize GAN EDA
+        Initialize Dendiff EDA
 
         Parameters
         ----------
         variant : str
-            GAN variant: 'GAN', 'WGAN-GP', 'Cond-Fit-GAN', 'Aux-GAN',
-                        'Repulsion-GAN', 'Weighted-D-GAN', 'Statistic-Match', 'Hybrid-GAN-VAE'
+            Dendiff variant: 'dendiff_gumbel', 'dendiff_corruption', 'dendiff_ste',
+                            'dendiff_hard_concrete', 'dendiff_deterministic'
         n_vars : int
             Number of variables
         cardinality : np.ndarray
@@ -513,16 +523,24 @@ class GANEDA:
             Selection ratio (truncation percent)
         max_generations : int
             Maximum generations
-        activation_g : str
-            Activation function for Generator (relu, tanh, sigmoid, leaky_relu, etc.)
-        activation_d : str
-            Activation function for Discriminator (relu, tanh, sigmoid, leaky_relu, etc.)
-        activation_e : str
-            Activation function for Encoder (for Hybrid-GAN-VAE variant)
-        dropout : float
-            Dropout rate for discriminator (default: 0.5 for stability)
+        sampling_strategy : str
+            Sampling strategy: 'gumbel', 'corruption', 'ste', 'hard_concrete', 'deterministic'
+        activation : str
+            Activation function (relu, tanh, sigmoid, leakyrelu, elu, selu, gelu, etc.)
+        loss_function : str
+            Loss function (mse, weighted_mse, ranking, huber)
+        n_timesteps : int
+            Number of diffusion timesteps during training
+        n_sampling_steps : int
+            Number of denoising steps during sampling
+        fitness_guided : bool
+            Use fitness guidance/conditioning
         temperature : float
-            Gumbel-Softmax temperature
+            Gumbel-Softmax or sampling temperature
+        beta_start : float
+            Starting noise/corruption level
+        beta_end : float
+            Ending noise/corruption level
         learning_params : dict, optional
             Additional learning parameters
         sampling_params : dict, optional
@@ -539,11 +557,15 @@ class GANEDA:
         self.pop_size = pop_size
         self.selection_ratio = selection_ratio
         self.max_generations = max_generations
-        self.activation_g = activation_g
-        self.activation_d = activation_d
-        self.activation_e = activation_e
-        self.dropout = dropout
+        self.sampling_strategy = sampling_strategy
+        self.activation = activation
+        self.loss_function = loss_function
+        self.n_timesteps = n_timesteps
+        self.n_sampling_steps = n_sampling_steps
+        self.fitness_guided = fitness_guided
         self.temperature = temperature
+        self.beta_start = beta_start
+        self.beta_end = beta_end
         self.learning_params = learning_params or {}
         self.sampling_params = sampling_params or {}
         self.random_seed = random_seed
@@ -553,38 +575,21 @@ class GANEDA:
         if random_seed is not None:
             set_seed(random_seed)
 
-        # Validate parameters
-        valid_variants = ['GAN', 'WGAN-GP', 'Cond-Fit-GAN', 'Aux-GAN',
-                         'Repulsion-GAN', 'Weighted-D-GAN', 'Statistic-Match', 'Hybrid-GAN-VAE']
-        if variant not in valid_variants:
-            raise ValueError(f"Invalid variant: {variant}. Must be one of {valid_variants}")
-
         # Map variant to learning and sampling functions
-        self.learning_function_map = {
-            'GAN': learn_binary_gan,
-            'WGAN-GP': learn_binary_gan_wgan_gp,
-            'Cond-Fit-GAN': learn_binary_gan_cond_fit,
-            'Aux-GAN': learn_binary_gan_aux,
-            'Repulsion-GAN': learn_binary_gan_repulsion,
-            'Weighted-D-GAN': learn_binary_gan_weighted_d,
-            'Statistic-Match': learn_binary_gan_statistic_match,
-            'Hybrid-GAN-VAE': learn_binary_gan_hybrid_vae,
+        self.variant_map = {
+            'dendiff_gumbel': (learn_discrete_dendiff_gumbel, sample_discrete_dendiff_gumbel),
+            'dendiff_corruption': (learn_discrete_dendiff_corruption, sample_discrete_dendiff_corruption),
+            'dendiff_ste': (learn_discrete_dendiff_ste, sample_discrete_dendiff_ste),
+            'dendiff_hard_concrete': (learn_discrete_dendiff_hard_concrete, sample_discrete_dendiff_hard_concrete),
+            'dendiff_deterministic': (learn_discrete_dendiff_deterministic, sample_discrete_dendiff_deterministic),
         }
 
-        self.sampling_function_map = {
-            'GAN': sample_binary_gan,
-            'WGAN-GP': sample_binary_gan,
-            'Cond-Fit-GAN': sample_binary_gan_cond_fit,
-            'Aux-GAN': sample_binary_gan_aux,
-            'Repulsion-GAN': sample_binary_gan,
-            'Weighted-D-GAN': sample_binary_gan,
-            'Statistic-Match': sample_binary_gan,
-            'Hybrid-GAN-VAE': sample_binary_gan_hybrid_vae,
-        }
+        if variant not in self.variant_map:
+            raise ValueError(f"Invalid variant: {variant}. Must be one of {list(self.variant_map.keys())}")
 
     def run(self, fitness_func, verbose=True):
         """
-        Run the GAN EDA
+        Run the Dendiff EDA
 
         Parameters
         ----------
@@ -602,9 +607,7 @@ class GANEDA:
         history : dict
             History dictionary
         """
-        # Get learning and sampling functions
-        learn_fn = self.learning_function_map[self.variant]
-        sample_fn = self.sampling_function_map[self.variant]
+        learn_fn, sample_fn = self.variant_map[self.variant]
 
         # Initialize population
         population = np.random.randint(0, self.cardinality, (self.pop_size, self.n_vars))
@@ -629,39 +632,77 @@ class GANEDA:
             selected_fitness = fitness[selected_idx]
 
             # Prepare learning parameters
+            # Dynamic hidden layer computation based on n_vars and population size
+            adaptive_hidden_dims = [
+                max(10, self.n_vars // 2),
+                max(10, self.n_vars // 4)
+            ]
+
+            # Adaptive batch size: max(10, selected_pop_size/20)
+            batch_s = max(10, int(n_selected / 20))
+
             learning_params = self.learning_params.copy()
+            learning_params['hidden_dims'] = learning_params.get('hidden_dims', adaptive_hidden_dims)
+            learning_params['batch_size'] = learning_params.get('batch_size', batch_s)
+            learning_params['epochs'] = learning_params.get('epochs', 50)
 
-            # Add activation functions
-            if 'hidden_dims_g' in learning_params:
-                n_hidden_g = len(learning_params['hidden_dims_g'])
-                learning_params['list_act_functs_g'] = [self.activation_g] * n_hidden_g
-            if 'hidden_dims_d' in learning_params:
-                n_hidden_d = len(learning_params['hidden_dims_d'])
-                learning_params['list_act_functs_d'] = [self.activation_d] * n_hidden_d
+            # Pass activation function as a list for all hidden layers
+            n_hidden = len(learning_params['hidden_dims'])
+            learning_params['list_act_functs'] = [self.activation] * n_hidden
 
-            # For Hybrid-GAN-VAE, add encoder activations
-            if self.variant == 'Hybrid-GAN-VAE' and 'hidden_dims_e' in learning_params:
-                n_hidden_e = len(learning_params['hidden_dims_e'])
-                learning_params['list_act_functs_e'] = [self.activation_e] * n_hidden_e
+            # Diffusion parameters
+            if self.variant == 'dendiff_gumbel':
+                learning_params['n_timesteps'] = self.n_timesteps
+                learning_params['beta_schedule'] = 'linear'
+                learning_params['beta_start'] = self.beta_start
+                learning_params['beta_end'] = self.beta_end
+                learning_params['temperature'] = self.temperature
+                learning_params['temperature_decay'] = 0.99
+                learning_params['min_temperature'] = 0.5
+            elif self.variant == 'dendiff_corruption':
+                learning_params['n_timesteps'] = self.n_timesteps
+                learning_params['schedule'] = 'linear'
+                learning_params['corruption_start'] = self.beta_start
+                learning_params['corruption_end'] = self.beta_end
+            elif self.variant == 'dendiff_ste':
+                learning_params['n_timesteps'] = self.n_timesteps
+                learning_params['schedule'] = 'linear'
+                learning_params['noise_start'] = self.beta_start
+                learning_params['noise_end'] = self.beta_end
+            elif self.variant == 'dendiff_hard_concrete':
+                learning_params['n_timesteps'] = self.n_timesteps
+                learning_params['schedule'] = 'linear'
+                learning_params['beta_start'] = self.beta_start
+                learning_params['beta_end'] = self.beta_end
+                learning_params['temperature'] = self.temperature
+                learning_params['stretch_limits'] = (-0.1, 1.1)
+            elif self.variant == 'dendiff_deterministic':
+                learning_params['n_timesteps'] = self.n_timesteps
+                learning_params['schedule'] = 'linear'
+                learning_params['beta_start'] = self.beta_start
+                learning_params['beta_end'] = self.beta_end
 
-            # Add dropout and temperature
-            learning_params['dropout'] = self.dropout
-            learning_params['temperature'] = self.temperature
+            # Time embedding dimension (smaller for smaller problems)
+            learning_params['time_emb_dim'] = learning_params.get('time_emb_dim', min(32, max(4, self.n_vars // 8)))
+
+            # Fitness guidance
+            if self.fitness_guided:
+                learning_params['use_fitness_guidance'] = True
+                learning_params['fitness_weight'] = learning_params.get('fitness_weight', 0.1)
+
+            # Loss function parameter
+            learning_params['loss_function'] = self.loss_function
 
             # Learn model
             try:
+                # Use standard learning functions
                 model = learn_fn(selected_pop, selected_fitness, learning_params)
 
                 # Prepare sampling parameters
                 sampling_params = self.sampling_params.copy()
-
-                # For Cond-Fit-GAN, add fitness percentile information
-                if self.variant == 'Cond-Fit-GAN':
-                    sampling_params['selected_fitness'] = selected_fitness
-
-                # For Aux-GAN, add surrogate filtering option
-                if self.variant == 'Aux-GAN':
-                    sampling_params['use_surrogate'] = sampling_params.get('use_surrogate', False)
+                sampling_params['n_steps'] = self.n_sampling_steps
+                sampling_params['temperature'] = self.temperature
+                sampling_params['deterministic'] = sampling_params.get('deterministic', False)
 
                 # Sample new population
                 population = sample_fn(model, self.pop_size, sampling_params)
@@ -710,7 +751,7 @@ class GANEDA:
 
         # Print completion summary
         if verbose:
-            print(f"\nGAN-EDA completed after {self.max_generations} generations")
+            print(f"\nDendiff-EDA completed after {self.max_generations} generations")
             print(f"Best fitness found: {best_fitness:.6f}")
             print(f"  at generation {generation_found}")
 
@@ -726,18 +767,18 @@ def main():
 
     # Create argument parser
     parser = argparse.ArgumentParser(
-        description='Discrete GAN EDA - Real-World Combinatorial Problems',
+        description='Discrete Dendiff EDA - Real-World Combinatorial Problems',
         formatter_class=argparse.RawDescriptionHelpFormatter,
         epilog="""
 Examples:
-  # SAT problem with WGAN-GP variant
-  python discrete_GAN_EDA_RW.py 0 SAT uf20-01 80 20 0.5 WGAN-GP relu leaky_relu relu 0.5 1.0 0 0.0
+  # SAT problem with Dendiff-Gumbel
+  python discrete_Dendiff_EDA_RW.py 0 SAT uf20-01 80 20 0.5 dendiff_gumbel gumbel relu mse 100 20 0 1.0 0.0001 0.3 0.0
 
-  # Ising problem with Cond-Fit-GAN and mutation
-  python discrete_GAN_EDA_RW.py 1 Ising SG_16_1 100 30 0.5 Cond-Fit-GAN tanh leaky_relu relu 0.5 1.0 0 0.95
+  # Ising problem with Dendiff-Corruption and mutation
+  python discrete_Dendiff_EDA_RW.py 1 Ising SG_16_1 100 30 0.5 dendiff_corruption corruption tanh mse 50 20 0 0.5 0.01 0.5 0.95
 
-  # UBQP problem with Aux-GAN and surrogate filtering
-  python discrete_GAN_EDA_RW.py 0 UBQP bqp50 200 50 0.5 Aux-GAN relu leaky_relu relu 0.5 1.0 1 0.0
+  # UBQP problem with Dendiff-STE
+  python discrete_Dendiff_EDA_RW.py 0 UBQP bqp50 200 50 0.5 dendiff_ste ste relu mse 50 20 0 0.5 0.01 0.5 0.0
         """
     )
 
@@ -749,21 +790,29 @@ Examples:
     parser.add_argument('n_gen', type=int, help='Number of generations')
     parser.add_argument('trunc', type=float, help='Truncation percent (selection ratio, e.g., 0.5 for 50%)')
     parser.add_argument('variant', type=str,
-                       choices=['GAN', 'WGAN-GP', 'Cond-Fit-GAN', 'Aux-GAN',
-                               'Repulsion-GAN', 'Weighted-D-GAN', 'Statistic-Match', 'Hybrid-GAN-VAE'],
-                       help='GAN variant to use')
-    parser.add_argument('activation_g', type=str,
-                       help='Activation function for Generator. Options: relu, tanh, sigmoid, leaky_relu, elu, selu, gelu, etc.')
-    parser.add_argument('activation_d', type=str,
-                       help='Activation function for Discriminator')
-    parser.add_argument('activation_e', type=str,
-                       help='Activation function for Encoder (Hybrid-GAN-VAE only)')
-    parser.add_argument('dropout', type=float,
-                       help='Dropout rate for discriminator')
+                       choices=['dendiff_gumbel', 'dendiff_corruption', 'dendiff_ste',
+                               'dendiff_hard_concrete', 'dendiff_deterministic'],
+                       help='Dendiff variant to use')
+    parser.add_argument('sampling_strategy', type=str,
+                       choices=['gumbel', 'corruption', 'ste', 'hard_concrete', 'deterministic'],
+                       help='Sampling strategy')
+    parser.add_argument('activation', type=str,
+                       help='Activation function. Options: relu, tanh, sigmoid, leaky_relu, elu, selu, gelu, etc.')
+    parser.add_argument('loss', type=str,
+                       choices=['mse', 'weighted_mse', 'ranking', 'huber'],
+                       help='Loss function')
+    parser.add_argument('n_timesteps', type=int,
+                       help='Number of diffusion timesteps')
+    parser.add_argument('n_sampling_steps', type=int,
+                       help='Number of denoising steps during sampling')
+    parser.add_argument('fitness_guided', type=int, choices=[0, 1],
+                       help='Use fitness guidance (1=yes, 0=no)')
     parser.add_argument('temperature', type=float,
-                       help='Gumbel-Softmax temperature')
-    parser.add_argument('use_surrogate', type=int, choices=[0, 1],
-                       help='Use surrogate model for pre-filtering solutions (1=yes, 0=no, Aux-GAN only)')
+                       help='Gumbel-Softmax or sampling temperature')
+    parser.add_argument('beta_start', type=float,
+                       help='Starting noise/corruption level')
+    parser.add_argument('beta_end', type=float,
+                       help='Ending noise/corruption level')
     parser.add_argument('alpha', type=float,
                        help='Max frequency threshold for mutation (default: 0.0, no mutation)')
 
@@ -771,7 +820,7 @@ Examples:
     args = parser.parse_args()
 
     # Convert integer flags to boolean
-    args.use_surrogate = bool(args.use_surrogate)
+    args.fitness_guided = bool(args.fitness_guided)
 
     # Validate truncation percent
     if args.trunc <= 0 or args.trunc > 1:
@@ -794,7 +843,7 @@ Examples:
 
     # Print configuration
     print("=" * 80)
-    print("DISCRETE GAN EDA - Real-World Problem Configuration")
+    print("DISCRETE DENDIFF EDA - Real-World Problem Configuration")
     print("=" * 80)
     print(f"Seed:               {args.seed}")
     print(f"Problem Type:       {args.problem_type}")
@@ -804,74 +853,45 @@ Examples:
     print(f"Population Size:    {args.pop_size}")
     print(f"Generations:        {args.n_gen}")
     print(f"Truncation Percent: {args.trunc}")
-    print(f"Variant:            {args.variant}")
-    print(f"Activation (Gen):   {args.activation_g}")
-    print(f"Activation (Disc):  {args.activation_d}")
-    if args.variant == 'Hybrid-GAN-VAE':
-        print(f"Activation (Enc):   {args.activation_e}")
-    print(f"Dropout:            {args.dropout}")
+    print(f"Dendiff Variant:    {args.variant}")
+    print(f"Sampling Strategy:  {args.sampling_strategy}")
+    print(f"Activation:         {args.activation}")
+    print(f"Loss Function:      {args.loss}")
+    print(f"N Timesteps:        {args.n_timesteps}")
+    print(f"N Sampling Steps:   {args.n_sampling_steps}")
+    print(f"Fitness Guided:     {args.fitness_guided}")
     print(f"Temperature:        {args.temperature}")
-    if args.variant == 'Aux-GAN':
-        print(f"Use Surrogate:      {args.use_surrogate}")
+    print(f"Beta Start:         {args.beta_start}")
+    print(f"Beta End:           {args.beta_end}")
     print(f"Alpha (mutation):   {args.alpha}")
     print("=" * 80)
     print()
 
     start_time = time.time()
 
-    # Compute common parameters based on pop_size and n_vars
-    selected_pop_size = int(args.pop_size * args.trunc)
-
-    # CRITICAL: Dynamic hidden layer sizing based on population and problem size
-    # As described in Deeper_GAN_Critical_Analysis.md:
-    # "hidden layer width is a function of the number of selected individuals"
-    adaptive_hidden_dims_g = [max(10, n_vars // 2), max(10, n_vars // 4)]
-    adaptive_hidden_dims_d = list(reversed(adaptive_hidden_dims_g))
-
-    # CRITICAL: Batch size depends on selected population size
-    # "batch size depends on the size of the selected population, e.g., max(10,selected_pop_size/20)"
-    batch_s = max(10, selected_pop_size // 20)
-
-    # Configure learning parameters
-    learning_params = {
-        'epochs': 60,
-        'latent_dim': max(10, n_vars // 2),
-        'hidden_dims_g': adaptive_hidden_dims_g,
-        'hidden_dims_d': adaptive_hidden_dims_d,
-        'batch_size': batch_s,
-        'learning_rate_g': 0.0002,
-        'learning_rate_d': 0.0002,
-        'dropout': args.dropout,
-        'temperature': args.temperature,
-    }
-
-    # For Hybrid-GAN-VAE, add encoder dimensions
-    if args.variant == 'Hybrid-GAN-VAE':
-        learning_params['hidden_dims_e'] = adaptive_hidden_dims_g
-
-    # Configure sampling parameters
-    sampling_params = {
-        'temperature': args.temperature,
-    }
-
-    if args.variant == 'Aux-GAN':
-        sampling_params['use_surrogate'] = args.use_surrogate
+    # Configure learning and sampling parameters
+    learning_params = {}
+    sampling_params = {}
 
     cardinality = np.full(n_vars, 2)
 
-    # Create and run GAN EDA
-    eda = GANEDA(
+    # Create and run Dendiff EDA
+    eda = DendiffEDA(
         variant=args.variant,
         n_vars=n_vars,
         cardinality=cardinality,
         pop_size=args.pop_size,
         selection_ratio=args.trunc,
         max_generations=args.n_gen,
-        activation_g=args.activation_g,
-        activation_d=args.activation_d,
-        activation_e=args.activation_e,
-        dropout=args.dropout,
+        sampling_strategy=args.sampling_strategy,
+        activation=args.activation,
+        loss_function=args.loss,
+        n_timesteps=args.n_timesteps,
+        n_sampling_steps=args.n_sampling_steps,
+        fitness_guided=args.fitness_guided,
         temperature=args.temperature,
+        beta_start=args.beta_start,
+        beta_end=args.beta_end,
         learning_params=learning_params,
         sampling_params=sampling_params,
         random_seed=args.seed,
