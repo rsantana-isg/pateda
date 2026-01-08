@@ -25,7 +25,11 @@ References:
 """
 
 from pateda.mutation.bitflip import bit_flip_mutation
+from pateda.mutation.frequency_balance import frequency_balance_mutation
+from pateda.mutation.frequency_balance_component import FrequencyBalanceMutation
 
 __all__ = [
     "bit_flip_mutation",
+    "frequency_balance_mutation",
+    "FrequencyBalanceMutation",
 ]
