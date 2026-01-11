@@ -4,55 +4,64 @@ import numpy as np
 
 # Fixed parameters
 n_gen = 250
-trunc = 0.5
+trunc = 0.1
+
+problem = 'UBQP'
 
 if __name__ == '__main__':
     # Objective functions to test
-    obj_functions = ['OneMax', 'KDeceptive3', 'Deceptive3', 'HIFF', 'KDeceptive5', 'FC5']
+    #obj_functions = ['OneMax', 'KDeceptive3', 'Deceptive3', 'HIFF', 'KDeceptive5', 'FC5']
 
-    # DbD variants to test
-    dbd_variants = ['dbd', 'dbd_cs', 'dbd_cd', 'dbd_uc', 'dbd_us',
-                    'dbd_cs_t', 'dbd_cd_t', 'dbd_uc_t', 'dbd_us_t']
+    if problem=='SAT':
+        instance_names = ['uf100-01','uf100-02','uf100-03','uf100-04','uf100-05']
+    elif  problem == 'Ising':
+        instance_names = ['SG_100_1','SG_100_2','SG_100_3','SG_100_4']
+    elif  problem == 'UBQP':
+        instance_names = ['bqp100']
    
-
+    dbd_variants = ['dbd_cs', 'dbd_cd', 'dbd_cs_t', 'dbd_cd_t']
+  
 
     # Activation functions (all in the specified set)
     activations = ['leaky_relu', 'relu', 'tanh']
+    
 
     # Loss functions
     loss_functions = ['mse', 'weighted_mse', 'ranking', 'huber']
+    
 
     # Number of alpha samples for blending
-    num_alpha_samples_list = [20]
+    num_alpha_samples_list = [100]
 
     # Number of denoising steps
     n_steps_list = [20]
 
     # Markov chain orders (for transformation variants)
-    k_values = [2]
+    k_values = [1,2]
+
 
     # Alpha smoothing parameter (fixed)
     alpha_smooth = 0.1
 
-    # Fitness guidance flag
-    fitness_guided_values = [0, 1]
+    # Fitness guidance flag    
+    fitness_guided_values = [0,1]
 
     # Markov initialization flag
     use_markov_init_values = [0]
 
+    # Alpha (mutation)
+    alpha_values = [0.8, 0.95]
+
+    
     # Seeds to test
     seeds = np.arange(1, 11)  # 30 different seeds
 
+    
+    n = 100
     # Generate all combinations
     for seed in seeds:
-        for obj_func in obj_functions:
-            # Set problem size based on objective function
-            if obj_func == 'HIFF':
-                n = 64
-            else:
-                n = 30
+        for instance_name in instance_names:                       
             p_size = n * 5
-
             for variant in dbd_variants:
                 for activation in activations:
                     for loss in loss_functions:
@@ -67,10 +76,11 @@ if __name__ == '__main__':
                                 for k in k_list:
                                     for fitness_guided in fitness_guided_values:
                                         for use_markov_init in use_markov_init_values:
+                                            for alpha in alpha_values:
                                             # Build command
-                                            cmd = (f"sbatch slurm_dbd.sh examples/discrete_DbD_EDA.py "
-                                                  f"{seed} {obj_func} {n} {p_size} {n_gen} {trunc} "
+                                                  cmd = (f"sbatch slurm_benchmark_dbd.sh examples/discrete_DbD_EDA_RW.py "
+                                                  f"{seed} {problem} {instance_name} {p_size} {n_gen} {trunc} "
                                                   f"{variant} {activation} {loss} {num_alpha_samples} "
                                                   f"{n_steps} {k} {alpha_smooth} {fitness_guided} "
-                                                  f"{use_markov_init}")
-                                            print(cmd)
+                                                  f"{use_markov_init} {alpha}")
+                                                  print(cmd)

@@ -66,13 +66,13 @@
 
 # Create output filename with key parameters for easy identification
 # Format: results_dendiff_<obj_func>_<n>_<variant>_<activation>_<loss>_<fitness_guided>_seed<seed>.dat
-output_file="results_dendiff_${3}_n${4}_${8}_${10}_${11}_fg${14}_seed${2}.dat"
+output_file="results_dendiff_${3}_n${4}_${5}_n${6}_n${7}_${8}_n${9}_${10}_${11}_n${12}_n${13}_fg${14}_${15}_${16}_${17}_${2}.dat"
 
 # Print command for logging
 echo "bnd -exec python3 $1 $2 $3 $4 $5 $6 $7 $8 $9 ${10} ${11} ${12} ${13} ${14} ${15} ${16} ${17} > $output_file"
 
 # Execute command
-bnd -exec python3 $1 $2 $3 $4 $5 $6 $7 $8 $9 ${10} ${11} ${12} ${13} ${14} ${15} ${16} ${17} > $output_file
+      bnd -exec python3 $1 $2 $3 $4 $5 $6 $7 $8 $9 ${10} ${11} ${12} ${13} ${14} ${15} ${16} ${17} > $output_file
 
 # Example usage:
 # sbatch slurm_dendiff.sh examples/discrete_Dendiff_EDA.py \
