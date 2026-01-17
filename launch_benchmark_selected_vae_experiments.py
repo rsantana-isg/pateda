@@ -60,14 +60,14 @@ if __name__ == '__main__':
                                     for epochs in epochs_options:
                                         for mi_layer in mi_layer_options:
                                             # Map variant names to match discrete_EDA_RW.py expectations
-                                            # VAE stays as 'VAE', E-VAE maps to 'VAE-Extended', C-VAE maps to 'VAE' (for now)
-                                            # Note: discrete_EDA_RW.py currently only supports 'VAE' and 'VAE-Extended'
-                                            # C-VAE would need additional implementation
+                                            # VAE stays as 'VAE', E-VAE maps to 'VAE-Extended'
+                                            # Note: C-VAE is included in the problem requirements but not yet 
+                                            # implemented in discrete_EDA_RW.py, so it is skipped for now.
+                                            # Future work: Add C-VAE support to discrete_EDA_RW.py
                                             if variant == 'E-VAE':
                                                 alg_variant = 'VAE-Extended'
                                             elif variant == 'C-VAE':
-                                                # C-VAE is not yet supported in discrete_EDA_RW.py, skip for now
-                                                # In the future, this would map to a C-VAE variant
+                                                # C-VAE is not yet supported in discrete_EDA_RW.py
                                                 continue
                                             else:
                                                 alg_variant = variant

@@ -1017,7 +1017,7 @@ def main():
     activation_dec = sys.argv[10] if len(sys.argv) > 10 else 'relu'
     beta_start = float(sys.argv[11]) if len(sys.argv) > 11 else 0.0
     beta_end = float(sys.argv[12]) if len(sys.argv) > 12 else 1.0
-    epochs_vae = int(sys.argv[13]) if len(sys.argv) > 13 else 30
+    epochs_vae = int(sys.argv[13]) if len(sys.argv) > 13 else 50
     mi_layer = int(sys.argv[14]) if len(sys.argv) > 14 else 0
     
     # Suppress warnings
