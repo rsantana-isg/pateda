@@ -27,6 +27,7 @@ if __name__ == '__main__':
         problem_configs.append(('UBQP', instance))
     
     # VAE variants to explore (matching launch_selected_vae_experiments.py)
+    # TODO: Implement C-VAE support in discrete_EDA_RW.py to enable full variant exploration
     variants = ['VAE', 'E-VAE', 'C-VAE']
     
     # VAE-specific parameters to explore (matching launch_selected_vae_experiments.py)
