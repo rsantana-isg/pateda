@@ -1161,6 +1161,21 @@ def main():
         adaptive_hidden_dims = [max(10, n_vars // 2), max(10, n_vars // 4)]
         batch_s = min(32, selected_pop_size // 10)
         
+        # Helper function to create standard VAE config (used by GS-VAE, HS-VAE, TC-VAE)
+        def make_standard_vae_config():
+            """Create standard VAE configuration shared by variants that use standard learning."""
+            return {
+                'epochs': epochs_vae,
+                'latent_dim': max(2, n_vars // 4),
+                'batch_size': batch_s,
+                'beta_start': beta_start,
+                'beta_end': beta_end,
+                'beta_annealing_epochs': epochs_vae // 2,
+                'mi_layer': bool(mi_layer),
+                'list_act_functs_enc': [activation_enc, activation_enc],
+                'list_act_functs_dec': [activation_dec, activation_dec],
+            }
+        
         # Configure learning parameters
         params_map = {
             'vae': {
@@ -1275,39 +1290,10 @@ def main():
                 'list_act_functs_enc': [activation_enc, activation_enc],
                 'list_act_functs_dec': [activation_dec, activation_dec],
             },
-            'gsvae': {
-                'epochs': epochs_vae,
-                'latent_dim': max(2, n_vars // 4),
-                'batch_size': batch_s,
-                'beta_start': beta_start,
-                'beta_end': beta_end,
-                'beta_annealing_epochs': epochs_vae // 2,
-                'mi_layer': bool(mi_layer),
-                'list_act_functs_enc': [activation_enc, activation_enc],
-                'list_act_functs_dec': [activation_dec, activation_dec],
-            },
-            'hsvae': {
-                'epochs': epochs_vae,
-                'latent_dim': max(2, n_vars // 4),
-                'batch_size': batch_s,
-                'beta_start': beta_start,
-                'beta_end': beta_end,
-                'beta_annealing_epochs': epochs_vae // 2,
-                'mi_layer': bool(mi_layer),
-                'list_act_functs_enc': [activation_enc, activation_enc],
-                'list_act_functs_dec': [activation_dec, activation_dec],
-            },
-            'tcvae': {
-                'epochs': epochs_vae,
-                'latent_dim': max(2, n_vars // 4),
-                'batch_size': batch_s,
-                'beta_start': beta_start,
-                'beta_end': beta_end,
-                'beta_annealing_epochs': epochs_vae // 2,
-                'mi_layer': bool(mi_layer),
-                'list_act_functs_enc': [activation_enc, activation_enc],
-                'list_act_functs_dec': [activation_dec, activation_dec],
-            },
+            # GS-VAE, HS-VAE, and TC-VAE use standard VAE learning with specialized sampling
+            'gsvae': make_standard_vae_config(),
+            'hsvae': make_standard_vae_config(),
+            'tcvae': make_standard_vae_config(),
             'gan': {
                 'epochs': 60,
                 'latent_dim': max(10, n_vars // 2),
