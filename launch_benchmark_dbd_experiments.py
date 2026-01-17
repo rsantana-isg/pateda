@@ -23,7 +23,8 @@ if __name__ == '__main__':
   
 
     # Activation functions (all in the specified set)
-    activations = ['leaky_relu', 'relu', 'tanh']
+    #activations = ['leaky_relu', 'relu', 'tanh']
+    activations = ['elu', 'relu', 'tanh']
     
 
     # Loss functions
@@ -37,7 +38,7 @@ if __name__ == '__main__':
     n_steps_list = [20]
 
     # Markov chain orders (for transformation variants)
-    k_values = [1,2]
+    k_values = [1]
 
 
     # Alpha smoothing parameter (fixed)
@@ -50,11 +51,12 @@ if __name__ == '__main__':
     use_markov_init_values = [0]
 
     # Alpha (mutation)
-    alpha_values = [0.8, 0.95]
+    alpha_values = [0.95]
+    #alpha_values = [0.8, 0.95]
 
     
     # Seeds to test
-    seeds = np.arange(1, 11)  # 30 different seeds
+    seeds = np.arange(11, 21)  # 30 different seeds
 
     
     n = 100

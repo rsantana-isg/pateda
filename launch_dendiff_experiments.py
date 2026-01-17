@@ -70,7 +70,7 @@ if __name__ == '__main__':
     fitness_guided_options = [0, 1]
 
     # Seeds for multiple runs
-    seeds = np.arange(1, 11)  # 30 independent run
+    seeds = np.arange(11, 21)  # 30 independent run
     
     n_timesteps = 400
     temperature = 1.0

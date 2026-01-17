@@ -11,12 +11,15 @@ if __name__ == '__main__':
     obj_functions = ['OneMax', 'KDeceptive3', 'Deceptive3', 'HIFF', 'KDeceptive5', 'FC5']
     
     # VAE variants - all 12 variants (original + enhanced)
-    variants = ['VAE', 'E-VAE', 'C-VAE', 'Desc-VAE', 'Reg-VAE', 'Mom-VAE', 
-                'BA-VAE', 'AA-VAE', 'FW-VAE', 'GS-VAE', 'HS-VAE', 'TC-VAE']
+    #variants = ['VAE', 'E-VAE', 'C-VAE', 'Desc-VAE', 'Reg-VAE', 'Mom-VAE', 
+    #            'BA-VAE', 'AA-VAE', 'FW-VAE', 'GS-VAE', 'HS-VAE', 'TC-VAE']
+
+    variants = ['VAE', 'E-VAE', 'C-VAE']
     
     # Activation functions for Encoder
     #activation_enc_options = ['relu', 'tanh', 'leaky_relu']
-    activation_enc_options = ['elu']
+    
+    activation_enc_options = ['elu', 'relu', 'tanh']
     
     # Activation functions for Decoder
     #activation_dec_options = ['relu', 'tanh']
@@ -36,10 +39,10 @@ if __name__ == '__main__':
     epochs_options = [50]
 
     # MI Layer options
-    mi_layer_options = [1]
+    mi_layer_options = [0,1]
 
     # Seeds
-    for seed in np.arange(1, 6):
+    for seed in np.arange(1, 21):
         for obj_func in obj_functions:
             # Set n based on objective function
             if obj_func == 'HIFF':

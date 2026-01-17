@@ -11,25 +11,27 @@ if __name__ == '__main__':
     obj_functions = ['OneMax', 'KDeceptive3', 'Deceptive3', 'HIFF', 'KDeceptive5', 'FC5']
 
     # DbD variants to test
-    dbd_variants = ['dbd', 'dbd_cs', 'dbd_cd', 'dbd_uc', 'dbd_us',
-                    'dbd_cs_t', 'dbd_cd_t', 'dbd_uc_t', 'dbd_us_t']
+    #dbd_variants = ['dbd', 'dbd_cs', 'dbd_cd', 'dbd_uc', 'dbd_us',
+    #                'dbd_cs_t', 'dbd_cd_t', 'dbd_uc_t', 'dbd_us_t']
    
+    dbd_variants = ['dbd_cs', 'dbd_cd', 
+                    'dbd_cs_t', 'dbd_cd_t']
 
 
     # Activation functions (all in the specified set)
-    activations = ['leaky_relu', 'relu', 'tanh']
+    activations = ['elu', 'relu', 'tanh']
 
     # Loss functions
     loss_functions = ['mse', 'weighted_mse', 'ranking', 'huber']
 
     # Number of alpha samples for blending
-    num_alpha_samples_list = [20]
+    num_alpha_samples_list = [100]
 
     # Number of denoising steps
     n_steps_list = [20]
 
     # Markov chain orders (for transformation variants)
-    k_values = [2]
+    k_values = [1]
 
     # Alpha smoothing parameter (fixed)
     alpha_smooth = 0.1
@@ -41,7 +43,7 @@ if __name__ == '__main__':
     use_markov_init_values = [0]
 
     # Seeds to test
-    seeds = np.arange(1, 11)  # 30 different seeds
+    seeds = np.arange(11, 21)  # 30 different seeds
 
     # Generate all combinations
     for seed in seeds:
@@ -51,7 +53,7 @@ if __name__ == '__main__':
                 n = 64
             else:
                 n = 30
-            p_size = n * 5
+            p_size = n * 15
 
             for variant in dbd_variants:
                 for activation in activations:
