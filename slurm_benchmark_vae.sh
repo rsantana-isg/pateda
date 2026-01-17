@@ -16,11 +16,13 @@
 # #SBATCH --ntasks-per-core=2
 
 # Required memory (Default 2GB)
-# SBATCH --mem-per-cpu=4G
+# Uncomment and adjust if needed for larger problem instances
+#SBATCH --mem-per-cpu=4G
 
 # Select one partition
-# GPU
-# SBATCH --partition=CPU
+# Uncomment appropriate partition for your cluster
+#SBATCH --partition=CPU
+## SBATCH --partition=GPU
 ## SBATCH --gpus=1
 
 

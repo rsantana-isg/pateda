@@ -29,8 +29,8 @@ if __name__ == '__main__':
     # VAE variants supported by discrete_EDA_RW.py
     vae_variants = ['VAE', 'VAE-Extended']
     
-    # Alpha (mutation parameter) - from launch_selected_vae_experiments.py pattern
-    # Using 0.0 for no mutation as baseline, can add 0.95 for mutation experiments
+    # Alpha (mutation parameter) - testing both baseline (no mutation) and mutation-enabled
+    # 0.0 = no mutation, 0.95 = frequency balance mutation for better exploration
     alpha_values = [0.0, 0.95]
     
     # Seeds to test
