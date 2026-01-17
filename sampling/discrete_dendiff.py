@@ -41,6 +41,15 @@ try:
     from pateda.learning.discrete_dendiff_corruption_enhanced import (
         FitnessGuidedCorruptionDenoisingMLP
     )
+    from pateda.learning.discrete_dendiff_deterministic_enhanced import (
+        FitnessGuidedDeterministicDenoisingMLP
+    )
+    from pateda.learning.discrete_dendiff_ste_enhanced import (
+        FitnessGuidedSTEDenoisingMLP
+    )
+    from pateda.learning.discrete_dendiff_hard_concrete_enhanced import (
+        FitnessGuidedHardConcreteDenoisingMLP
+    )
     ENHANCED_AVAILABLE = True
 except ImportError:
     ENHANCED_AVAILABLE = False
@@ -404,36 +413,57 @@ def sample_discrete_dendiff_ste(
     noise_rates = np.array(model_data['noise_rates'])
     list_act_functs = model_data.get('list_act_functs', None)
     list_init_functs = model_data.get('list_init_functs', None)
-    
+
+    # Check for fitness guidance
+    use_fitness_guidance = model_data.get('use_fitness_guidance', False)
+    fitness_emb_dim = model_data.get('fitness_emb_dim', 8)
+
     # Sampling parameters
     n_steps = params.get('n_steps', n_timesteps)
     temperature = params.get('temperature', 0.5)
     deterministic = params.get('deterministic', False)
-    
-    # Recreate model
-    model = STEDenoisingMLP(
-        input_dim, time_emb_dim, hidden_dims,
-        list_act_functs=list_act_functs,
-        list_init_functs=list_init_functs
-    )
+
+    # Recreate model - use fitness-guided version if needed
+    if use_fitness_guidance:
+        if not ENHANCED_AVAILABLE:
+            raise ImportError("Fitness-guided model was used for training, but enhanced modules are not available for sampling")
+        model = FitnessGuidedSTEDenoisingMLP(
+            input_dim, time_emb_dim, fitness_emb_dim, hidden_dims,
+            list_act_functs=list_act_functs,
+            list_init_functs=list_init_functs
+        )
+    else:
+        model = STEDenoisingMLP(
+            input_dim, time_emb_dim, hidden_dims,
+            list_act_functs=list_act_functs,
+            list_init_functs=list_init_functs
+        )
     model.load_state_dict(model_data['model_state'])
     model.eval()
-    
+
     # Start from random binary data
     x_t = torch.randint(0, 2, (n_samples, input_dim), dtype=torch.float32)
-    
+
+    # For fitness-guided sampling, we need target fitness values
+    if use_fitness_guidance:
+        target_fitness_value = params.get('target_fitness', 1.0)
+        target_fitness = torch.full((n_samples, 1), target_fitness_value, dtype=torch.float32)
+
     # Create timestep schedule
     if n_steps < n_timesteps:
         timestep_schedule = np.linspace(n_timesteps-1, 0, n_steps, dtype=int)
     else:
         timestep_schedule = list(reversed(range(n_timesteps)))
-    
+
     with torch.no_grad():
         for t_idx in timestep_schedule:
             t = torch.full((n_samples,), t_idx, dtype=torch.long)
-            
+
             # Predict clean data probabilities
-            logits = model(x_t, t, use_ste=False)  # No STE during sampling
+            if use_fitness_guidance:
+                logits = model(x_t, t, target_fitness, use_ste=False)  # No STE during sampling
+            else:
+                logits = model(x_t, t, use_ste=False)  # No STE during sampling
             probs = torch.sigmoid(logits)
             
             if deterministic:
@@ -509,41 +539,62 @@ def sample_discrete_dendiff_hard_concrete(
     list_init_functs = model_data.get('list_init_functs', None)
     temperature = model_data.get('temperature', 0.1)
     stretch_limits = model_data.get('stretch_limits', (-0.1, 1.1))
-    
+
+    # Check for fitness guidance
+    use_fitness_guidance = model_data.get('use_fitness_guidance', False)
+    fitness_emb_dim = model_data.get('fitness_emb_dim', 8)
+
     # Sampling parameters
     n_steps = params.get('n_steps', n_timesteps)
     temp_override = params.get('temperature', temperature)
     deterministic = params.get('deterministic', False)
-    
+
     # Compute alphas_cumprod
     alphas = 1.0 - betas
     alphas_cumprod = np.cumprod(alphas)
     alphas_cumprod_tensor = torch.FloatTensor(alphas_cumprod)
-    
-    # Recreate model
-    model = HardConcreteDenoisingMLP(
-        input_dim, time_emb_dim, hidden_dims,
-        list_act_functs=list_act_functs,
-        list_init_functs=list_init_functs
-    )
+
+    # Recreate model - use fitness-guided version if needed
+    if use_fitness_guidance:
+        if not ENHANCED_AVAILABLE:
+            raise ImportError("Fitness-guided model was used for training, but enhanced modules are not available for sampling")
+        model = FitnessGuidedHardConcreteDenoisingMLP(
+            input_dim, time_emb_dim, fitness_emb_dim, hidden_dims,
+            list_act_functs=list_act_functs,
+            list_init_functs=list_init_functs
+        )
+    else:
+        model = HardConcreteDenoisingMLP(
+            input_dim, time_emb_dim, hidden_dims,
+            list_act_functs=list_act_functs,
+            list_init_functs=list_init_functs
+        )
     model.load_state_dict(model_data['model_state'])
     model.eval()
-    
+
     # Start from random binary data
     x_t = torch.randint(0, 2, (n_samples, input_dim), dtype=torch.float32)
-    
+
+    # For fitness-guided sampling, we need target fitness values
+    if use_fitness_guidance:
+        target_fitness_value = params.get('target_fitness', 1.0)
+        target_fitness = torch.full((n_samples, 1), target_fitness_value, dtype=torch.float32)
+
     # Create timestep schedule
     if n_steps < n_timesteps:
         timestep_schedule = np.linspace(n_timesteps-1, 0, n_steps, dtype=int)
     else:
         timestep_schedule = list(reversed(range(n_timesteps)))
-    
+
     with torch.no_grad():
         for t_idx in timestep_schedule:
             t = torch.full((n_samples,), t_idx, dtype=torch.long)
-            
+
             # Predict logits
-            logits = model(x_t, t)
+            if use_fitness_guidance:
+                logits = model(x_t, t, target_fitness)
+            else:
+                logits = model(x_t, t)
             
             if deterministic:
                 # Use argmax through sigmoid
@@ -613,17 +664,30 @@ def sample_discrete_dendiff_deterministic(
     diffusion_params = model_data['diffusion_params']
     list_act_functs = model_data.get('list_act_functs', None)
     list_init_functs = model_data.get('list_init_functs', None)
-    
+
+    # Check for fitness guidance
+    use_fitness_guidance = model_data.get('use_fitness_guidance', False)
+    fitness_emb_dim = model_data.get('fitness_emb_dim', 8)
+
     # Sampling parameters
     n_steps = params.get('n_steps', n_timesteps)
     deterministic = params.get('deterministic', True)  # Default to deterministic for this variant
-    
-    # Recreate model
-    model = DeterministicDenoisingMLP(
-        input_dim, time_emb_dim, hidden_dims,
-        list_act_functs=list_act_functs,
-        list_init_functs=list_init_functs
-    )
+
+    # Recreate model - use fitness-guided version if needed
+    if use_fitness_guidance:
+        if not ENHANCED_AVAILABLE:
+            raise ImportError("Fitness-guided model was used for training, but enhanced modules are not available for sampling")
+        model = FitnessGuidedDeterministicDenoisingMLP(
+            input_dim, time_emb_dim, fitness_emb_dim, hidden_dims,
+            list_act_functs=list_act_functs,
+            list_init_functs=list_init_functs
+        )
+    else:
+        model = DeterministicDenoisingMLP(
+            input_dim, time_emb_dim, hidden_dims,
+            list_act_functs=list_act_functs,
+            list_init_functs=list_init_functs
+        )
     model.load_state_dict(model_data['model_state'])
     model.eval()
     
@@ -632,19 +696,27 @@ def sample_discrete_dendiff_deterministic(
     
     # Start from random binary data
     x_t = torch.randint(0, 2, (n_samples, input_dim), dtype=torch.float32)
-    
+
+    # For fitness-guided sampling, we need target fitness values
+    if use_fitness_guidance:
+        target_fitness_value = params.get('target_fitness', 1.0)
+        target_fitness = torch.full((n_samples, 1), target_fitness_value, dtype=torch.float32)
+
     # Create timestep schedule
     if n_steps < n_timesteps:
         timestep_schedule = np.linspace(n_timesteps-1, 0, n_steps, dtype=int)
     else:
         timestep_schedule = list(reversed(range(n_timesteps)))
-    
+
     with torch.no_grad():
         for t_idx in timestep_schedule:
             t = torch.full((n_samples,), t_idx, dtype=torch.long)
-            
+
             # Predict clean data probabilities
-            logits = model(x_t, t)  # Shape: [batch, n_vars, 2]
+            if use_fitness_guidance:
+                logits = model(x_t, t, target_fitness)  # Shape: [batch, n_vars, 2]
+            else:
+                logits = model(x_t, t)  # Shape: [batch, n_vars, 2]
             
             if deterministic:
                 # Use argmax (most likely value)

@@ -11,12 +11,10 @@ if __name__ == '__main__':
     obj_functions = ['OneMax', 'KDeceptive3', 'Deceptive3', 'HIFF', 'KDeceptive5', 'FC5']
     
     # Backdrive variants
-    #variants = ['backdrive', 'backdrive_adaptive', 'backdrive_descriptors']
-    #variants = ['backdrive', 'backdrive_descriptors']
-    variants = ['backdrive_adaptive']
+    variants = ['backdrive', 'backdrive_adaptive', 'backdrive_descriptors']
+   
     
     # Initialization methods
-    #init_methods = ['random', 'perturb_best', 'perturb_selected']
     init_methods = ['random']
     
     # Loss functions
@@ -27,8 +25,7 @@ if __name__ == '__main__':
     
     # Boolean flags (weight-transfer, early-stopping, surrogate-filtering)
     weight_transfer_options = [1, 0]  # 1=True, 0=False
-    #early_stopping_options = [1, 0]
-    early_stopping_options = [1]  # 1=True
+    early_stopping_options = [1, 0]    
     surrogate_filtering_options = [1, 0]  # 1=True, 0=False
     
     # Seeds

@@ -288,8 +288,9 @@ class EDA:
 
             else:
                 # Subsequent generations: sample from model
-                if verbose:
-                    print(f"Generation {self.generation}: Sampling from model")
+                #if verbose:
+                #    print(f"Generation {self.generation}")
+                
 
                 new_pop = self.components.sampling.sample(
                     self.n_vars,
@@ -305,6 +306,15 @@ class EDA:
                 if self.components.repairing is not None:
                     new_pop = self.components.repairing.repair(
                         new_pop, self.cardinality, **self.components.repairing_params
+                    )
+
+                # Apply mutation if specified
+                if self.components.mutation is not None:
+                    new_pop = self.components.mutation.mutate(
+                        self.n_vars,
+                        self.cardinality,
+                        new_pop,
+                        **self.components.mutation_params,
                     )
 
                 # Evaluate fitness
@@ -342,6 +352,7 @@ class EDA:
                 # Handle both single and multi-objective output
                 if isinstance(statistics.best_fitness[-1], (int, float)):
                     print(
+                        f"Generation {self.generation}:"
                         f"  Best: {statistics.best_fitness[-1]:.6f}, "
                         f"Mean: {statistics.mean_fitness[-1]:.6f}, "
                         f"Std: {statistics.std_fitness[-1]:.6f}"
@@ -374,8 +385,8 @@ class EDA:
                 **self.components.selection_params,
             )
 
-            if verbose:
-                print(f"  Selected {len(selected_pop)} individuals for learning")
+            #if verbose:
+            #    print(f"  Selected {len(selected_pop)} individuals for learning")
 
             # Learning
             self.model = self.components.learning.learn(

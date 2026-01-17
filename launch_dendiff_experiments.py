@@ -52,14 +52,16 @@ n_sampling_steps = 20
 
 if __name__ == '__main__':
     # Objective functions to test
-    # obj_functions = ['OneMax', 'KDeceptive3', 'Deceptive3', 'HIFF', 'KDeceptive5', 'FC5']
-    obj_functions = ['OneMax']
+    obj_functions = ['OneMax', 'KDeceptive3', 'Deceptive3', 'HIFF', 'KDeceptive5', 'FC5']
+   
 
-    # Dendiff variants
-    variants = ['dendiff_gumbel', 'dendiff_corruption', 'dendiff_ste', 'dendiff_hard_concrete', 'dendiff_deterministic']
-
+    # Dendiff variantss
+    #variants = ['dendiff_gumbel', 'dendiff_corruption', 'dendiff_ste', 'dendiff_hard_concrete', 'dendiff_deterministic']
+    variants = ['dendiff_gumbel']
+  
     # Activation functions
-    activations = ['leaky_relu', 'relu', 'tanh', 'sigmoid']
+    #activations = ['leaky_relu', 'relu', 'tanh', 'sigmoid']
+    activations = ['elu', 'relu', 'tanh']
 
     # Loss functions
     loss_functions = ['mse', 'weighted_mse', 'ranking', 'huber']
@@ -68,8 +70,13 @@ if __name__ == '__main__':
     fitness_guided_options = [0, 1]
 
     # Seeds for multiple runs
-    seeds = np.arange(1, 31)  # 30 independent runs
-
+    seeds = np.arange(11, 21)  # 30 independent run
+    
+    n_timesteps = 400
+    temperature = 1.0
+    beta_start = 0.01
+    beta_end = 1
+    
     # Generate all combinations
     for seed in seeds:
         for obj_func in obj_functions:
@@ -78,41 +85,20 @@ if __name__ == '__main__':
                 n = 64
             else:
                 n = 30
-            p_size = n * 5
-
+            p_size = n * 15
+            
             for variant in variants:
                 # Set variant-dependent parameters
                 if variant == 'dendiff_gumbel':
-                    sampling_strategy = 'gumbel'
-                    n_timesteps = 100
-                    temperature = 1.0
-                    beta_start = 0.0001
-                    beta_end = 0.3
+                    sampling_strategy = 'gumbel'                 
                 elif variant == 'dendiff_corruption':
-                    sampling_strategy = 'corruption'
-                    n_timesteps = 50
-                    temperature = 0.5
-                    beta_start = 0.01
-                    beta_end = 0.5
-                elif variant == 'dendiff_ste':
-                    sampling_strategy = 'ste'
-                    n_timesteps = 50
-                    temperature = 0.5
-                    beta_start = 0.01
-                    beta_end = 0.5
+                    sampling_strategy = 'corruption'                 
                 elif variant == 'dendiff_hard_concrete':
-                    sampling_strategy = 'hard_concrete'
-                    n_timesteps = 100
-                    temperature = 0.1
-                    beta_start = 0.0001
-                    beta_end = 0.3
+                    sampling_strategy = 'hard_concrete'                      
                 elif variant == 'dendiff_deterministic':
                     sampling_strategy = 'deterministic'
-                    n_timesteps = 100
-                    temperature = 1.0
-                    beta_start = 0.0001
-                    beta_end = 0.3
-
+                  
+             
                 for activation in activations:
                     for loss in loss_functions:
                         for fitness_guided in fitness_guided_options:
