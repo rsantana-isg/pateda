@@ -1,16 +1,16 @@
 """
 Enhanced Discrete Denoising Diffusion Model with Deterministic Softmax
 
-This module extends the base deterministic dendiff with:
+This module extends the base deterministic softmax dendiff with:
 1. Alternative loss functions (weighted_mse, ranking, huber)
 2. Fitness guidance/conditioning (inspired by C-VAE and fitness-guided DbD)
 3. Flexible architecture configurations
 
 Enhancements inspired by:
-- discrete_dendiff_gumbel_enhanced.py: Loss function patterns and fitness guidance
 - discrete_backdrive_weighted_mse.py: Fitness-weighted loss
 - discrete_backdrive_ranking.py: Ranking loss
 - discrete_backdrive_huber.py: Huber loss
+- discrete_dbd.py: Fitness-guided training
 """
 
 import numpy as np
@@ -29,12 +29,9 @@ from pateda.learning.nn_utils import (
 
 # Import base components from the standard deterministic implementation
 from pateda.learning.discrete_dendiff_deterministic import (
-    DeterministicDenoisingMLP,
-    add_noise_binary_deterministic,
+    TimeEmbedding, deterministic_softmax, add_noise_binary_deterministic
 )
-
 from pateda.learning.discrete_dendiff_utils import (
-    TimeEmbedding,
     make_noise_schedule,
     compute_diffusion_params,
 )
@@ -161,6 +158,7 @@ def compute_weighted_loss(logits: torch.Tensor, target: torch.Tensor,
     Compute fitness-weighted cross-entropy loss.
 
     Higher fitness samples get higher weight.
+    Inspired by discrete_backdrive_weighted_mse.py
 
     Parameters
     ----------
@@ -185,20 +183,16 @@ def compute_weighted_loss(logits: torch.Tensor, target: torch.Tensor,
         normalized_fitness = torch.ones_like(fitness)
 
     # Compute per-sample loss
-    logits_flat = logits.reshape(len(logits), -1, 2)
-    target_flat = target.long()
+    logits_flat = logits.reshape(-1, 2)
+    target_flat = target.reshape(-1).long()
+    loss_per_sample = F.cross_entropy(logits_flat, target_flat, reduction='none')
 
-    per_sample_loss = []
-    for i in range(len(logits)):
-        sample_logits = logits_flat[i]
-        sample_target = target_flat[i]
-        loss_i = F.cross_entropy(sample_logits, sample_target, reduction='mean')
-        per_sample_loss.append(loss_i)
+    # Reshape back to [batch, n_vars]
+    loss_per_sample = loss_per_sample.reshape(target.shape)
 
-    per_sample_loss = torch.stack(per_sample_loss)
-
-    # Weight by normalized fitness
-    weighted_loss = (per_sample_loss * normalized_fitness.squeeze()).mean()
+    # Weight by fitness (expand to match dimensions)
+    weights = normalized_fitness.expand_as(loss_per_sample)
+    weighted_loss = (loss_per_sample * weights).mean()
 
     return weighted_loss
 
@@ -209,6 +203,10 @@ def compute_ranking_loss(logits: torch.Tensor, target: torch.Tensor,
     Compute ranking-based loss.
 
     Prioritizes learning the relative ordering of solutions by fitness.
+    Inspired by discrete_backdrive_ranking.py
+
+    For dendiff, we use standard cross-entropy but with sampling bias
+    towards higher fitness solutions during training.
 
     Parameters
     ----------
@@ -224,8 +222,8 @@ def compute_ranking_loss(logits: torch.Tensor, target: torch.Tensor,
     loss : torch.Tensor
         Ranking-aware loss
     """
-    # For dendiff, ranking loss is implemented through standard cross-entropy
-    # (ranking is handled through selection in the EDA framework)
+    # For dendiff, ranking loss is implemented through weighted sampling
+    # Here we use standard cross-entropy but could add pairwise ranking terms
     logits_flat = logits.reshape(-1, 2)
     target_flat = target.reshape(-1).long()
 
@@ -238,6 +236,9 @@ def compute_huber_loss(logits: torch.Tensor, target: torch.Tensor,
     Compute Huber loss for robust training.
 
     Huber loss is less sensitive to outliers than squared error.
+    Inspired by discrete_backdrive_huber.py
+
+    For cross-entropy, we use smooth approximation.
 
     Parameters
     ----------
@@ -260,17 +261,15 @@ def compute_huber_loss(logits: torch.Tensor, target: torch.Tensor,
     target_long = target.long()
     target_probs = torch.gather(probs, -1, target_long.unsqueeze(-1)).squeeze(-1)
 
-    # Huber-like smooth L1 loss on probabilities
-    # We want target_probs to be close to 1.0
-    error = 1.0 - target_probs
+    # Negative log likelihood
+    nll = -torch.log(target_probs + 1e-8)
 
-    huber_loss = torch.where(
-        error.abs() <= delta,
-        0.5 * error ** 2,
-        delta * (error.abs() - 0.5 * delta)
-    )
+    # Apply Huber transformation
+    huber = torch.where(nll < delta,
+                       0.5 * nll ** 2,
+                       delta * (nll - 0.5 * delta))
 
-    return huber_loss.mean()
+    return huber.mean()
 
 
 def learn_discrete_dendiff_deterministic_enhanced(
@@ -279,33 +278,25 @@ def learn_discrete_dendiff_deterministic_enhanced(
     params: Optional[Dict[str, Any]] = None
 ) -> Dict[str, Any]:
     """
-    Learn discrete denoising diffusion using deterministic softmax with enhanced loss functions.
+    Learn an enhanced discrete denoising diffusion model using deterministic softmax.
 
-    This variant supports:
-    1. Multiple loss functions: mse, weighted_mse, ranking, huber
-    2. Fitness guidance/conditioning (inspired by C-VAE and fitness-guided DbD)
-    3. Deterministic softmax without Gumbel noise
-    4. Cleaner, more stable gradients
+    Enhancements over base version:
+    1. Alternative loss functions: mse, weighted_mse, ranking, huber
+    2. Fitness guidance/conditioning
+    3. Flexible architecture
 
     Parameters
     ----------
     population : np.ndarray
-        Binary population (pop_size, n_vars)
+        Binary population of shape (pop_size, n_vars)
     fitness : np.ndarray
-        Fitness values (pop_size,)
+        Fitness values of shape (pop_size,)
     params : dict, optional
         Training parameters:
-        - 'n_timesteps': number of diffusion steps (default: 100)
-        - 'schedule': 'linear' or 'cosine' (default: 'linear')
-        - 'beta_start': starting noise (default: 0.0001)
-        - 'beta_end': ending noise (default: 0.3)
-        - 'hidden_dims': hidden dimensions (default: computed)
-        - 'time_emb_dim': time embedding dim (default: 32)
-        - 'epochs': training epochs (default: 50)
-        - 'batch_size': batch size (default: computed)
-        - 'learning_rate': learning rate (default: 1e-3)
+        - Standard dendiff params (n_timesteps, schedule, etc.)
         - 'loss_function': 'mse', 'weighted_mse', 'ranking', 'huber' (default: 'mse')
-        - 'use_fitness_guidance': use fitness conditioning (default: False)
+          Note: 'mse' uses standard cross-entropy loss for this variant
+        - 'use_fitness_guidance': whether to condition on fitness (default: False)
         - 'fitness_weight': weight for fitness guidance (default: 0.1)
         - 'fitness_emb_dim': fitness embedding dimension (default: 8)
 
@@ -335,9 +326,9 @@ def learn_discrete_dendiff_deterministic_enhanced(
     epochs = params.get('epochs', 50)
     batch_size = params.get('batch_size', default_batch_size)
     learning_rate = params.get('learning_rate', 1e-3)
-    loss_function = params.get('loss_function', 'mse')
 
     # Enhanced parameters
+    loss_function = params.get('loss_function', 'mse')
     use_fitness_guidance = params.get('use_fitness_guidance', False)
     fitness_weight = params.get('fitness_weight', 0.1)
     fitness_emb_dim = params.get('fitness_emb_dim', 8)
@@ -345,7 +336,7 @@ def learn_discrete_dendiff_deterministic_enhanced(
     list_act_functs = params.get('list_act_functs', None)
     list_init_functs = params.get('list_init_functs', None)
 
-    # Ensure binary
+    # Ensure binary values
     population = (population > 0.5).astype(np.float32)
 
     # Normalize fitness for conditioning
@@ -356,7 +347,7 @@ def learn_discrete_dendiff_deterministic_enhanced(
     data = torch.FloatTensor(population)
     fitness_tensor = torch.FloatTensor(fitness_normalized).unsqueeze(1)
 
-    # Create beta schedule using shared utility
+    # Create beta schedule
     betas = make_noise_schedule(schedule, n_timesteps, beta_start, beta_end, 'beta')
     diffusion_params = compute_diffusion_params(betas)
 
@@ -371,6 +362,8 @@ def learn_discrete_dendiff_deterministic_enhanced(
             list_init_functs=list_init_functs
         )
     else:
+        # Use standard model from base implementation
+        from pateda.learning.discrete_dendiff_deterministic import DeterministicDenoisingMLP
         model = DeterministicDenoisingMLP(
             input_dim, time_emb_dim, hidden_dims,
             list_act_functs=list_act_functs,
@@ -384,6 +377,7 @@ def learn_discrete_dendiff_deterministic_enhanced(
     model.train()
 
     for epoch in range(epochs):
+        # Shuffle data
         perm = torch.randperm(len(data))
 
         epoch_loss = 0.0
@@ -446,8 +440,8 @@ def learn_discrete_dendiff_deterministic_enhanced(
         'list_act_functs': list_act_functs if list_act_functs else ['relu'] * len(hidden_dims),
         'list_init_functs': list_init_functs if list_init_functs else ['default'] * len(hidden_dims),
         'time_emb_dim': time_emb_dim,
-        'loss_function': loss_function,
         'use_fitness_guidance': use_fitness_guidance,
         'fitness_emb_dim': fitness_emb_dim if use_fitness_guidance else 0,
+        'loss_function': loss_function,
         'type': 'discrete_dendiff_deterministic_enhanced'
     }

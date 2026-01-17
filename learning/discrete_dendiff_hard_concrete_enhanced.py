@@ -1,16 +1,16 @@
 """
 Enhanced Discrete Denoising Diffusion Model with Hard Concrete Distribution
 
-This module extends the base hard concrete dendiff with:
+This module extends the base Hard Concrete dendiff with:
 1. Alternative loss functions (weighted_mse, ranking, huber)
 2. Fitness guidance/conditioning (inspired by C-VAE and fitness-guided DbD)
 3. Flexible architecture configurations
 
 Enhancements inspired by:
-- discrete_dendiff_gumbel_enhanced.py: Loss function patterns and fitness guidance
 - discrete_backdrive_weighted_mse.py: Fitness-weighted loss
 - discrete_backdrive_ranking.py: Ranking loss
 - discrete_backdrive_huber.py: Huber loss
+- discrete_dbd.py: Fitness-guided training
 """
 
 import numpy as np
@@ -27,14 +27,11 @@ from pateda.learning.nn_utils import (
     validate_list_params,
 )
 
-# Import base components from the standard hard concrete implementation
+# Import base components from the standard Hard Concrete implementation
 from pateda.learning.discrete_dendiff_hard_concrete import (
-    HardConcreteDenoisingMLP,
-    sample_hard_concrete,
+    TimeEmbedding, sample_hard_concrete
 )
-
 from pateda.learning.discrete_dendiff_utils import (
-    TimeEmbedding,
     make_noise_schedule,
     add_noise_binary,
 )
@@ -42,7 +39,7 @@ from pateda.learning.discrete_dendiff_utils import (
 
 class FitnessGuidedHardConcreteDenoisingMLP(nn.Module):
     """
-    Fitness-guided Hard Concrete denoising network for binary variables.
+    Fitness-guided Hard Concrete-based denoising network for binary variables.
 
     This variant conditions the denoising on fitness information,
     similar to conditional VAE (C-VAE) and fitness-guided DbD.
@@ -84,7 +81,6 @@ class FitnessGuidedHardConcreteDenoisingMLP(nn.Module):
 
         n_hidden = len(hidden_dims)
 
-        # Validate and set defaults
         if list_act_functs is None:
             list_act_functs = ['relu'] * n_hidden
         if list_init_functs is None:
@@ -97,7 +93,7 @@ class FitnessGuidedHardConcreteDenoisingMLP(nn.Module):
         # Time embedding
         self.time_embed = TimeEmbedding(time_emb_dim)
 
-        # Fitness embedding: simple linear projection
+        # Fitness embedding
         self.fitness_embed = nn.Linear(1, fitness_emb_dim)
 
         # MLP layers
@@ -120,7 +116,7 @@ class FitnessGuidedHardConcreteDenoisingMLP(nn.Module):
 
     def forward(self, x_t: torch.Tensor, t: torch.Tensor, fitness: torch.Tensor) -> torch.Tensor:
         """
-        Predict logits for Hard Concrete sampling with fitness conditioning.
+        Predict logits for Hard Concrete sampling.
 
         Parameters
         ----------
@@ -151,7 +147,7 @@ class FitnessGuidedHardConcreteDenoisingMLP(nn.Module):
         return logits
 
 
-def compute_weighted_mse_loss(x_pred: torch.Tensor, target: torch.Tensor,
+def compute_weighted_mse_loss(pred: torch.Tensor, target: torch.Tensor,
                               fitness: torch.Tensor) -> torch.Tensor:
     """
     Compute fitness-weighted MSE loss.
@@ -160,7 +156,7 @@ def compute_weighted_mse_loss(x_pred: torch.Tensor, target: torch.Tensor,
 
     Parameters
     ----------
-    x_pred : torch.Tensor
+    pred : torch.Tensor
         Predicted values [batch, n_vars]
     target : torch.Tensor
         Target values [batch, n_vars]
@@ -180,25 +176,26 @@ def compute_weighted_mse_loss(x_pred: torch.Tensor, target: torch.Tensor,
     else:
         normalized_fitness = torch.ones_like(fitness)
 
-    # Compute per-sample loss
-    per_sample_loss = F.mse_loss(x_pred, target, reduction='none').mean(dim=1, keepdim=True)
+    # Compute per-element loss
+    mse_loss = (pred - target) ** 2
 
-    # Weight by normalized fitness
-    weighted_loss = (per_sample_loss * normalized_fitness).mean()
+    # Weight by fitness
+    weights = normalized_fitness.expand_as(mse_loss)
+    weighted_loss = (mse_loss * weights).mean()
 
     return weighted_loss
 
 
-def compute_ranking_mse_loss(x_pred: torch.Tensor, target: torch.Tensor,
+def compute_ranking_mse_loss(pred: torch.Tensor, target: torch.Tensor,
                              fitness: torch.Tensor) -> torch.Tensor:
     """
     Compute ranking-based MSE loss.
 
-    Prioritizes learning the relative ordering of solutions by fitness.
+    For Hard Concrete dendiff, ranking is implemented through weighted sampling.
 
     Parameters
     ----------
-    x_pred : torch.Tensor
+    pred : torch.Tensor
         Predicted values [batch, n_vars]
     target : torch.Tensor
         Target values [batch, n_vars]
@@ -210,21 +207,20 @@ def compute_ranking_mse_loss(x_pred: torch.Tensor, target: torch.Tensor,
     loss : torch.Tensor
         Ranking-aware loss
     """
-    # For dendiff, ranking loss is implemented through standard MSE
-    # (ranking is handled through selection in the EDA framework)
-    return F.mse_loss(x_pred, target)
+    # Standard MSE - ranking can be implemented through batch sampling
+    return F.mse_loss(pred, target)
 
 
-def compute_huber_mse_loss(x_pred: torch.Tensor, target: torch.Tensor,
+def compute_huber_mse_loss(pred: torch.Tensor, target: torch.Tensor,
                           delta: float = 1.0) -> torch.Tensor:
     """
     Compute Huber loss for robust training.
 
-    Huber loss is less sensitive to outliers than squared error.
+    Less sensitive to outliers than standard MSE.
 
     Parameters
     ----------
-    x_pred : torch.Tensor
+    pred : torch.Tensor
         Predicted values [batch, n_vars]
     target : torch.Tensor
         Target values [batch, n_vars]
@@ -236,10 +232,15 @@ def compute_huber_mse_loss(x_pred: torch.Tensor, target: torch.Tensor,
     loss : torch.Tensor
         Huber loss
     """
-    # Huber loss (smooth L1)
-    huber_loss = F.smooth_l1_loss(x_pred, target, reduction='mean', beta=delta)
+    # Compute element-wise error
+    error = target - pred
 
-    return huber_loss
+    # Apply Huber transformation
+    huber = torch.where(torch.abs(error) < delta,
+                       0.5 * error ** 2,
+                       delta * (torch.abs(error) - 0.5 * delta))
+
+    return huber.mean()
 
 
 def learn_discrete_dendiff_hard_concrete_enhanced(
@@ -248,13 +249,12 @@ def learn_discrete_dendiff_hard_concrete_enhanced(
     params: Optional[Dict[str, Any]] = None
 ) -> Dict[str, Any]:
     """
-    Learn discrete denoising diffusion using Hard Concrete with enhanced loss functions.
+    Learn an enhanced discrete denoising diffusion using Hard Concrete distribution.
 
-    This variant supports:
-    1. Multiple loss functions: mse, weighted_mse, ranking, huber
-    2. Fitness guidance/conditioning (inspired by C-VAE and fitness-guided DbD)
-    3. Hard Concrete distribution for exact 0s and 1s
-    4. Stretching and folding mechanism
+    Enhancements over base version:
+    1. Alternative loss functions: mse, weighted_mse, ranking, huber
+    2. Fitness guidance/conditioning
+    3. Flexible architecture
 
     Parameters
     ----------
@@ -264,19 +264,9 @@ def learn_discrete_dendiff_hard_concrete_enhanced(
         Fitness values (pop_size,)
     params : dict, optional
         Training parameters:
-        - 'n_timesteps': number of diffusion steps (default: 100)
-        - 'schedule': 'linear' or 'cosine' (default: 'linear')
-        - 'beta_start': starting noise (default: 0.0001)
-        - 'beta_end': ending noise (default: 0.3)
-        - 'hidden_dims': hidden dimensions (default: computed)
-        - 'time_emb_dim': time embedding dim (default: 32)
-        - 'epochs': training epochs (default: 50)
-        - 'batch_size': batch size (default: computed)
-        - 'learning_rate': learning rate (default: 1e-3)
-        - 'temperature': Hard Concrete temperature (default: 0.1)
-        - 'stretch_limits': (gamma, zeta) for stretching (default: (-0.1, 1.1))
+        - Standard Hard Concrete dendiff params (n_timesteps, schedule, etc.)
         - 'loss_function': 'mse', 'weighted_mse', 'ranking', 'huber' (default: 'mse')
-        - 'use_fitness_guidance': use fitness conditioning (default: False)
+        - 'use_fitness_guidance': whether to condition on fitness (default: False)
         - 'fitness_weight': weight for fitness guidance (default: 0.1)
         - 'fitness_emb_dim': fitness embedding dimension (default: 8)
 
@@ -308,9 +298,9 @@ def learn_discrete_dendiff_hard_concrete_enhanced(
     learning_rate = params.get('learning_rate', 1e-3)
     temperature = params.get('temperature', 0.1)
     stretch_limits = params.get('stretch_limits', (-0.1, 1.1))
-    loss_function = params.get('loss_function', 'mse')
 
     # Enhanced parameters
+    loss_function = params.get('loss_function', 'mse')
     use_fitness_guidance = params.get('use_fitness_guidance', False)
     fitness_weight = params.get('fitness_weight', 0.1)
     fitness_emb_dim = params.get('fitness_emb_dim', 8)
@@ -329,11 +319,11 @@ def learn_discrete_dendiff_hard_concrete_enhanced(
     data = torch.FloatTensor(population)
     fitness_tensor = torch.FloatTensor(fitness_normalized).unsqueeze(1)
 
-    # Create noise schedule using shared utility
+    # Create noise schedule
     betas = make_noise_schedule(schedule, n_timesteps, beta_start, beta_end, 'beta')
     betas_tensor = torch.FloatTensor(betas)
 
-    # Create denoising network
+    # Create model
     if use_fitness_guidance:
         model = FitnessGuidedHardConcreteDenoisingMLP(
             input_dim, time_emb_dim, fitness_emb_dim, hidden_dims,
@@ -341,6 +331,8 @@ def learn_discrete_dendiff_hard_concrete_enhanced(
             list_init_functs=list_init_functs
         )
     else:
+        # Use standard model from base implementation
+        from pateda.learning.discrete_dendiff_hard_concrete import HardConcreteDenoisingMLP
         model = HardConcreteDenoisingMLP(
             input_dim, time_emb_dim, hidden_dims,
             list_act_functs=list_act_functs,
@@ -406,7 +398,7 @@ def learn_discrete_dendiff_hard_concrete_enhanced(
             epoch_loss += loss.item()
             n_batches += 1
 
-    # Return model with all configuration
+    # Return model
     return {
         'model_state': model.state_dict(),
         'input_dim': input_dim,
@@ -418,8 +410,8 @@ def learn_discrete_dendiff_hard_concrete_enhanced(
         'time_emb_dim': time_emb_dim,
         'temperature': temperature,
         'stretch_limits': stretch_limits,
-        'loss_function': loss_function,
         'use_fitness_guidance': use_fitness_guidance,
         'fitness_emb_dim': fitness_emb_dim if use_fitness_guidance else 0,
+        'loss_function': loss_function,
         'type': 'discrete_dendiff_hard_concrete_enhanced'
     }

@@ -2,15 +2,15 @@
 Enhanced Discrete Denoising Diffusion Model with Straight-Through Estimator (STE)
 
 This module extends the base STE dendiff with:
-1. Alternative loss functions (weighted_mse, ranking, huber)
+1. Alternative loss functions (weighted_bce, ranking, huber)
 2. Fitness guidance/conditioning (inspired by C-VAE and fitness-guided DbD)
 3. Flexible architecture configurations
 
 Enhancements inspired by:
-- discrete_dendiff_gumbel_enhanced.py: Loss function patterns and fitness guidance
 - discrete_backdrive_weighted_mse.py: Fitness-weighted loss
 - discrete_backdrive_ranking.py: Ranking loss
 - discrete_backdrive_huber.py: Huber loss
+- discrete_dbd.py: Fitness-guided training
 """
 
 import numpy as np
@@ -29,12 +29,9 @@ from pateda.learning.nn_utils import (
 
 # Import base components from the standard STE implementation
 from pateda.learning.discrete_dendiff_ste import (
-    STEDenoisingMLP,
-    straight_through_binarize,
+    TimeEmbedding, straight_through_binarize
 )
-
 from pateda.learning.discrete_dendiff_utils import (
-    TimeEmbedding,
     make_noise_schedule,
     add_noise_binary,
 )
@@ -42,7 +39,7 @@ from pateda.learning.discrete_dendiff_utils import (
 
 class FitnessGuidedSTEDenoisingMLP(nn.Module):
     """
-    Fitness-guided STE denoising network for binary variables.
+    Fitness-guided STE-based denoising network for binary variables.
 
     This variant conditions the denoising on fitness information,
     similar to conditional VAE (C-VAE) and fitness-guided DbD.
@@ -84,7 +81,6 @@ class FitnessGuidedSTEDenoisingMLP(nn.Module):
 
         n_hidden = len(hidden_dims)
 
-        # Validate and set defaults
         if list_act_functs is None:
             list_act_functs = ['relu'] * n_hidden
         if list_init_functs is None:
@@ -97,7 +93,7 @@ class FitnessGuidedSTEDenoisingMLP(nn.Module):
         # Time embedding
         self.time_embed = TimeEmbedding(time_emb_dim)
 
-        # Fitness embedding: simple linear projection
+        # Fitness embedding
         self.fitness_embed = nn.Linear(1, fitness_emb_dim)
 
         # MLP layers
@@ -118,25 +114,26 @@ class FitnessGuidedSTEDenoisingMLP(nn.Module):
 
         self.mlp = nn.Sequential(*layers)
 
-    def forward(self, x_t: torch.Tensor, t: torch.Tensor, fitness: torch.Tensor, use_ste: bool = True) -> torch.Tensor:
+    def forward(self, x_t: torch.Tensor, t: torch.Tensor, fitness: torch.Tensor, 
+                use_ste: bool = True) -> torch.Tensor:
         """
-        Predict original bit probabilities from corrupted input with fitness conditioning.
+        Predict original bit probabilities from noisy input.
 
         Parameters
         ----------
         x_t : torch.Tensor
-            Corrupted binary input (batch_size, input_dim)
+            Noisy binary input (batch_size, input_dim)
         t : torch.Tensor
             Timestep indices (batch_size,)
         fitness : torch.Tensor
             Fitness values (batch_size, 1)
         use_ste : bool
-            If True, applies STE to ensure x_t is binary in forward pass
+            Whether to apply straight-through estimator
 
         Returns
         -------
-        logits : torch.Tensor
-            Logits for bit probabilities (batch_size, input_dim)
+        output : torch.Tensor
+            Logits or binary values (batch_size, input_dim)
         """
         # Embed timestep
         t_emb = self.time_embed(t)
@@ -144,17 +141,20 @@ class FitnessGuidedSTEDenoisingMLP(nn.Module):
         # Embed fitness
         f_emb = self.fitness_embed(fitness)
 
-        # Apply STE to input if requested (ensures hard binary values in forward)
-        if use_ste and self.training:
-            x_t = straight_through_binarize(x_t)
-
         # Concatenate
         h = torch.cat([x_t, t_emb, f_emb], dim=1)
 
-        # Predict logits (will be passed through sigmoid)
+        # Predict logits
         logits = self.mlp(h)
 
-        return logits
+        if use_ste:
+            # Apply sigmoid to get probabilities, then apply STE
+            probs = torch.sigmoid(logits)
+            binary_output = straight_through_binarize(probs)
+            return binary_output
+        else:
+            # Return logits for loss computation
+            return logits
 
 
 def compute_weighted_bce_loss(logits: torch.Tensor, target: torch.Tensor,
@@ -186,13 +186,12 @@ def compute_weighted_bce_loss(logits: torch.Tensor, target: torch.Tensor,
     else:
         normalized_fitness = torch.ones_like(fitness)
 
-    # Compute per-sample loss
-    per_sample_loss = F.binary_cross_entropy_with_logits(
-        logits, target, reduction='none'
-    ).mean(dim=1, keepdim=True)
+    # Compute per-element loss
+    bce_loss = F.binary_cross_entropy_with_logits(logits, target, reduction='none')
 
-    # Weight by normalized fitness
-    weighted_loss = (per_sample_loss * normalized_fitness).mean()
+    # Weight by fitness
+    weights = normalized_fitness.expand_as(bce_loss)
+    weighted_loss = (bce_loss * weights).mean()
 
     return weighted_loss
 
@@ -200,9 +199,9 @@ def compute_weighted_bce_loss(logits: torch.Tensor, target: torch.Tensor,
 def compute_ranking_bce_loss(logits: torch.Tensor, target: torch.Tensor,
                              fitness: torch.Tensor) -> torch.Tensor:
     """
-    Compute ranking-based binary cross-entropy loss.
+    Compute ranking-based BCE loss.
 
-    Prioritizes learning the relative ordering of solutions by fitness.
+    For STE dendiff, ranking is implemented through weighted sampling.
 
     Parameters
     ----------
@@ -218,8 +217,7 @@ def compute_ranking_bce_loss(logits: torch.Tensor, target: torch.Tensor,
     loss : torch.Tensor
         Ranking-aware loss
     """
-    # For dendiff, ranking loss is implemented through standard BCE
-    # (ranking is handled through selection in the EDA framework)
+    # Standard BCE - ranking can be implemented through batch sampling
     return F.binary_cross_entropy_with_logits(logits, target)
 
 
@@ -228,7 +226,7 @@ def compute_huber_bce_loss(logits: torch.Tensor, target: torch.Tensor,
     """
     Compute Huber-like loss for binary cross-entropy.
 
-    Huber loss is less sensitive to outliers than squared error.
+    Less sensitive to outliers than standard BCE.
 
     Parameters
     ----------
@@ -242,22 +240,20 @@ def compute_huber_bce_loss(logits: torch.Tensor, target: torch.Tensor,
     Returns
     -------
     loss : torch.Tensor
-        Huber loss
+        Huber-BCE loss
     """
     # Convert to probabilities
     probs = torch.sigmoid(logits)
 
-    # Compute error
+    # Compute element-wise error
     error = target - probs
 
-    # Huber loss
-    huber_loss = torch.where(
-        error.abs() <= delta,
-        0.5 * error ** 2,
-        delta * (error.abs() - 0.5 * delta)
-    )
+    # Apply Huber transformation
+    huber = torch.where(torch.abs(error) < delta,
+                       0.5 * error ** 2,
+                       delta * (torch.abs(error) - 0.5 * delta))
 
-    return huber_loss.mean()
+    return huber.mean()
 
 
 def learn_discrete_dendiff_ste_enhanced(
@@ -266,13 +262,12 @@ def learn_discrete_dendiff_ste_enhanced(
     params: Optional[Dict[str, Any]] = None
 ) -> Dict[str, Any]:
     """
-    Learn discrete denoising diffusion using STE with enhanced loss functions.
+    Learn an enhanced discrete denoising diffusion using Straight-Through Estimator.
 
-    This variant supports:
-    1. Multiple loss functions: mse, weighted_mse, ranking, huber
-    2. Fitness guidance/conditioning (inspired by C-VAE and fitness-guided DbD)
-    3. Straight-through estimator for gradient flow
-    4. Hard binary values in forward pass
+    Enhancements over base version:
+    1. Alternative loss functions: mse, weighted_bce, ranking, huber
+    2. Fitness guidance/conditioning
+    3. Flexible architecture
 
     Parameters
     ----------
@@ -282,17 +277,10 @@ def learn_discrete_dendiff_ste_enhanced(
         Fitness values (pop_size,)
     params : dict, optional
         Training parameters:
-        - 'n_timesteps': number of noise levels (default: 50)
-        - 'schedule': 'linear' or 'cosine' (default: 'linear')
-        - 'noise_start': min noise (default: 0.01)
-        - 'noise_end': max noise (default: 0.5)
-        - 'hidden_dims': hidden dimensions (default: computed)
-        - 'time_emb_dim': time embedding dim (default: 32)
-        - 'epochs': training epochs (default: 50)
-        - 'batch_size': batch size (default: computed)
-        - 'learning_rate': learning rate (default: 1e-3)
-        - 'loss_function': 'mse', 'weighted_mse', 'ranking', 'huber' (default: 'mse')
-        - 'use_fitness_guidance': use fitness conditioning (default: False)
+        - Standard STE dendiff params (n_timesteps, schedule, etc.)
+        - 'loss_function': 'mse', 'weighted_bce', 'ranking', 'huber' (default: 'mse')
+          Note: 'mse' uses standard binary cross-entropy loss for this variant
+        - 'use_fitness_guidance': whether to condition on fitness (default: False)
         - 'fitness_weight': weight for fitness guidance (default: 0.1)
         - 'fitness_emb_dim': fitness embedding dimension (default: 8)
 
@@ -322,9 +310,9 @@ def learn_discrete_dendiff_ste_enhanced(
     epochs = params.get('epochs', 50)
     batch_size = params.get('batch_size', default_batch_size)
     learning_rate = params.get('learning_rate', 1e-3)
-    loss_function = params.get('loss_function', 'mse')
 
     # Enhanced parameters
+    loss_function = params.get('loss_function', 'mse')
     use_fitness_guidance = params.get('use_fitness_guidance', False)
     fitness_weight = params.get('fitness_weight', 0.1)
     fitness_emb_dim = params.get('fitness_emb_dim', 8)
@@ -343,11 +331,11 @@ def learn_discrete_dendiff_ste_enhanced(
     data = torch.FloatTensor(population)
     fitness_tensor = torch.FloatTensor(fitness_normalized).unsqueeze(1)
 
-    # Create noise schedule using shared utility
+    # Create noise schedule
     noise_rates = make_noise_schedule(schedule, n_timesteps, noise_start, noise_end, 'noise')
     noise_rates_tensor = torch.FloatTensor(noise_rates)
 
-    # Create denoising network
+    # Create model
     if use_fitness_guidance:
         model = FitnessGuidedSTEDenoisingMLP(
             input_dim, time_emb_dim, fitness_emb_dim, hidden_dims,
@@ -355,6 +343,8 @@ def learn_discrete_dendiff_ste_enhanced(
             list_init_functs=list_init_functs
         )
     else:
+        # Use standard model from base implementation
+        from pateda.learning.discrete_dendiff_ste import STEDenoisingMLP
         model = STEDenoisingMLP(
             input_dim, time_emb_dim, hidden_dims,
             list_act_functs=list_act_functs,
@@ -390,12 +380,12 @@ def learn_discrete_dendiff_ste_enhanced(
 
             # Predict original data
             if use_fitness_guidance:
-                logits = model(x_noisy, t, batch_fitness, use_ste=True)
+                logits = model(x_noisy, t, batch_fitness, use_ste=False)
             else:
-                logits = model(x_noisy, t, use_ste=True)
+                logits = model(x_noisy, t, use_ste=False)
 
             # Compute loss based on loss_function
-            if loss_function == 'weighted_mse':
+            if loss_function == 'weighted_bce' or loss_function == 'weighted_mse':
                 loss = compute_weighted_bce_loss(logits, batch, batch_fitness)
             elif loss_function == 'ranking':
                 loss = compute_ranking_bce_loss(logits, batch, batch_fitness)
@@ -417,7 +407,7 @@ def learn_discrete_dendiff_ste_enhanced(
             epoch_loss += loss.item()
             n_batches += 1
 
-    # Return model with all configuration
+    # Return model
     return {
         'model_state': model.state_dict(),
         'input_dim': input_dim,
@@ -427,8 +417,8 @@ def learn_discrete_dendiff_ste_enhanced(
         'list_act_functs': list_act_functs if list_act_functs else ['relu'] * len(hidden_dims),
         'list_init_functs': list_init_functs if list_init_functs else ['default'] * len(hidden_dims),
         'time_emb_dim': time_emb_dim,
-        'loss_function': loss_function,
         'use_fitness_guidance': use_fitness_guidance,
         'fitness_emb_dim': fitness_emb_dim if use_fitness_guidance else 0,
+        'loss_function': loss_function,
         'type': 'discrete_dendiff_ste_enhanced'
     }
