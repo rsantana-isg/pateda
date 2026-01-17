@@ -971,7 +971,7 @@ def main():
         print("  activation_dec: (Optional) Decoder activation function for VAE (default: relu)")
         print("  beta_start    : (Optional) Beta annealing start for VAE (default: 0.0)")
         print("  beta_end      : (Optional) Beta annealing end for VAE (default: 1.0)")
-        print("  epochs        : (Optional) Training epochs for VAE (default: 30)")
+        print("  epochs        : (Optional) Training epochs for VAE (default: 50)")
         print("  mi_layer      : (Optional) Use MI layer for VAE: 0 or 1 (default: 0)")
         print()
         print("Supported problem types:")
