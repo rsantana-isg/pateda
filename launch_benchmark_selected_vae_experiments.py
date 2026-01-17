@@ -26,8 +26,17 @@ if __name__ == '__main__':
     for instance in ubqp_instances:
         problem_configs.append(('UBQP', instance))
     
-    # VAE variants supported by discrete_EDA_RW.py
-    vae_variants = ['VAE', 'VAE-Extended']
+    # VAE variants to explore (matching launch_selected_vae_experiments.py)
+    # TODO: Implement C-VAE support in discrete_EDA_RW.py to enable full variant exploration
+    variants = ['VAE', 'E-VAE', 'C-VAE']
+    
+    # VAE-specific parameters to explore (matching launch_selected_vae_experiments.py)
+    activation_enc_options = ['elu', 'relu', 'tanh']
+    activation_dec_options = ['elu', 'relu', 'tanh']
+    beta_start_options = [0.0]
+    beta_end_options = [1.0]
+    epochs_options = [50]
+    mi_layer_options = [0, 1]
     
     # Alpha (mutation parameter) - testing both baseline (no mutation) and mutation-enabled
     # 0.0 = no mutation, 0.95 = frequency balance mutation for better exploration
@@ -43,11 +52,28 @@ if __name__ == '__main__':
     # Generate all combinations
     for seed in seeds:
         for problem_type, instance_name in problem_configs:
-            for variant in vae_variants:
+            for variant in variants:
                 for alpha in alpha_values:
-                    # Build command
-                    # Format: discrete_EDA_RW.py <seed> <problem_type> <instance_name> <pop_size> <n_gen> <alg> [alpha] [truncation]
-                    cmd = (f"sbatch slurm_benchmark_vae.sh examples/discrete_EDA_RW.py "
-                          f"{seed} {problem_type} {instance_name} {p_size} {n_gen} "
-                          f"{variant} {alpha} {trunc}")
-                    print(cmd)
+                    for activation_enc in activation_enc_options:
+                        for activation_dec in activation_dec_options:
+                            for beta_start in beta_start_options:
+                                for beta_end in beta_end_options:
+                                    for epochs in epochs_options:
+                                        for mi_layer in mi_layer_options:
+                                            # Map variant names to discrete_EDA_RW.py: VAE→VAE, E-VAE→VAE-Extended
+                                            # C-VAE is in requirements but not yet implemented, so skip for now
+                                            if variant == 'E-VAE':
+                                                alg_variant = 'VAE-Extended'
+                                            elif variant == 'C-VAE':
+                                                continue  # Not yet supported in discrete_EDA_RW.py
+                                            else:
+                                                alg_variant = variant
+                                            
+                                            # Build command with all parameters
+                                            # Format: discrete_EDA_RW.py <seed> <problem_type> <instance_name> <pop_size> <n_gen> <alg>
+                                            #         [alpha] [truncation] [activation_enc] [activation_dec] [beta_start] [beta_end] [epochs] [mi_layer]
+                                            cmd = (f"sbatch slurm_benchmark_vae.sh examples/discrete_EDA_RW.py "
+                                                  f"{seed} {problem_type} {instance_name} {p_size} {n_gen} "
+                                                  f"{alg_variant} {alpha} {trunc} {activation_enc} {activation_dec} "
+                                                  f"{beta_start} {beta_end} {epochs} {mi_layer}")
+                                            print(cmd)

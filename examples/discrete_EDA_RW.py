@@ -954,9 +954,9 @@ def run_traditional_eda(
 def main():
     """Main entry point for command-line execution"""
     
-    # Check arguments (sys.argv[0] is script name, so 7-9 total = 6-8 arguments + script name)
-    if len(sys.argv) < 7 or len(sys.argv) > 9:
-        print("Usage: python discrete_EDA_RW.py <seed> <problem_type> <instance_name> <pop_size> <n_gen> <alg> [alpha] [truncation]")
+    # Check arguments (sys.argv[0] is script name, so 7-15 total = 6-14 arguments + script name)
+    if len(sys.argv) < 7 or len(sys.argv) > 15:
+        print("Usage: python discrete_EDA_RW.py <seed> <problem_type> <instance_name> <pop_size> <n_gen> <alg> [alpha] [truncation] [activation_enc] [activation_dec] [beta_start] [beta_end] [epochs] [mi_layer]")
         print()
         print("Arguments:")
         print("  seed          : Random seed (integer)")
@@ -967,6 +967,12 @@ def main():
         print("  alg           : Algorithm name")
         print("  alpha         : (Optional) Max frequency threshold for mutation (default: 0.0, no mutation)")
         print("  truncation    : (Optional) Truncation selection ratio (default: 0.5)")
+        print("  activation_enc: (Optional) Encoder activation function for VAE (default: relu)")
+        print("  activation_dec: (Optional) Decoder activation function for VAE (default: relu)")
+        print("  beta_start    : (Optional) Beta annealing start for VAE (default: 0.0)")
+        print("  beta_end      : (Optional) Beta annealing end for VAE (default: 1.0)")
+        print("  epochs        : (Optional) Training epochs for VAE (default: 50)")
+        print("  mi_layer      : (Optional) Use MI layer for VAE: 0 or 1 (default: 0)")
         print()
         print("Supported problem types:")
         print("  SAT   - Boolean satisfiability problem")
@@ -991,6 +997,7 @@ def main():
         print("  python discrete_EDA_RW.py 0 SAT uf20-01 80 20 VAE")
         print("  python discrete_EDA_RW.py 1 Ising SG_16_1 100 30 UMDA 0.95")
         print("  python discrete_EDA_RW.py 0 UBQP bqp50 200 50 TreeEDA 0.95 0.5")
+        print("  python discrete_EDA_RW.py 0 SAT uf20-01 80 20 VAE 0.0 0.5 relu tanh 0.0 1.0 50 1")
         sys.exit(1)
     
     # Parse arguments
@@ -1004,6 +1011,14 @@ def main():
     # Optional arguments
     alpha = float(sys.argv[7]) if len(sys.argv) > 7 else 0.0
     truncation_ratio = float(sys.argv[8]) if len(sys.argv) > 8 else 0.5
+    
+    # VAE-specific optional arguments
+    activation_enc = sys.argv[9] if len(sys.argv) > 9 else 'relu'
+    activation_dec = sys.argv[10] if len(sys.argv) > 10 else 'relu'
+    beta_start = float(sys.argv[11]) if len(sys.argv) > 11 else 0.0
+    beta_end = float(sys.argv[12]) if len(sys.argv) > 12 else 1.0
+    epochs_vae = int(sys.argv[13]) if len(sys.argv) > 13 else 50
+    mi_layer = int(sys.argv[14]) if len(sys.argv) > 14 else 0
     
     # Suppress warnings
     warnings.filterwarnings('ignore', category=UserWarning)
@@ -1033,6 +1048,14 @@ def main():
     print(f"Algorithm:        {alg}")
     print(f"Alpha (mutation): {alpha}")
     print(f"Truncation:       {truncation_ratio}")
+    # Print VAE-specific parameters if applicable
+    if alg in ['VAE', 'VAE-Extended']:
+        print(f"Activation Enc:   {activation_enc}")
+        print(f"Activation Dec:   {activation_dec}")
+        print(f"Beta Start:       {beta_start}")
+        print(f"Beta End:         {beta_end}")
+        print(f"Epochs:           {epochs_vae}")
+        print(f"MI Layer:         {bool(mi_layer)}")
     print("=" * 80)
     print()
     
@@ -1087,27 +1110,35 @@ def main():
         # Configure learning parameters
         params_map = {
             'vae': {
-                'epochs': 30,
+                'epochs': epochs_vae,
                 'latent_dim': max(2, n_vars // 4),
                 'batch_size': batch_s,
                 # Dynamic hidden layers will be computed in learn_binary_vae
-                # Beta annealing enabled by default
-                'beta_start': 0.0,
-                'beta_end': 1.0,
-                'beta_annealing_epochs': 15,  # Half of epochs
+                # Beta annealing from command-line arguments
+                'beta_start': beta_start,
+                'beta_end': beta_end,
+                'beta_annealing_epochs': epochs_vae // 2,  # Half of epochs
+                'mi_layer': bool(mi_layer),
+                # Activation functions (2 layers is the default for learn_binary_vae)
+                'list_act_functs_enc': [activation_enc, activation_enc],
+                'list_act_functs_dec': [activation_dec, activation_dec],
             },
             'vae_extended': {
-                'epochs': 30,
+                'epochs': epochs_vae,
                 'latent_dim': max(2, n_vars // 4),
                 'batch_size':  batch_s,
                 # Dynamic hidden layers will be computed in learn_binary_vae
-                # Beta annealing enabled by default
-                'beta_start': 0.0,
-                'beta_end': 1.0,
-                'beta_annealing_epochs': 15,  # Half of epochs
+                # Beta annealing from command-line arguments
+                'beta_start': beta_start,
+                'beta_end': beta_end,
+                'beta_annealing_epochs': epochs_vae // 2,  # Half of epochs
                 # Extended VAE specific parameters
                 'use_extended': True,
                 'fitness_weight': 0.1,
+                'mi_layer': bool(mi_layer),
+                # Activation functions (2 layers is the default for learn_binary_vae)
+                'list_act_functs_enc': [activation_enc, activation_enc],
+                'list_act_functs_dec': [activation_dec, activation_dec],
             },
             'gan': {
                 'epochs': 60,
