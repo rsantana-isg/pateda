@@ -26,7 +26,7 @@ if __name__ == '__main__':
     
     # Boolean flags (weight-transfer, early-stopping, surrogate-filtering)
     #weight_transfer_options = [1, 0]  # 1=True, 0=False
-    weight_transfer_options = [0]  # 1=True, 0=False
+    weight_transfer_options = [0,1]  # 1=True, 0=False
 
     #early_stopping_options = [1, 0]
     early_stopping_options = [0]
