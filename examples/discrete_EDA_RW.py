@@ -49,7 +49,16 @@ from typing import Dict, Any
 import warnings
 
 # Neural learning modules
-from pateda.learning.discrete_vae import learn_binary_vae
+from pateda.learning.discrete_vae import (
+    learn_binary_vae,
+    learn_binary_cvae,
+    learn_binary_descvae,
+    learn_binary_regvae,
+    learn_binary_momvae,
+    learn_binary_bavae,
+    learn_binary_aavae,
+    learn_binary_fwvae
+)
 from pateda.learning.discrete_gan import learn_binary_gan
 from pateda.learning.discrete_backdrive import learn_binary_backdrive
 from pateda.learning.discrete_backdrive_weighted_mse import learn_binary_backdrive_weighted_mse
@@ -68,7 +77,11 @@ from pateda.learning.discrete_dendiff_corruption import learn_discrete_dendiff_c
 
 # Neural sampling modules
 from pateda.sampling.discrete_neural import (
-    sample_binary_vae, sample_binary_gan, sample_binary_backdrive,
+    sample_binary_vae, sample_binary_cvae, sample_binary_descvae,
+    sample_binary_regvae, sample_binary_momvae, sample_binary_bavae,
+    sample_binary_aavae, sample_binary_fwvae, sample_binary_gsvae,
+    sample_binary_hsvae, sample_binary_tcvae,
+    sample_binary_gan, sample_binary_backdrive,
     sample_binary_backdrive_adaptive
 )
 from pateda.sampling.dae import sample_dae
@@ -615,6 +628,16 @@ class UnifiedDiscreteNeuralEDA:
         self.method_map = {
             'vae': (learn_binary_vae, sample_binary_vae, False, None),
             'vae_extended': (learn_binary_vae, sample_binary_vae, False, 'extended'),  # E-VAE with fitness guidance
+            'cvae': (learn_binary_cvae, sample_binary_cvae, False, None),
+            'descvae': (learn_binary_descvae, sample_binary_descvae, False, None),
+            'regvae': (learn_binary_regvae, sample_binary_regvae, False, None),
+            'momvae': (learn_binary_momvae, sample_binary_momvae, False, None),
+            'bavae': (learn_binary_bavae, sample_binary_bavae, False, None),
+            'aavae': (learn_binary_aavae, sample_binary_aavae, False, None),
+            'fwvae': (learn_binary_fwvae, sample_binary_fwvae, False, None),
+            'gsvae': (learn_binary_vae, sample_binary_gsvae, False, None),  # Uses standard learning, greedy sampling
+            'hsvae': (learn_binary_vae, sample_binary_hsvae, False, None),  # Uses standard learning, hybrid sampling
+            'tcvae': (learn_binary_vae, sample_binary_tcvae, False, None),  # Uses standard learning, temp-controlled sampling
             'gan': (learn_binary_gan, sample_binary_gan, False, None),
             'backdrive': (learn_binary_backdrive, sample_binary_backdrive, False, None),
             'backdrive_random': (learn_binary_backdrive, sample_binary_backdrive, False, None),
@@ -733,6 +756,21 @@ class UnifiedDiscreteNeuralEDA:
                 if self.method in self.methods_needing_current_pop:
                     sampling_params['current_population'] = selected_pop
                     sampling_params['current_fitness'] = selected_fitness
+
+                # VAE variant-specific sampling parameters
+                if self.method == 'vae_extended':
+                    sampling_params['use_fitness_guidance'] = sampling_params.get('use_fitness_guidance', False)
+                elif self.method == 'cvae':
+                    # C-VAE: can specify target condition for sampling
+                    # Default: use max fitness from selected population
+                    if 'condition' not in sampling_params:
+                        sampling_params['condition'] = np.max(selected_fitness)
+                elif self.method == 'regvae':
+                    sampling_params['use_fitness_guidance'] = sampling_params.get('use_fitness_guidance', True)
+                elif self.method == 'tcvae':
+                    # TC-VAE: pass generation info for temperature control
+                    sampling_params['generation'] = gen + 1
+                    sampling_params['max_generations'] = self.max_generations
 
                 # Sample new population based on method
                 if self.method in ['dbd_cs', 'dbd_us', 'dbd_cs_t_k0', 'dbd_cs_t_k1', 'dbd_cs_t_k2']:
@@ -983,7 +1021,9 @@ def main():
         print("         Examples: bqp50, bqp100, bqp250")
         print()
         print("Supported algorithms:")
-        print("  Neural EDAs: VAE, VAE-Extended, GAN, Backdrive, DAE, RBM, DbD")
+        print("  VAE variants: VAE, E-VAE, C-VAE, Desc-VAE, Reg-VAE, Mom-VAE,")
+        print("                BA-VAE, AA-VAE, FW-VAE, GS-VAE, HS-VAE, TC-VAE")
+        print("  Neural EDAs: GAN, Backdrive, DAE, RBM, DbD")
         print("  Backdrive variants: Backdrive-Random, Backdrive-PerturbBest,")
         print("                      Backdrive-PerturbSelected, Backdrive-Adaptive")
         print("  DbD variants: DbD-CS, DbD-CD, DbD-UC, DbD-US")
@@ -995,9 +1035,9 @@ def main():
         print()
         print("Example:")
         print("  python discrete_EDA_RW.py 0 SAT uf20-01 80 20 VAE")
+        print("  python discrete_EDA_RW.py 0 SAT uf20-01 80 20 C-VAE 0.0 0.5 relu tanh 0.0 1.0 50 1")
         print("  python discrete_EDA_RW.py 1 Ising SG_16_1 100 30 UMDA 0.95")
         print("  python discrete_EDA_RW.py 0 UBQP bqp50 200 50 TreeEDA 0.95 0.5")
-        print("  python discrete_EDA_RW.py 0 SAT uf20-01 80 20 VAE 0.0 0.5 relu tanh 0.0 1.0 50 1")
         sys.exit(1)
     
     # Parse arguments
@@ -1049,7 +1089,9 @@ def main():
     print(f"Alpha (mutation): {alpha}")
     print(f"Truncation:       {truncation_ratio}")
     # Print VAE-specific parameters if applicable
-    if alg in ['VAE', 'VAE-Extended']:
+    vae_variants = ['VAE', 'E-VAE', 'C-VAE', 'Desc-VAE', 'Reg-VAE', 'Mom-VAE',
+                    'BA-VAE', 'AA-VAE', 'FW-VAE', 'GS-VAE', 'HS-VAE', 'TC-VAE']
+    if alg in vae_variants:
         print(f"Activation Enc:   {activation_enc}")
         print(f"Activation Dec:   {activation_dec}")
         print(f"Beta Start:       {beta_start}")
@@ -1060,7 +1102,9 @@ def main():
     print()
     
     # Determine if neural or traditional EDA
-    neural_edas = ['VAE', 'VAE-Extended', 'GAN', 'Backdrive', 'Backdrive-Random', 'Backdrive-PerturbBest',
+    neural_edas = ['VAE', 'E-VAE', 'C-VAE', 'Desc-VAE', 'Reg-VAE', 'Mom-VAE',
+                   'BA-VAE', 'AA-VAE', 'FW-VAE', 'GS-VAE', 'HS-VAE', 'TC-VAE',
+                   'GAN', 'Backdrive', 'Backdrive-Random', 'Backdrive-PerturbBest',
                    'Backdrive-PerturbSelected', 'Backdrive-Adaptive', 'Backdrive-WeightedMSE',
                    'Backdrive-Ranking', 'Backdrive-Huber', 'DAE', 'RBM', 'DbD',
                    'DbD-CS', 'DbD-CD', 'DbD-UC', 'DbD-US', 
@@ -1075,7 +1119,17 @@ def main():
         # Run neural EDA
         method_map = {
             'VAE': 'vae',
-            'VAE-Extended': 'vae_extended',
+            'E-VAE': 'vae_extended',
+            'C-VAE': 'cvae',
+            'Desc-VAE': 'descvae',
+            'Reg-VAE': 'regvae',
+            'Mom-VAE': 'momvae',
+            'BA-VAE': 'bavae',
+            'AA-VAE': 'aavae',
+            'FW-VAE': 'fwvae',
+            'GS-VAE': 'gsvae',
+            'HS-VAE': 'hsvae',
+            'TC-VAE': 'tcvae',
             'GAN': 'gan',
             'Backdrive': 'backdrive',
             'Backdrive-Random': 'backdrive_random',
@@ -1106,6 +1160,21 @@ def main():
         selected_pop_size = int(pop_size * selection_ratio)
         adaptive_hidden_dims = [max(10, n_vars // 2), max(10, n_vars // 4)]
         batch_s = min(32, selected_pop_size // 10)
+        
+        # Helper function to create standard VAE config (used by GS-VAE, HS-VAE, TC-VAE)
+        def make_standard_vae_config():
+            """Create standard VAE configuration shared by variants that use standard learning."""
+            return {
+                'epochs': epochs_vae,
+                'latent_dim': max(2, n_vars // 4),
+                'batch_size': batch_s,
+                'beta_start': beta_start,
+                'beta_end': beta_end,
+                'beta_annealing_epochs': epochs_vae // 2,
+                'mi_layer': bool(mi_layer),
+                'list_act_functs_enc': [activation_enc, activation_enc],
+                'list_act_functs_dec': [activation_dec, activation_dec],
+            }
         
         # Configure learning parameters
         params_map = {
@@ -1140,6 +1209,91 @@ def main():
                 'list_act_functs_enc': [activation_enc, activation_enc],
                 'list_act_functs_dec': [activation_dec, activation_dec],
             },
+            'cvae': {
+                'epochs': epochs_vae,
+                'latent_dim': max(2, n_vars // 4),
+                'batch_size': batch_s,
+                'beta_start': beta_start,
+                'beta_end': beta_end,
+                'beta_annealing_epochs': epochs_vae // 2,
+                'mi_layer': bool(mi_layer),
+                'list_act_functs_enc': [activation_enc, activation_enc],
+                'list_act_functs_dec': [activation_dec, activation_dec],
+            },
+            'descvae': {
+                'epochs': epochs_vae,
+                'latent_dim': max(2, n_vars // 4),
+                'batch_size': batch_s,
+                'beta_start': beta_start,
+                'beta_end': beta_end,
+                'beta_annealing_epochs': epochs_vae // 2,
+                'mi_layer': bool(mi_layer),
+                'list_act_functs_enc': [activation_enc, activation_enc],
+                'list_act_functs_dec': [activation_dec, activation_dec],
+            },
+            'regvae': {
+                'epochs': epochs_vae,
+                'latent_dim': max(2, n_vars // 4),
+                'batch_size': batch_s,
+                'beta_start': beta_start,
+                'beta_end': beta_end,
+                'beta_annealing_epochs': epochs_vae // 2,
+                'fitness_weight': 0.1,
+                'use_fitness_weighting': True,
+                'mi_layer': bool(mi_layer),
+                'list_act_functs_enc': [activation_enc, activation_enc],
+                'list_act_functs_dec': [activation_dec, activation_dec],
+            },
+            'momvae': {
+                'epochs': epochs_vae,
+                'latent_dim': max(2, n_vars // 4),
+                'batch_size': batch_s,
+                'beta_start': beta_start,
+                'beta_end': beta_end,
+                'beta_annealing_epochs': epochs_vae // 2,
+                'moment_weight': 0.1,
+                'mi_layer': bool(mi_layer),
+                'list_act_functs_enc': [activation_enc, activation_enc],
+                'list_act_functs_dec': [activation_dec, activation_dec],
+            },
+            'bavae': {
+                'epochs': epochs_vae,
+                'latent_dim': max(2, n_vars // 4),
+                'batch_size': batch_s,
+                'beta_start': beta_start,
+                'beta_end': beta_end,
+                'beta_annealing_epochs': epochs_vae // 2,
+                'mi_layer': bool(mi_layer),
+                'list_act_functs_enc': [activation_enc, activation_enc],
+                'list_act_functs_dec': [activation_dec, activation_dec],
+            },
+            'aavae': {
+                'epochs': epochs_vae,
+                'latent_dim': max(2, n_vars // 4),
+                'batch_size': batch_s,
+                'beta_start': beta_start,
+                'beta_end': beta_end,
+                'beta_annealing_epochs': epochs_vae // 2,
+                'mi_layer': bool(mi_layer),
+                'list_act_functs_enc': [activation_enc, activation_enc],
+                'list_act_functs_dec': [activation_dec, activation_dec],
+            },
+            'fwvae': {
+                'epochs': epochs_vae,
+                'latent_dim': max(2, n_vars // 4),
+                'batch_size': batch_s,
+                'beta_start': beta_start,
+                'beta_end': beta_end,
+                'beta_annealing_epochs': epochs_vae // 2,
+                'fitness_weight': 0.1,
+                'mi_layer': bool(mi_layer),
+                'list_act_functs_enc': [activation_enc, activation_enc],
+                'list_act_functs_dec': [activation_dec, activation_dec],
+            },
+            # GS-VAE, HS-VAE, and TC-VAE use standard VAE learning with specialized sampling
+            'gsvae': make_standard_vae_config(),
+            'hsvae': make_standard_vae_config(),
+            'tcvae': make_standard_vae_config(),
             'gan': {
                 'epochs': 60,
                 'latent_dim': max(10, n_vars // 2),
