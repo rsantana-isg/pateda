@@ -1,7 +1,7 @@
 """
 Discrete Backdrive EDA - Command-Line Interface for Backdrive Variants
 ======================================================================
-
+    
 This program provides a unified interface to run various Backdrive-EDA algorithm
 variants on benchmark problems with different seeds for cluster execution.
 
@@ -30,27 +30,26 @@ Configurable Parameters (all positional):
 - early_stopping: 1 to enable, 0 to disable
 - surrogate_filtering: 1 to enable, 0 to disable
   * For backdrive_descriptors: Uses forward model (solution → descriptors) to predict fitness
-- alpha: Maximum allowed frequency for ones or zeros (mutation control)
 
 Usage:
     python discrete_Backdrive_EDA.py <seed> <obj_func> <n> <pop_size> <n_gen> <trunc> \\
-        <variant> <init> <loss> <activation> <weight_transfer> <early_stopping> <surrogate_filtering> <alpha>
+        <variant> <init> <loss> <activation> <weight_transfer> <early_stopping> <surrogate_filtering>
 
 Examples:
     # Basic backdrive with MSE and ReLU
-    python discrete_Backdrive_EDA.py 0 OneMax 20 80 20 0.5 backdrive random mse relu 0 0 0 0.0
+    python discrete_Backdrive_EDA.py 0 OneMax 20 80 20 0.5 backdrive random mse relu 0 0 0
 
-    # Backdrive with weighted MSE and tanh activation with mutation
-    python discrete_Backdrive_EDA.py 1 Deceptive3 30 100 30 0.5 backdrive random weighted_mse tanh 1 1 0 0.95
+    # Backdrive with weighted MSE and tanh activation
+    python discrete_Backdrive_EDA.py 1 Deceptive3 30 100 30 0.5 backdrive random weighted_mse tanh 1 1 0
 
     # Backdrive descriptors with Huber loss and ELU activation
-    python discrete_Backdrive_EDA.py 2 HIFF 64 200 50 0.5 backdrive_descriptors random huber elu 0 1 0 0.0
+    python discrete_Backdrive_EDA.py 2 HIFF 64 200 50 0.5 backdrive_descriptors random huber elu 0 1 0
 
     # Backdrive descriptors with surrogate filtering enabled
-    python discrete_Backdrive_EDA.py 2 HIFF 64 200 50 0.5 backdrive_descriptors random mse relu 0 1 1 0.0
+    python discrete_Backdrive_EDA.py 2 HIFF 64 200 50 0.5 backdrive_descriptors random mse relu 0 1 1
 
     # Adaptive backdrive with GELU activation
-    python discrete_Backdrive_EDA.py 3 FC3 30 150 40 0.5 backdrive_adaptive perturb_best mse gelu 1 1 0 0.0
+    python discrete_Backdrive_EDA.py 3 FC3 30 150 40 0.5 backdrive_adaptive perturb_best mse gelu 1 1 0
 
 ==============================================================================
 """
@@ -91,9 +90,6 @@ from pateda.functions.discrete.additive_decomposable import (
     first_polytree3_ochoa, first_polytree5_ochoa,
     fc2, fc3, fc4, fc5
 )
-
-# Mutation operators
-from pateda.mutation import frequency_balance_mutation
 
 
 # ==============================================================================
@@ -371,7 +367,6 @@ class BackdriveEDA:
         learning_params: Optional[Dict[str, Any]] = None,
         sampling_params: Optional[Dict[str, Any]] = None,
         random_seed: Optional[int] = None,
-        alpha: float = 0.0,
     ):
         """
         Initialize Backdrive EDA
@@ -408,9 +403,6 @@ class BackdriveEDA:
             Additional sampling parameters
         random_seed : int, optional
             Random seed for reproducibility
-        alpha : float
-            Maximum allowed frequency for ones or zeros (default 0.0, no mutation)
-            If alpha > 0, applies frequency balance mutation
         """
         self.variant = variant
         self.n_vars = n_vars
@@ -427,7 +419,6 @@ class BackdriveEDA:
         self.learning_params = learning_params or {}
         self.sampling_params = sampling_params or {}
         self.random_seed = random_seed
-        self.alpha = alpha
 
         # Set random seed if provided
         if random_seed is not None:
@@ -650,27 +641,6 @@ class BackdriveEDA:
 
             # Evaluate
             fitness = fitness_func(population)
-            
-            # Apply frequency balance mutation if alpha > 0
-            if self.alpha > 0:
-                # Store the best solution before mutation to enforce elitism
-                best_idx = np.argmax(fitness)
-                best_solution_pre_mutation = population[best_idx].copy()
-                
-                mutation_params = {'alpha': self.alpha}
-                population = frequency_balance_mutation(
-                    self.n_vars,
-                    self.cardinality,
-                    population,
-                    mutation_params
-                )
-                
-                # Enforce elitism: ensure the best solution is not mutated
-                # Replace the individual at best_idx with the original best solution
-                population[best_idx] = best_solution_pre_mutation
-                
-                # Re-evaluate only if mutation was applied
-                fitness = fitness_func(population)
 
             # Update best
             gen_best = np.max(fitness)
@@ -708,19 +678,19 @@ def main():
         epilog="""
 Examples:
   # Basic usage with default settings
-  python discrete_Backdrive_EDA.py 0 OneMax 20 80 20 0.5 backdrive random mse relu 0 0 0 0.0
+  python discrete_Backdrive_EDA.py 0 OneMax 20 80 20 0.5 backdrive random mse relu 0 0 0
 
   # With weight transfer and early stopping
-  python discrete_Backdrive_EDA.py 0 OneMax 20 80 20 0.5 backdrive random mse relu 1 1 0 0.0
+  python discrete_Backdrive_EDA.py 0 OneMax 20 80 20 0.5 backdrive random mse relu 1 1 0
 
-  # Custom initialization and loss function with mutation
-  python discrete_Backdrive_EDA.py 0 Deceptive3 30 100 30 0.5 backdrive perturb_best weighted_mse relu 0 0 0 0.95
+  # Custom initialization and loss function
+  python discrete_Backdrive_EDA.py 0 Deceptive3 30 100 30 0.5 backdrive perturb_best weighted_mse relu 0 0 0
 
   # Adaptive variant with custom activation
-  python discrete_Backdrive_EDA.py 0 HIFF 64 200 50 0.5 backdrive_adaptive random mse tanh 0 1 0 0.0
+  python discrete_Backdrive_EDA.py 0 HIFF 64 200 50 0.5 backdrive_adaptive random mse tanh 0 1 0
 
   # With surrogate filtering
-  python discrete_Backdrive_EDA.py 0 OneMax 20 80 20 0.5 backdrive random mse relu 0 0 1 0.0
+  python discrete_Backdrive_EDA.py 0 OneMax 20 80 20 0.5 backdrive random mse relu 0 0 1
         """
     )
     
@@ -748,8 +718,6 @@ Examples:
                         help='Use early stopping during training (1=yes, 0=no)')
     parser.add_argument('surrogate_filtering', type=int, choices=[0, 1],
                         help='Use surrogate model for pre-filtering solutions (1=yes, 0=no)')
-    parser.add_argument('alpha', type=float,
-                        help='Max frequency threshold for mutation (default: 0.0, no mutation)')
     
     # Parse arguments
     args = parser.parse_args()
@@ -793,7 +761,6 @@ Examples:
     print(f"Loss Function:      {args.loss}")
     print(f"Activation:         {args.activation}")
     print(f"Surrogate Filter:   {args.surrogate_filtering}")
-    print(f"Alpha (mutation):   {args.alpha}")
     print("=" * 80)
     print()
     
@@ -859,7 +826,6 @@ Examples:
         learning_params=learning_params,
         sampling_params=sampling_params,
         random_seed=args.seed,
-        alpha=args.alpha,
     )
     
     best_fitness, best_solution, history = eda.run(fitness_func, verbose=True)
