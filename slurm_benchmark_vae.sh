@@ -45,9 +45,9 @@
 # $11 = activation_dec (decoder activation function)
 # $12 = beta_start (beta annealing start)
 # $13 = beta_end (beta annealing end)
-# $14 = beta_end (beta annealing end)
-# $15 = epochs (training epochs)
-# $16 = mi_layer (MI layer flag: 0 or 1)
+# $14 = epochs (training epochs)
+# $15 = mi_layer (MI layer flag: 0 or 1)
+# $16 = alpha
 
 echo   "bnd -exec python3 $1 $2 $3 $4 $5 $6 $7 $8 $9 ${10} ${11} ${12} ${13} ${14} ${15} ${16} > results_benchmark_vae_${3}_${4}_${5}_${6}_${7}_${8}_${9}_${10}_${11}_${12}_${13}_${14}_${15}_${16}_${2}.dat"
         bnd -exec python3 $1 $2 $3 $4 $5 $6 $7 $8 $9 ${10} ${11} ${12} ${13} ${14} ${15} ${16} > results_benchmark_vae_${3}_${4}_${5}_${6}_${7}_${8}_${9}_${10}_${11}_${12}_${13}_${14}_${15}_${16}_${2}.dat

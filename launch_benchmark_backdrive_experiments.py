@@ -6,17 +6,29 @@ import numpy as np
 n_gen = 250
 trunc = 0.1
 
-problem = 'UBQP'
 
 if __name__ == '__main__':
     # Real-world problem instances
-    if problem=='SAT':
-        instance_names = ['uf100-01','uf100-02','uf100-03','uf100-04','uf100-05']
-    elif  problem == 'Ising':
-        instance_names = ['SG_100_1','SG_100_2','SG_100_3','SG_100_4']
-    elif  problem == 'UBQP':
-        instance_names = ['bqp100']
+
+    # SAT instances
+    sat_instances = ['uf100-01', 'uf100-02', 'uf100-03', 'uf100-04', 'uf100-05']
     
+    # Ising instances
+    ising_instances = ['SG_100_1', 'SG_100_2', 'SG_100_3', 'SG_100_4']
+    
+    # UBQP instances
+    ubqp_instances = ['bqp100']
+ 
+
+    # Combine all problem instances
+    problem_configs = []
+    for instance in sat_instances:
+        problem_configs.append(('SAT', instance))
+    for instance in ising_instances:
+        problem_configs.append(('Ising', instance))
+    for instance in ubqp_instances:
+        problem_configs.append(('UBQP', instance))
+        
     # Backdrive variants
     variants = ['backdrive', 'backdrive_descriptors']
     
@@ -37,15 +49,15 @@ if __name__ == '__main__':
     surrogate_filtering_options = [0]  # 1=True, 0=False
     
     # Alpha (mutation)
-    alpha_values = [0.95]
+    alpha_values = [0, 0.95]
     
     # Seeds
-    seeds = np.arange(11, 21)
+    seeds = np.arange(1, 11)
     
     n = 100
     # Generate all combinations
-    for seed in seeds:
-        for instance_name in instance_names:
+    for seed in seeds:        
+        for problem_type, instance_name in problem_configs:
             p_size = n * 5
             
             # Generate all combinations
@@ -58,6 +70,6 @@ if __name__ == '__main__':
                                     for surrogate_filtering in surrogate_filtering_options:
                                         for alpha in alpha_values:
                                             # Build command with positional arguments
-                                            cmd = f"sbatch slurm_benchmark_backdrive.sh examples/discrete_Backdrive_EDA_RW.py {seed} {problem} {instance_name} {p_size} {n_gen} {trunc} {variant} {init_method} {loss_function} {activation} {weight_transfer} {early_stopping} {surrogate_filtering} {alpha}"
+                                            cmd = f"sbatch slurm_benchmark_backdrive.sh examples/discrete_Backdrive_EDA_RW.py {seed} {problem_type} {instance_name} {p_size} {n_gen} {trunc} {variant} {init_method} {loss_function} {activation} {weight_transfer} {early_stopping} {surrogate_filtering} {alpha}"
                                             
                                             print(cmd)
