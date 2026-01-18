@@ -776,7 +776,7 @@ class BackdriveEDA:
             fitness = fitness_func(population)
             
             # Apply frequency balance mutation if alpha > 0
-            if hasattr(self, 'alpha') and self.alpha > 0:
+            if self.alpha > 0:
                 # Store the best solution before mutation to enforce elitism
                 best_idx = np.argmax(fitness)
                 best_solution_pre_mutation = population[best_idx].copy()
