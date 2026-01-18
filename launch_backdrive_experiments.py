@@ -11,8 +11,8 @@ if __name__ == '__main__':
     obj_functions = ['OneMax', 'KDeceptive3', 'Deceptive3', 'HIFF', 'KDeceptive5', 'FC5']
     
     # Backdrive variants
-    variants = ['backdrive', 'backdrive_adaptive', 'backdrive_descriptors']
-   
+    #variants = ['backdrive', 'backdrive_adaptive', 'backdrive_descriptors']
+    variants = ['backdrive', 'backdrive_descriptors']
     
     # Initialization methods
     init_methods = ['random']
@@ -21,15 +21,21 @@ if __name__ == '__main__':
     loss_functions = ['mse', 'weighted_mse', 'ranking', 'huber']
     
     # Activation functions
-    activation_functions = ['leaky_relu', 'relu', 'tanh']
+    #activation_functions = ['leaky_relu', 'relu', 'tanh']
+    activation_functions = ['elu', 'relu', 'tanh']
     
     # Boolean flags (weight-transfer, early-stopping, surrogate-filtering)
-    weight_transfer_options = [1, 0]  # 1=True, 0=False
-    early_stopping_options = [1, 0]    
-    surrogate_filtering_options = [1, 0]  # 1=True, 0=False
+    #weight_transfer_options = [1, 0]  # 1=True, 0=False
+    weight_transfer_options = [0]  # 1=True, 0=False
+
+    #early_stopping_options = [1, 0]
+    early_stopping_options = [0]
+
+    #surrogate_filtering_options = [1, 0]  # 1=True, 0=False
+    surrogate_filtering_options = [0]  # 1=True, 0=False
     
     # Seeds
-    for seed in np.arange(1, 11):
+    for seed in np.arange(11, 21):
         for obj_func in obj_functions:
             # Set n based on objective function
             if obj_func == 'HIFF':

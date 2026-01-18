@@ -442,7 +442,7 @@ def learn_discrete_backdrive_descriptors(
         try:
             # Load state dict from pretrained model
             network.load_state_dict(pretrained_model['network_state'])
-            print("  Transferred weights from previous generation")
+            #print("  Transferred weights from previous generation")
         except Exception as e:
             warnings.warn(f"Could not transfer weights: {e}")
 
@@ -548,7 +548,7 @@ def learn_discrete_backdrive_descriptors(
                 else:
                     patience_counter += 1
                     if patience_counter >= patience:
-                        print(f"Early stopping at epoch {epoch+1}")
+                        #print(f"Early stopping at epoch {epoch+1}")
                         break
 
             # Print progress
@@ -578,7 +578,7 @@ def learn_discrete_backdrive_descriptors(
         if pretrained_model is not None and 'forward_network_state' in pretrained_model:
             try:
                 forward_network.load_state_dict(pretrained_model['forward_network_state'])
-                print("  Transferred forward network weights from previous generation")
+                #print("  Transferred forward network weights from previous generation")
             except (RuntimeError, KeyError, TypeError) as e:
                 warnings.warn(f"Could not transfer forward network weights: {e}")
         
@@ -648,7 +648,7 @@ def learn_discrete_backdrive_descriptors(
                     else:
                         forward_patience_counter += 1
                         if forward_patience_counter >= patience:
-                            print(f"Forward model early stopping at epoch {epoch+1}")
+                            #print(f"Forward model early stopping at epoch {epoch+1}")
                             break
                 
                 # Print progress

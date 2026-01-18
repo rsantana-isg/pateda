@@ -247,7 +247,7 @@ def learn_discrete_backdrive_ranking(
         try:
             # Load state dict from pretrained model
             network.load_state_dict(pretrained_model['network_state'])
-            print("  Transferred weights from previous generation")
+            #print("  Transferred weights from previous generation")
         except Exception as e:
             warnings.warn(f"Could not transfer weights: {e}")
 
@@ -309,7 +309,7 @@ def learn_discrete_backdrive_ranking(
                 else:
                     patience_counter += 1
                     if patience_counter >= patience:
-                        print(f"Early stopping at epoch {epoch+1}")
+                        #print(f"Early stopping at epoch {epoch+1}")
                         break
 
             # Print progress

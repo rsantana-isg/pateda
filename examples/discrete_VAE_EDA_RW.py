@@ -511,8 +511,7 @@ class VAEEDA:
         Parameters
         ----------
         variant : str
-            VAE variant: 'vae', 'evae', 'cvae', 'descvae', 'regvae', 'momvae',
-                        'bavae', 'aavae', 'fwvae', 'gsvae', 'hsvae', 'tcvae'
+            VAE variant: 'VAE', 'E-VAE', 'C-VAE', 'Desc-VAE', 'Reg-VAE', 'Mom-VAE', BA-VAE', 'AA-VAE', 'FW-VAE', 'GS-VAE', 'HS-VAE', 'TC-VAE'
         n_vars : int
             Number of variables
         cardinality : np.ndarray
@@ -560,6 +559,25 @@ class VAEEDA:
         if random_seed is not None:
             set_seed(random_seed)
 
+        # Map variant names to internal names
+        variant_map = {
+            'VAE': 'vae',
+            'E-VAE': 'evae',
+            'C-VAE': 'cvae',
+            'Desc-VAE': 'descvae',
+            'Reg-VAE': 'regvae',
+            'Mom-VAE': 'momvae',
+            'BA-VAE': 'bavae',
+            'AA-VAE': 'aavae',
+            'FW-VAE': 'fwvae',
+            'GS-VAE': 'gsvae',
+            'HS-VAE': 'hsvae',
+            'TC-VAE': 'tcvae',
+        }
+
+        self.variant = variant_map[self.variant]
+
+
         # Map variant to learning and sampling functions
         self.variant_map = {
             # Original variants
@@ -578,7 +596,7 @@ class VAEEDA:
             'tcvae': (learn_binary_vae, sample_binary_tcvae),  # Uses standard learning, temp-controlled sampling
         }
 
-        if variant not in self.variant_map:
+        if self.variant not in self.variant_map:
             raise ValueError(f"Invalid variant: {variant}. Must be one of {list(self.variant_map.keys())}")
 
     def run(self, fitness_func, verbose=True):
@@ -769,8 +787,8 @@ Examples:
     parser.add_argument('n_gen', type=int, help='Number of generations')
     parser.add_argument('trunc', type=float, help='Truncation percent (selection ratio, e.g., 0.5 for 50%)')
     parser.add_argument('vae_variant', type=str,
-                       choices=['vae', 'evae', 'cvae', 'descvae', 'regvae', 'momvae',
-                               'bavae', 'aavae', 'fwvae', 'gsvae', 'hsvae', 'tcvae'],
+                       choices=['VAE', 'E-VAE', 'C-VAE', 'Desc-VAE', 'Reg-VAE', 'Mom-VAE',
+                                 'BA-VAE', 'AA-VAE', 'FW-VAE', 'GS-VAE', 'HS-VAE', 'TC-VAE'],                       
                        help='VAE variant to use')
     parser.add_argument('activation_enc', type=str,
                        help='Activation function for Encoder. Options: relu, tanh, sigmoid, leaky_relu, elu, selu, gelu, etc.')
