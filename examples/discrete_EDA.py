@@ -107,6 +107,9 @@ from pateda.sampling.gibbs import SampleGibbs
 from pateda.sampling.markov import SampleMarkovChain
 from pateda.sampling.mixture_trees import SampleMixtureTrees
 
+# Mutation modules
+from pateda.mutation import frequency_balance_mutation
+
 # Benchmark functions
 from pateda.functions.discrete.additive_decomposable import (
     k_deceptive, decep3, decep_marta3, decep_marta3_new, decep3_mh,
@@ -337,6 +340,7 @@ class UnifiedDiscreteNeuralEDA:
         learning_params: Dict[str, Any] = None,
         sampling_params: Dict[str, Any] = None,
         random_seed: int = None,
+        alpha: float = 0.0,
     ):
         """
         Initialize Unified Neural EDA
@@ -362,6 +366,9 @@ class UnifiedDiscreteNeuralEDA:
             Sampling parameters
         random_seed : int
             Random seed for reproducibility
+        alpha : float
+            Maximum allowed frequency for ones or zeros (default 0.0, no mutation)
+            If alpha > 0, applies frequency balance mutation
         """
         self.method = method
         self.n_vars = n_vars
@@ -372,6 +379,7 @@ class UnifiedDiscreteNeuralEDA:
         self.learning_params = learning_params or {}
         self.sampling_params = sampling_params or {}
         self.random_seed = random_seed
+        self.alpha = alpha
 
         # Set random seed if provided
         if random_seed is not None:
@@ -523,6 +531,24 @@ class UnifiedDiscreteNeuralEDA:
 
             # Evaluate
             fitness = fitness_func(population)
+            
+            # Apply frequency balance mutation if alpha > 0
+            if self.alpha > 0:
+                # Store the best solution before mutation to enforce elitism
+                best_idx = np.argmax(fitness)
+                best_solution_pre_mutation = population[best_idx].copy()
+                
+                mutation_params = {'alpha': self.alpha}
+                population = frequency_balance_mutation(
+                    self.n_vars,
+                    self.cardinality,
+                    population,
+                    mutation_params
+                )
+                
+                # Enforce elitism: ensure the best solution is not mutated
+                population[best_idx] = best_solution_pre_mutation
+                fitness = fitness_func(population)
 
             # Update best
             gen_best = np.max(fitness)
@@ -692,8 +718,8 @@ def main():
     """Main entry point for command-line execution"""
     
     # Check arguments (sys.argv[0] is script name, so 7 total = 6 arguments + script name)
-    if len(sys.argv) != 7:
-        print("Usage: python discrete_EDA.py <seed> <obj_func> <n> <pop_size> <n_gen> <alg>")
+    if len(sys.argv) < 7 or len(sys.argv) > 8:
+        print("Usage: python discrete_EDA.py <seed> <obj_func> <n> <pop_size> <n_gen> <alg> [alpha]")
         print()
         print("Arguments:")
         print("  seed      : Random seed (integer)")
@@ -702,6 +728,7 @@ def main():
         print("  pop_size  : Population size (integer)")
         print("  n_gen     : Number of generations (integer)")
         print("  alg       : Algorithm name")
+        print("  alpha     : (Optional) Max frequency threshold for mutation (default: 0.0, no mutation)")
         print()
         print("Supported objective functions:")
         print("  OneMax, KDeceptive3, KDeceptive5, Deceptive3, Deceptive3Overlap")
@@ -734,6 +761,9 @@ def main():
     n_gen = int(sys.argv[5])
     alg = sys.argv[6]
     
+    # Optional arguments
+    alpha = float(sys.argv[7]) if len(sys.argv) > 7 else 0.0
+    
     # Suppress warnings
     warnings.filterwarnings('ignore', category=UserWarning)
     warnings.filterwarnings('ignore', category=RuntimeWarning)
@@ -756,6 +786,7 @@ def main():
     print(f"Population Size:  {pop_size}")
     print(f"Generations:      {n_gen}")
     print(f"Algorithm:        {alg}")
+    print(f"Alpha (mutation): {alpha}")
     print("=" * 80)
     print()
     
@@ -1018,6 +1049,7 @@ def main():
             learning_params=learning_params,
             sampling_params=sampling_params,
             random_seed=myseed,
+            alpha=alpha,
         )
         
         best_fitness, best_solution, history = eda.run(fitness_func, verbose=True)
