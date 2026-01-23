@@ -105,7 +105,9 @@ SUCCESS_THRESHOLD = 0.01
 
 # Tolerance for checking if optimum is reached (absolute difference)
 # A value of 1e-6 is used to account for floating-point arithmetic precision
-# while being strict enough to ensure the optimum is truly reached
+# while being strict enough to ensure the optimum is truly reached.
+# For integer-valued fitness functions like OneMax, this provides sufficient
+# precision without being overly strict (30.0 vs 30.0000001 would still match).
 OPTIMUM_TOLERANCE = 1e-6
 
 
@@ -478,7 +480,8 @@ class VAEEDA:
             print(f"Generation 0: Best Fitness = {best_fitness:.4f}")
 
         # Check if optimum reached in initial population
-        if optimal_fitness is not None and abs(best_fitness - optimal_fitness) < OPTIMUM_TOLERANCE:
+        # Use >= with tolerance to handle both exact match and exceeding cases
+        if optimal_fitness is not None and best_fitness >= optimal_fitness - OPTIMUM_TOLERANCE:
             if verbose:
                 print(f"\nOptimum reached!")
                 print(f"\nVAE-EDA completed after 0 generations")
@@ -593,7 +596,8 @@ class VAEEDA:
                 print(f"Generation {gen+1}: Best Fitness = {best_fitness:.4f}")
 
             # Check if optimum reached
-            if optimal_fitness is not None and abs(best_fitness - optimal_fitness) < OPTIMUM_TOLERANCE:
+            # Use >= with tolerance to handle both exact match and exceeding cases
+            if optimal_fitness is not None and best_fitness >= optimal_fitness - OPTIMUM_TOLERANCE:
                 if verbose:
                     print(f"\nOptimum reached!")
                     print(f"\nVAE-EDA completed after {gen+1} generations")
