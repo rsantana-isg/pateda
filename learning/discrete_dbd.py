@@ -1271,7 +1271,8 @@ def transform_binary_to_continuous(
         if len(parent_vars) == 0:
             for sample_idx in range(n_samples):
                 var_value = int(population[sample_idx, var])
-                continuous_pop[sample_idx, var] = cpd[var_value]
+                # Convert to scalar to avoid "setting an array element with a sequence" error
+                continuous_pop[sample_idx, var] = float(cpd[var_value])
         else:
             # Use conditional probabilities
             for sample_idx in range(n_samples):
@@ -1279,9 +1280,10 @@ def transform_binary_to_continuous(
                 config_idx = 0
                 for i, parent_var in enumerate(parent_vars):
                     config_idx += int(population[sample_idx, parent_var]) * (2 ** i)
-                
+
                 var_value = int(population[sample_idx, var])
-                continuous_pop[sample_idx, var] = cpd[config_idx, var_value]
+                # Convert to scalar to avoid "setting an array element with a sequence" error
+                continuous_pop[sample_idx, var] = float(cpd[config_idx, var_value])
     
     return continuous_pop
 
