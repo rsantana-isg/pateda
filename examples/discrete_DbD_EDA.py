@@ -115,6 +115,9 @@ from pateda.functions.discrete.additive_decomposable import (
 # Success threshold as a fraction of optimal fitness
 SUCCESS_THRESHOLD = 0.01
 
+# Tolerance for checking if optimum is reached
+OPTIMUM_TOLERANCE = 1e-6
+
 # Loss functions that require fitness values for computation
 LOSS_FUNCTIONS_REQUIRING_FITNESS = ['weighted_mse', 'ranking']
 
@@ -594,7 +597,7 @@ class DbDEDA:
             print(f"Generation 0: Best Fitness = {best_fitness:.4f}")
 
         # Check if optimum reached in initial population
-        if optimal_fitness is not None and abs(best_fitness - optimal_fitness) < 1e-6:
+        if optimal_fitness is not None and abs(best_fitness - optimal_fitness) < OPTIMUM_TOLERANCE:
             if verbose:
                 print(f"\nOptimum reached!")
                 print(f"\nDbD-EDA completed after 0 generations")
@@ -762,7 +765,7 @@ class DbDEDA:
                 print(f"Generation {gen+1}: Best Fitness = {best_fitness:.4f}")
 
             # Check if optimum reached
-            if optimal_fitness is not None and abs(best_fitness - optimal_fitness) < 1e-6:
+            if optimal_fitness is not None and abs(best_fitness - optimal_fitness) < OPTIMUM_TOLERANCE:
                 if verbose:
                     print(f"\nOptimum reached!")
                     print(f"\nDbD-EDA completed after {gen+1} generations")
