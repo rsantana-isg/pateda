@@ -515,6 +515,11 @@ class BackdriveEDA:
             selected_pop = population[selected_idx]
             selected_fitness = fitness[selected_idx]
 
+            # Store the best solution from selected population before mutation (for elitism with mutation)
+            if self.alpha > 0:
+                best_idx_in_selected = np.argmax(selected_fitness)
+                best_solution_pre_mutation = selected_pop[best_idx_in_selected].copy()
+
             # Prepare learning parameters
             learning_params = self.learning_params.copy()
             learning_params['early_stopping'] = self.early_stopping
@@ -647,15 +652,9 @@ class BackdriveEDA:
                 population = np.random.randint(0, self.cardinality,
                                              (self.pop_size, self.n_vars))
 
-            # Evaluate
-            fitness = fitness_func(population)
-            
             # Apply frequency balance mutation if alpha > 0
             if self.alpha > 0:
-                # Store the best solution before mutation to enforce elitism
-                best_idx = np.argmax(fitness)
-                best_solution_pre_mutation = population[best_idx].copy()
-                
+                # Apply mutation
                 mutation_params = {'alpha': self.alpha}
                 population = frequency_balance_mutation(
                     self.n_vars,
@@ -663,10 +662,12 @@ class BackdriveEDA:
                     population,
                     mutation_params
                 )
-                
-                # Enforce elitism: ensure the best solution is not mutated
-                population[best_idx] = best_solution_pre_mutation
-                fitness = fitness_func(population)
+
+                # Enforce elitism: replace one solution with the best from previous selected population
+                population[0] = best_solution_pre_mutation
+
+            # Evaluate (only once)
+            fitness = fitness_func(population)
 
             # Update best
             gen_best = np.max(fitness)
