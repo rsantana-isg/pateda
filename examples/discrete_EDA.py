@@ -633,6 +633,10 @@ def run_traditional_eda(
         Random seed
     verbose : bool
         Print progress
+    optimal_fitness : float, optional
+        Known optimal fitness value. Note: Traditional EDAs do not currently
+        implement early termination based on optimal fitness. This parameter
+        is accepted for API consistency but is not used.
         
     Returns
     -------
