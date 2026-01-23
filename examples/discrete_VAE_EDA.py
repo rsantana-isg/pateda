@@ -480,11 +480,8 @@ class VAEEDA:
             print(f"Generation 0: Best Fitness = {best_fitness:.4f}")
 
         # Check if optimum reached in initial population
-        # Use both absolute difference check and >= check for robustness
-        if optimal_fitness is not None and (
-            abs(best_fitness - optimal_fitness) < OPTIMUM_TOLERANCE or
-            best_fitness >= optimal_fitness
-        ):
+        # Use >= with tolerance to handle both exact match and exceeding cases
+        if optimal_fitness is not None and best_fitness >= optimal_fitness - OPTIMUM_TOLERANCE:
             if verbose:
                 print(f"\nOptimum reached!")
                 print(f"\nVAE-EDA completed after 0 generations")
@@ -599,11 +596,8 @@ class VAEEDA:
                 print(f"Generation {gen+1}: Best Fitness = {best_fitness:.4f}")
 
             # Check if optimum reached
-            # Use both absolute difference check and >= check for robustness
-            if optimal_fitness is not None and (
-                abs(best_fitness - optimal_fitness) < OPTIMUM_TOLERANCE or
-                best_fitness >= optimal_fitness
-            ):
+            # Use >= with tolerance to handle both exact match and exceeding cases
+            if optimal_fitness is not None and best_fitness >= optimal_fitness - OPTIMUM_TOLERANCE:
                 if verbose:
                     print(f"\nOptimum reached!")
                     print(f"\nVAE-EDA completed after {gen+1} generations")
