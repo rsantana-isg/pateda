@@ -696,8 +696,8 @@ class DbDEDA:
             # Initialize from Markov model
             population = self._sample_from_markov_model(self.markov_model, self.pop_size)
         else:
-            # Random initialization
-            population = np.random.randint(0, self.cardinality, (self.pop_size, self.n_vars))
+            # Random initialization (use scalar 2 for binary variables)
+            population = np.random.randint(0, 2, (self.pop_size, self.n_vars))
 
         # Evaluate
         fitness = fitness_func(population)
@@ -774,9 +774,8 @@ class DbDEDA:
             try:
                 # DbD variants need two populations (source and target)
                 if prev_population is None:
-                    # First generation: use random as current population
-                    current_pop = np.random.randint(0, self.cardinality,
-                                                  (len(selected_pop), self.n_vars))
+                    # First generation: use random as current population (use scalar 2 for binary)
+                    current_pop = np.random.randint(0, 2, (len(selected_pop), self.n_vars))
                     # Evaluate fitness for random population if needed for loss function
                     if self.loss_function in LOSS_FUNCTIONS_REQUIRING_FITNESS or self.fitness_guided:
                         fitness_current = fitness_func(current_pop)
@@ -835,8 +834,8 @@ class DbDEDA:
             except Exception as e:
                 if verbose:
                     print(f"  Warning: Learning/Sampling failed ({e}), using random population")
-                population = np.random.randint(0, self.cardinality,
-                                             (self.pop_size, self.n_vars))
+                # Use scalar 2 for binary variables
+                population = np.random.randint(0, 2, (self.pop_size, self.n_vars))
 
             # Apply frequency balance mutation if alpha > 0
             if self.alpha > 0:
