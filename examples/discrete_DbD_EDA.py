@@ -115,7 +115,9 @@ from pateda.functions.discrete.additive_decomposable import (
 # Success threshold as a fraction of optimal fitness
 SUCCESS_THRESHOLD = 0.01
 
-# Tolerance for checking if optimum is reached
+# Tolerance for checking if optimum is reached (absolute difference)
+# A value of 1e-6 is used to account for floating-point arithmetic precision
+# while being strict enough to ensure the optimum is truly reached
 OPTIMUM_TOLERANCE = 1e-6
 
 # Loss functions that require fitness values for computation
