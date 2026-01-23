@@ -1318,6 +1318,18 @@ def learn_binary_dbd_cs_t(
     k = params.get('k', 1)
     alpha_smooth = params.get('alpha', 0.1)
     
+    # FIX: Resample selected population to match current population size
+    # This is necessary because learn_dbd expects both populations to have the same number of samples
+    n_current = current_pop.shape[0]
+    n_selected = selected_pop.shape[0]
+    
+    if n_current != n_selected:
+        # Resample selected population with replacement to match current population size
+        indices = np.random.choice(n_selected, size=n_current, replace=True)
+        selected_pop_resampled = selected_pop[indices]
+    else:
+        selected_pop_resampled = selected_pop
+    
     # NEW: Step 1: Compute MI matrix for selected population
     mi_matrix = compute_mutual_information_matrix_binary(selected_pop)
     
@@ -1333,11 +1345,14 @@ def learn_binary_dbd_cs_t(
     )
     
     # Step 4: Transform binary populations to continuous
+    # Note: p0 uses current_pop (full population from previous generation)
+    #       p1 uses selected_pop_resampled (best solutions, resampled to match p0 size)
+    # This asymmetry is intentional: we learn to transform the current state toward the selected state
     p0_continuous = transform_binary_to_continuous(
         current_pop, conditional_probs_p0, k, parent_structure
     )
     p1_continuous = transform_binary_to_continuous(
-        selected_pop, conditional_probs_p1, k, parent_structure
+        selected_pop_resampled, conditional_probs_p1, k, parent_structure
     )
     
     # Step 5: Learn continuous DbD model
