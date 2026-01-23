@@ -13,7 +13,7 @@ random distribution and progressively denoising toward the learned distribution.
 """
 
 import numpy as np
-from typing import Dict, Any, Optional
+from typing import Dict, Any, Optional, List
 import torch
 import torch.nn.functional as F
 
@@ -586,7 +586,7 @@ def sample_from_continuous_probabilities(
     prob_max: float = 0.99,
     denoised_weight: float = DENOISED_WEIGHT,
     conditional_weight: float = CONDITIONAL_WEIGHT,
-    parent_structure: dict = None
+    parent_structure: Optional[Dict[int, List[int]]] = None
 ) -> np.ndarray:
     """
     Sample binary values from continuous probability values using conditional probabilities

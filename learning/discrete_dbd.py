@@ -1343,7 +1343,9 @@ def learn_binary_dbd_cs_t(
     )
     
     # Step 4: Transform binary populations to continuous
-    # Use resampled selected population for p1 to ensure matching sizes
+    # Note: p0 uses current_pop (full population from previous generation)
+    #       p1 uses selected_pop_resampled (best solutions, resampled to match p0 size)
+    # This asymmetry is intentional: we learn to transform the current state toward the selected state
     p0_continuous = transform_binary_to_continuous(
         current_pop, conditional_probs_p0, k, parent_structure
     )
