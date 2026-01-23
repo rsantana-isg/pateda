@@ -197,15 +197,17 @@ def compute_weighted_loss(logits: torch.Tensor, target: torch.Tensor,
 
 
 def compute_ranking_loss(logits: torch.Tensor, target: torch.Tensor,
-                        fitness: torch.Tensor) -> torch.Tensor:
+                        fitness: torch.Tensor, margin: float = 0.1, 
+                        ranking_weight: float = 0.5) -> torch.Tensor:
     """
     Compute ranking-based loss.
 
     Prioritizes learning the relative ordering of solutions by fitness.
     Inspired by discrete_backdrive_ranking.py
-
-    For dendiff, we use standard cross-entropy but with sampling bias
-    towards higher fitness solutions during training.
+    
+    Uses pairwise ranking: for samples with higher fitness, encourage
+    the model to produce predictions that would lead to higher fitness
+    (lower cross-entropy loss).
 
     Parameters
     ----------
@@ -215,18 +217,60 @@ def compute_ranking_loss(logits: torch.Tensor, target: torch.Tensor,
         Target values [batch, n_vars]
     fitness : torch.Tensor
         Fitness values [batch, 1]
+    margin : float
+        Margin for ranking loss (default: 0.1)
+    ranking_weight : float
+        Weight for ranking vs standard cross-entropy (default: 0.5)
 
     Returns
     -------
     loss : torch.Tensor
         Ranking-aware loss
     """
-    # For dendiff, ranking loss is implemented through weighted sampling
-    # Here we use standard cross-entropy but could add pairwise ranking terms
+    # Compute standard cross-entropy for each sample
     logits_flat = logits.reshape(-1, 2)
     target_flat = target.reshape(-1).long()
-
-    return F.cross_entropy(logits_flat, target_flat)
+    
+    # Get per-sample loss (reshaped to [batch, n_vars])
+    ce_loss_per_element = F.cross_entropy(logits_flat, target_flat, reduction='none')
+    ce_loss_per_sample = ce_loss_per_element.reshape(logits.shape[0], -1).mean(dim=1, keepdim=True)
+    
+    batch_size = fitness.shape[0]
+    
+    if batch_size < 2:
+        # Not enough samples for pairwise comparison, use standard cross-entropy
+        return ce_loss_per_sample.mean()
+    
+    # Compute pairwise ranking loss
+    # For pairs where fitness[i] > fitness[j], encourage loss[i] < loss[j] + margin
+    # This means the model should predict better for higher fitness samples
+    
+    # Compute all pairwise differences
+    fitness_diff = fitness - fitness.t()  # [batch, batch]: fitness[i] - fitness[j]
+    loss_diff = ce_loss_per_sample - ce_loss_per_sample.t()  # [batch, batch]: loss[i] - loss[j]
+    
+    # For pairs where fitness[i] > fitness[j], we want loss[i] < loss[j] 
+    # So we want loss_diff < 0, or equivalently: max(0, loss_diff + margin)
+    valid_pairs = (fitness_diff > 0).float()
+    
+    # Hinge loss: encourage loss[i] to be at least margin lower than loss[j]
+    hinge_loss = torch.clamp(loss_diff + margin, min=0)
+    
+    # Apply mask and average over valid pairs
+    masked_loss = hinge_loss * valid_pairs
+    n_valid_pairs = valid_pairs.sum()
+    
+    if n_valid_pairs > 0:
+        pairwise_ranking_loss = masked_loss.sum() / n_valid_pairs
+    else:
+        # No valid pairs, use only standard cross-entropy
+        pairwise_ranking_loss = 0.0
+    
+    # Combine standard cross-entropy with ranking loss
+    standard_ce = ce_loss_per_sample.mean()
+    total_loss = (1 - ranking_weight) * standard_ce + ranking_weight * pairwise_ranking_loss
+    
+    return total_loss
 
 
 def compute_huber_loss(logits: torch.Tensor, target: torch.Tensor,

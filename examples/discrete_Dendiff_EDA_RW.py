@@ -73,6 +73,18 @@ from pateda.learning.discrete_dendiff_ste import learn_discrete_dendiff_ste
 from pateda.learning.discrete_dendiff_hard_concrete import learn_discrete_dendiff_hard_concrete
 from pateda.learning.discrete_dendiff_deterministic import learn_discrete_dendiff_deterministic
 
+# Try to import enhanced versions, fall back to base versions if not available
+try:
+    from pateda.learning.discrete_dendiff_gumbel_enhanced import learn_discrete_dendiff_gumbel_enhanced
+    from pateda.learning.discrete_dendiff_corruption_enhanced import learn_discrete_dendiff_corruption_enhanced
+    from pateda.learning.discrete_dendiff_ste_enhanced import learn_discrete_dendiff_ste_enhanced
+    from pateda.learning.discrete_dendiff_hard_concrete_enhanced import learn_discrete_dendiff_hard_concrete_enhanced
+    from pateda.learning.discrete_dendiff_deterministic_enhanced import learn_discrete_dendiff_deterministic_enhanced
+    ENHANCED_AVAILABLE = True
+except ImportError:
+    ENHANCED_AVAILABLE = False
+    print("Warning: Enhanced Dendiff learning functions not available. Using base versions.")
+
 # Dendiff sampling modules
 from pateda.sampling.discrete_dendiff import (
     sample_discrete_dendiff_gumbel,
@@ -695,8 +707,43 @@ class DendiffEDA:
 
             # Learn model
             try:
-                # Use standard learning functions
-                model = learn_fn(selected_pop, selected_fitness, learning_params)
+                # Determine which learning function to use
+                use_enhanced = (
+                    ENHANCED_AVAILABLE and
+                    (self.loss_function in LOSS_FUNCTIONS_REQUIRING_FITNESS or
+                     self.fitness_guided or
+                     self.loss_function != 'mse')
+                )
+
+                # All variants now have enhanced versions
+                if use_enhanced:
+                    # Use enhanced learning functions with loss/fitness support
+                    if self.variant == 'dendiff_gumbel':
+                        model = learn_discrete_dendiff_gumbel_enhanced(
+                            selected_pop, selected_fitness, learning_params
+                        )
+                    elif self.variant == 'dendiff_corruption':
+                        model = learn_discrete_dendiff_corruption_enhanced(
+                            selected_pop, selected_fitness, learning_params
+                        )
+                    elif self.variant == 'dendiff_ste':
+                        model = learn_discrete_dendiff_ste_enhanced(
+                            selected_pop, selected_fitness, learning_params
+                        )
+                    elif self.variant == 'dendiff_hard_concrete':
+                        model = learn_discrete_dendiff_hard_concrete_enhanced(
+                            selected_pop, selected_fitness, learning_params
+                        )
+                    elif self.variant == 'dendiff_deterministic':
+                        model = learn_discrete_dendiff_deterministic_enhanced(
+                            selected_pop, selected_fitness, learning_params
+                        )
+                    else:
+                        # Fallback to standard function
+                        model = learn_fn(selected_pop, selected_fitness, learning_params)
+                else:
+                    # Use standard learning functions
+                    model = learn_fn(selected_pop, selected_fitness, learning_params)
 
                 # Prepare sampling parameters
                 sampling_params = self.sampling_params.copy()
