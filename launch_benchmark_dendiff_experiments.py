@@ -7,7 +7,7 @@ n_gen = 250
 trunc = 0.1
 n_sampling_steps = 20
 
-problem = 'SAT'
+problem = 'UBQP'
 
 if __name__ == '__main__':
     # Objective functions to test
@@ -51,7 +51,7 @@ if __name__ == '__main__':
 
     
     # Seeds to test
-    seeds = np.arange(11, 21)  # 30 different seeds
+    seeds = np.arange(1, 21)  # 30 different seeds
 
     
     n = 100
