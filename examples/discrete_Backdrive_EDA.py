@@ -744,7 +744,7 @@ Examples:
                         help='Use early stopping during training (1=yes, 0=no)')
     parser.add_argument('surrogate_filtering', type=int, choices=[0, 1],
                         help='Use surrogate model for pre-filtering solutions (1=yes, 0=no)')
-    parser.add_argument('alpha', type=float,
+    parser.add_argument('alpha', type=float, nargs='?', default=0.0,
                         help='Max frequency threshold for mutation (default: 0.0, no mutation)')
     
     # Parse arguments

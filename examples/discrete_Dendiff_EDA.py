@@ -775,7 +775,7 @@ Examples:
                         help='Starting noise/corruption level (e.g., 0.0001 for Gumbel, 0.01 for Corruption)')
     parser.add_argument('beta_end', type=float,
                         help='Ending noise/corruption level (e.g., 0.3 for Gumbel, 0.5 for Corruption)')
-    parser.add_argument('alpha', type=float,
+    parser.add_argument('alpha', type=float, nargs='?', default=0.0,
                         help='Max frequency threshold for mutation (default: 0.0, no mutation)')
 
     # Parse arguments
