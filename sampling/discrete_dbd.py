@@ -585,7 +585,8 @@ def sample_from_continuous_probabilities(
     prob_min: float = 0.01,
     prob_max: float = 0.99,
     denoised_weight: float = DENOISED_WEIGHT,
-    conditional_weight: float = CONDITIONAL_WEIGHT
+    conditional_weight: float = CONDITIONAL_WEIGHT,
+    parent_structure: dict = None
 ) -> np.ndarray:
     """
     Sample binary values from continuous probability values using conditional probabilities
@@ -608,6 +609,9 @@ def sample_from_continuous_probabilities(
         Weight for denoised probability (default: 0.7)
     conditional_weight : float
         Weight for conditional probability (default: 0.3)
+    parent_structure : dict, optional
+        Dictionary mapping variable index to list of parent variable indices.
+        If None, uses previous k variables in given order.
         
     Returns:
     --------
@@ -623,13 +627,25 @@ def sample_from_continuous_probabilities(
     for var in range(n_vars):
         cpd = conditional_probs[var]
         
-        if var < k:
-            # For first k variables, use marginal probabilities
+        # Determine parent variables for this variable
+        if parent_structure is not None:
+            # Use MI-based parent structure
+            parent_vars = parent_structure.get(var, [])
+        else:
+            # Use original order: previous k variables
+            if var < k:
+                parent_vars = []
+            else:
+                n_parents = min(k, var)
+                parent_vars = list(range(var - n_parents, var))
+        
+        # If no parents, use marginal probabilities
+        if len(parent_vars) == 0:
             # cpd is stored as [P(X=0), P(X=1)]
             # Blend with the denoised continuous value
             for sample_idx in range(n_samples):
                 # Get marginal P(X_i = 1) from learned distribution
-                marginal_prob_1 = cpd[1]
+                marginal_prob_1 = float(cpd[1])
                 
                 # Get denoised probability
                 denoised_prob_1 = bounded_probs[sample_idx, var]
@@ -640,10 +656,7 @@ def sample_from_continuous_probabilities(
                 
                 binary_samples[sample_idx, var] = 1 if np.random.rand() < final_prob else 0
         else:
-            # For remaining variables, use conditional probabilities
-            n_parents = min(k, var)
-            parent_vars = list(range(var - n_parents, var))
-            
+            # Use conditional probabilities
             for sample_idx in range(n_samples):
                 # Calculate parent configuration index
                 config_idx = 0
@@ -651,7 +664,7 @@ def sample_from_continuous_probabilities(
                     config_idx += int(binary_samples[sample_idx, parent_var]) * (2 ** i)
                 
                 # Get conditional probability P(X_i = 1 | parents)
-                prob_1_given_parents = cpd[config_idx, 1]
+                prob_1_given_parents = float(cpd[config_idx, 1])
                 
                 # Use the continuous value as a modulation factor
                 # This allows the denoising process to influence the sampling
@@ -700,11 +713,12 @@ def sample_binary_dbd_cs_t(
     
     k = model['k']
     conditional_probs = model['conditional_probs']
+    parent_structure = model.get('parent_structure', None)
     
     # Transform selected population to continuous using conditional probabilities
     # This provides the p0 source distribution for continuous DbD sampling
     from pateda.learning.discrete_dbd import transform_binary_to_continuous
-    p0_continuous = transform_binary_to_continuous(selected_pop, conditional_probs, k)
+    p0_continuous = transform_binary_to_continuous(selected_pop, conditional_probs, k, parent_structure)
     
     # Use continuous DbD sampling to get continuous values
     from pateda.sampling.dbd import sample_dbd
@@ -718,7 +732,8 @@ def sample_binary_dbd_cs_t(
     
     # Convert continuous values to binary using conditional probabilities
     binary_samples = sample_from_continuous_probabilities(
-        continuous_samples, conditional_probs, k, prob_min, prob_max
+        continuous_samples, conditional_probs, k, prob_min, prob_max, 
+        parent_structure=parent_structure
     )
     
     return binary_samples
@@ -754,10 +769,11 @@ def sample_binary_dbd_cd_t(
     
     k = model['k']
     conditional_probs = model['conditional_probs']
+    parent_structure = model.get('parent_structure', None)
     
     # Transform current population to continuous using conditional probabilities
     from pateda.learning.discrete_dbd import transform_binary_to_continuous
-    p0_continuous = transform_binary_to_continuous(current_pop, conditional_probs, k)
+    p0_continuous = transform_binary_to_continuous(current_pop, conditional_probs, k, parent_structure)
     
     # Use continuous DbD sampling
     from pateda.sampling.dbd import sample_dbd
@@ -767,7 +783,8 @@ def sample_binary_dbd_cd_t(
     
     # Convert to binary
     binary_samples = sample_from_continuous_probabilities(
-        continuous_samples, conditional_probs, k, prob_min, prob_max
+        continuous_samples, conditional_probs, k, prob_min, prob_max,
+        parent_structure=parent_structure
     )
     
     return binary_samples
@@ -825,9 +842,10 @@ def sample_binary_dbd_uc_t(
                                    params={'num_iterations': num_iterations}, rng=None)
     continuous_samples = np.clip(continuous_samples, 0.0, 1.0)
     
-    # Convert to binary
+    # Convert to binary (no parent_structure for UC variant)
     binary_samples = sample_from_continuous_probabilities(
-        continuous_samples, conditional_probs, k, prob_min, prob_max
+        continuous_samples, conditional_probs, k, prob_min, prob_max,
+        parent_structure=None
     )
     
     return binary_samples
@@ -885,9 +903,10 @@ def sample_binary_dbd_us_t(
                                    params={'num_iterations': num_iterations}, rng=None)
     continuous_samples = np.clip(continuous_samples, 0.0, 1.0)
     
-    # Convert to binary
+    # Convert to binary (no parent_structure for US variant)
     binary_samples = sample_from_continuous_probabilities(
-        continuous_samples, conditional_probs, k, prob_min, prob_max
+        continuous_samples, conditional_probs, k, prob_min, prob_max,
+        parent_structure=None
     )
     
     return binary_samples
