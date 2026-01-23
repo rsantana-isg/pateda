@@ -717,7 +717,7 @@ def run_traditional_eda(
 def main():
     """Main entry point for command-line execution"""
     
-    # Check arguments (sys.argv[0] is script name, so 7 total = 6 arguments + script name)
+    # Check arguments (sys.argv[0] is script name, 6 required args + optional alpha)
     if len(sys.argv) < 7 or len(sys.argv) > 8:
         print("Usage: python discrete_EDA.py <seed> <obj_func> <n> <pop_size> <n_gen> <alg> [alpha]")
         print()
