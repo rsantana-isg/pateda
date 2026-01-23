@@ -115,6 +115,11 @@ from pateda.functions.discrete.additive_decomposable import (
 # Success threshold as a fraction of optimal fitness
 SUCCESS_THRESHOLD = 0.01
 
+# Tolerance for checking if optimum is reached (absolute difference)
+# A value of 1e-6 is used to account for floating-point arithmetic precision
+# while being strict enough to ensure the optimum is truly reached
+OPTIMUM_TOLERANCE = 1e-6
+
 # Loss functions that require fitness values for computation
 LOSS_FUNCTIONS_REQUIRING_FITNESS = ['weighted_mse', 'ranking']
 
@@ -549,7 +554,7 @@ class DbDEDA:
 
         return samples
 
-    def run(self, fitness_func, verbose=True):
+    def run(self, fitness_func, verbose=True, optimal_fitness=None):
         """
         Run the DbD EDA
 
@@ -559,6 +564,8 @@ class DbDEDA:
             Fitness function
         verbose : bool
             Print progress
+        optimal_fitness : float, optional
+            Known optimal fitness value for early termination
 
         Returns
         -------
@@ -590,6 +597,15 @@ class DbDEDA:
 
         if verbose:
             print(f"Generation 0: Best Fitness = {best_fitness:.4f}")
+
+        # Check if optimum reached in initial population
+        if optimal_fitness is not None and abs(best_fitness - optimal_fitness) < OPTIMUM_TOLERANCE:
+            if verbose:
+                print(f"\nOptimum reached!")
+                print(f"\nDbD-EDA completed after 0 generations")
+                print(f"Best fitness found: {best_fitness:.6f}")
+                print(f"  at generation {generation_found}")
+            return best_fitness, best_solution, history
 
         # Keep track of previous population for DbD variants
         prev_population = None
@@ -750,6 +766,15 @@ class DbDEDA:
             if verbose and (gen + 1) % 1 == 0:
                 print(f"Generation {gen+1}: Best Fitness = {best_fitness:.4f}")
 
+            # Check if optimum reached
+            if optimal_fitness is not None and abs(best_fitness - optimal_fitness) < OPTIMUM_TOLERANCE:
+                if verbose:
+                    print(f"\nOptimum reached!")
+                    print(f"\nDbD-EDA completed after {gen+1} generations")
+                    print(f"Best fitness found: {best_fitness:.6f}")
+                    print(f"  at generation {generation_found}")
+                return best_fitness, best_solution, history
+
         # Print completion summary
         if verbose:
             print(f"\nDbD-EDA completed after {self.max_generations} generations")
@@ -905,7 +930,7 @@ Examples:
         alpha=args.alpha,
     )
 
-    best_fitness, best_solution, history = eda.run(fitness_func, verbose=True)
+    best_fitness, best_solution, history = eda.run(fitness_func, verbose=True, optimal_fitness=optimal_fitness)
 
     elapsed_time = time.time() - start_time
 
