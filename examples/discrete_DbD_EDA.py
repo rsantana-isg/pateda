@@ -596,7 +596,7 @@ class DbDEDA:
         # Check if optimum reached in initial population
         if optimal_fitness is not None and abs(best_fitness - optimal_fitness) < 1e-6:
             if verbose:
-                print(f"\nOptimum reached at generation 0!")
+                print(f"\nOptimum reached!")
                 print(f"\nDbD-EDA completed after 0 generations")
                 print(f"Best fitness found: {best_fitness:.6f}")
                 print(f"  at generation {generation_found}")
@@ -764,7 +764,7 @@ class DbDEDA:
             # Check if optimum reached
             if optimal_fitness is not None and abs(best_fitness - optimal_fitness) < 1e-6:
                 if verbose:
-                    print(f"\nOptimum reached at generation {gen+1}!")
+                    print(f"\nOptimum reached!")
                     print(f"\nDbD-EDA completed after {gen+1} generations")
                     print(f"Best fitness found: {best_fitness:.6f}")
                     print(f"  at generation {generation_found}")
