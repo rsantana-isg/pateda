@@ -91,6 +91,9 @@ from pateda.functions.discrete.additive_decomposable import (
     fc2, fc3, fc4, fc5
 )
 
+# Mutation operators
+from pateda.operators.mutation import frequency_balance_mutation
+
 
 # ==============================================================================
 # Constants
@@ -352,6 +355,7 @@ class VAEEDA:
         learning_params: Optional[Dict[str, Any]] = None,
         sampling_params: Optional[Dict[str, Any]] = None,
         random_seed: Optional[int] = None,
+        alpha: float = 0.0,
     ):
         """
         Initialize VAE EDA
@@ -384,6 +388,8 @@ class VAEEDA:
             Additional sampling parameters
         random_seed : int, optional
             Random seed for reproducibility
+        alpha : float
+            Max frequency threshold for mutation (default: 0.0, no mutation)
         """
         self.variant = variant
         self.n_vars = n_vars
@@ -398,6 +404,7 @@ class VAEEDA:
         self.learning_params = learning_params or {}
         self.sampling_params = sampling_params or {}
         self.random_seed = random_seed
+        self.alpha = alpha
 
         # Set random seed if provided
         if random_seed is not None:
@@ -535,6 +542,19 @@ class VAEEDA:
                 population = np.random.randint(0, self.cardinality,
                                              (self.pop_size, self.n_vars))
 
+            # Apply frequency balance mutation if alpha > 0
+            best_solution_pre_mutation = best_solution.copy()
+            if self.alpha > 0:
+                mutation_params = {'alpha': self.alpha}
+                population = frequency_balance_mutation(
+                    self.n_vars,
+                    self.cardinality,
+                    population,
+                    mutation_params
+                )
+                # Elitism: replace first individual with best from previous generation
+                population[0] = best_solution_pre_mutation
+
             # Evaluate
             fitness = fitness_func(population)
 
@@ -611,6 +631,8 @@ Examples:
                         help='Training epochs per generation')
     parser.add_argument('mi_layer', type=int, choices=[0, 1],
                         help='Use MI-based sparse connectivity layer (0: False, 1: True)')
+    parser.add_argument('alpha', type=float,
+                        help='Max frequency threshold for mutation (default: 0.0, no mutation)')
 
     # Parse arguments
     args = parser.parse_args()
@@ -706,6 +728,7 @@ Examples:
         learning_params=learning_params,
         sampling_params=sampling_params,
         random_seed=args.seed,
+        alpha=args.alpha,
     )
 
     best_fitness, best_solution, history = eda.run(fitness_func, verbose=True)
