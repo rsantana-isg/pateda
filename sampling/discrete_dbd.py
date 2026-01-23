@@ -734,7 +734,7 @@ def sample_binary_dbd_cs_t(
     
     # Convert continuous values to binary using conditional probabilities
     binary_samples = sample_from_continuous_probabilities(
-        continuous_samples, conditional_probs, k, prob_min, prob_max, 
+        continuous_samples, conditional_probs, k, prob_min, prob_max,
         parent_structure=parent_structure
     )
     
