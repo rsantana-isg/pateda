@@ -616,7 +616,7 @@ Examples:
                        help='Gumbel-Softmax temperature')
     parser.add_argument('use_surrogate', type=int, choices=[0, 1],
                        help='Use surrogate model for pre-filtering solutions (1=yes, 0=no, Aux-GAN only)')
-    parser.add_argument('alpha', type=float,
+    parser.add_argument('alpha', type=float, nargs='?', default=0.0,
                        help='Max frequency threshold for mutation (default: 0.0, no mutation)')
 
     # Parse arguments

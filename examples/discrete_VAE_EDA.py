@@ -631,7 +631,7 @@ Examples:
                         help='Training epochs per generation')
     parser.add_argument('mi_layer', type=int, choices=[0, 1],
                         help='Use MI-based sparse connectivity layer (0: False, 1: True)')
-    parser.add_argument('alpha', type=float,
+    parser.add_argument('alpha', type=float, nargs='?', default=0.0,
                         help='Max frequency threshold for mutation (default: 0.0, no mutation)')
 
     # Parse arguments
