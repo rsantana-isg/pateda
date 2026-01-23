@@ -85,7 +85,7 @@ from pateda.sampling.discrete_dendiff import (
 
 # Traditional EDA modules
 from pateda.core.eda import EDA, EDAComponents
-from pateda.stop_conditions import MaxGenerations
+from pateda.stop_conditions import MaxGenerations, MaxGenerationsOrOptimum
 from pateda.seeding import RandomInit
 from pateda.selection import TruncationSelection
 from pateda.replacement import ElitistReplacement
@@ -615,7 +615,7 @@ def run_traditional_eda(
 ):
     """
     Run a traditional EDA algorithm
-    
+
     Parameters
     ----------
     alg : str
@@ -634,10 +634,10 @@ def run_traditional_eda(
     verbose : bool
         Print progress
     optimal_fitness : float, optional
-        Known optimal fitness value. Note: Traditional EDAs do not currently
-        implement early termination based on optimal fitness. This parameter
-        is accepted for API consistency but is not used.
-        
+        Known optimal fitness value for early termination. If provided,
+        the algorithm will stop when the optimal fitness is reached
+        (within OPTIMUM_TOLERANCE) or max_generations is reached.
+
     Returns
     -------
     best_fitness : float
@@ -712,7 +712,16 @@ def run_traditional_eda(
         
     else:
         raise ValueError(f"Unknown traditional EDA: {alg}")
-    
+
+    # Create stop condition based on whether optimal_fitness is provided
+    if optimal_fitness is not None:
+        stop_condition = MaxGenerationsOrOptimum(
+            max_gen=max_generations,
+            optimal_fitness=optimal_fitness
+        )
+    else:
+        stop_condition = MaxGenerations(max_gen=max_generations)
+
     # Create EDA components
     components = EDAComponents(
         seeding=RandomInit(),
@@ -720,7 +729,7 @@ def run_traditional_eda(
         learning=learning,
         sampling=sampling,
         replacement=ElitistReplacement(),
-        stop_condition=MaxGenerations(max_gen=max_generations),     
+        stop_condition=stop_condition,
         mutation=FrequencyBalanceMutation(alpha=alpha) if alpha > 0 else None,
     )
     
