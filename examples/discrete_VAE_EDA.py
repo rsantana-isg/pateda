@@ -29,14 +29,15 @@ Configurable Parameters:
 - Latent Dimensions: Size of latent space
 - Hidden Layer Dimensions: Defined in terms of number of variables
 - Batch Size: Adaptive based on selected population size
+- Alpha: Maximum allowed frequency for ones or zeros (mutation control)
 
 Usage:
     python discrete_VAE_EDA.py <seed> <obj_func> <n> <pop_size> <n_gen> <trunc> <vae_variant> \\
-        <activation_enc> <activation_dec> <beta_start> <beta_end> <latent_dim> <epochs> <mi_layer>
+        <activation_enc> <activation_dec> <beta_start> <beta_end> <latent_dim> <epochs> <mi_layer> <alpha>
 
 Example:
-    python discrete_VAE_EDA.py 0 OneMax 20 80 20 0.5 VAE relu relu 0.0 1.0 0 30 0
-    python discrete_VAE_EDA.py 1 Deceptive3 30 100 30 0.5 BA-VAE relu relu 0.0 1.0 8 30 1
+    python discrete_VAE_EDA.py 0 OneMax 20 80 20 0.5 VAE relu relu 0.0 1.0 0 30 0 0.0
+    python discrete_VAE_EDA.py 1 Deceptive3 30 100 30 0.5 BA-VAE relu relu 0.0 1.0 8 30 1 0.95
 
 ==============================================================================
 """
@@ -90,6 +91,9 @@ from pateda.functions.discrete.additive_decomposable import (
     first_polytree3_ochoa, first_polytree5_ochoa,
     fc2, fc3, fc4, fc5
 )
+
+# Mutation operators
+from pateda.mutation import frequency_balance_mutation
 
 
 # ==============================================================================
@@ -352,6 +356,7 @@ class VAEEDA:
         learning_params: Optional[Dict[str, Any]] = None,
         sampling_params: Optional[Dict[str, Any]] = None,
         random_seed: Optional[int] = None,
+        alpha: float = 0.0,
     ):
         """
         Initialize VAE EDA
@@ -384,6 +389,9 @@ class VAEEDA:
             Additional sampling parameters
         random_seed : int, optional
             Random seed for reproducibility
+        alpha : float
+            Maximum allowed frequency for ones or zeros (default 0.0, no mutation)
+            If alpha > 0, applies frequency balance mutation
         """
         self.variant = variant
         self.n_vars = n_vars
@@ -398,6 +406,7 @@ class VAEEDA:
         self.learning_params = learning_params or {}
         self.sampling_params = sampling_params or {}
         self.random_seed = random_seed
+        self.alpha = alpha
 
         # Set random seed if provided
         if random_seed is not None:
@@ -535,6 +544,23 @@ class VAEEDA:
                 population = np.random.randint(0, self.cardinality,
                                              (self.pop_size, self.n_vars))
 
+            # Apply frequency balance mutation if alpha > 0
+            if self.alpha > 0:
+                # Save best solution from selected population before mutation
+                best_solution_pre_mutation = selected_pop[np.argmax(selected_fitness)].copy()
+                
+                # Apply mutation
+                mutation_params = {'alpha': self.alpha}
+                population = frequency_balance_mutation(
+                    self.n_vars,
+                    self.cardinality,
+                    population,
+                    mutation_params
+                )
+
+                # Enforce elitism: replace one solution with the best from previous selected population
+                population[0] = best_solution_pre_mutation
+
             # Evaluate
             fitness = fitness_func(population)
 
@@ -611,6 +637,8 @@ Examples:
                         help='Training epochs per generation')
     parser.add_argument('mi_layer', type=int, choices=[0, 1],
                         help='Use MI-based sparse connectivity layer (0: False, 1: True)')
+    parser.add_argument('alpha', type=float,
+                        help='Max frequency threshold for mutation (default: 0.0, no mutation)')
 
     # Parse arguments
     args = parser.parse_args()
@@ -655,6 +683,7 @@ Examples:
         print(f"Latent Dim:         {args.latent_dim}")
     print(f"Epochs:             {args.epochs}")
     print(f"MI Layer:           {bool(args.mi_layer)}")
+    print(f"Alpha (mutation):   {args.alpha}")
     print("=" * 80)
     print()
 
@@ -706,6 +735,7 @@ Examples:
         learning_params=learning_params,
         sampling_params=sampling_params,
         random_seed=args.seed,
+        alpha=args.alpha,
     )
 
     best_fitness, best_solution, history = eda.run(fitness_func, verbose=True)

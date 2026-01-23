@@ -25,14 +25,15 @@ Configurable Parameters:
 - Hidden dimensions: Automatically computed from n_vars and pop_size
 - Batch size: Automatically computed from selected population size
 - Truncation Percent: Selection ratio for truncation selection
+- Alpha: Maximum allowed frequency for ones or zeros (mutation control)
 
 Usage:
     python discrete_GAN_EDA.py <seed> <obj_func> <n> <pop_size> <n_gen> <trunc> <variant> \\
-        <activation_g> <activation_d> <activation_e> <dropout> <temperature> <use_surrogate>
+        <activation_g> <activation_d> <activation_e> <dropout> <temperature> <use_surrogate> <alpha>
 
 Example:
-    python discrete_GAN_EDA.py 0 OneMax 20 80 20 0.5 WGAN-GP relu leaky_relu relu 0.5 1.0 0
-    python discrete_GAN_EDA.py 1 Deceptive3 30 100 30 0.5 Aux-GAN relu leaky_relu relu 0.5 1.0 0
+    python discrete_GAN_EDA.py 0 OneMax 20 80 20 0.5 WGAN-GP relu leaky_relu relu 0.5 1.0 0 0.0
+    python discrete_GAN_EDA.py 1 Deceptive3 30 100 30 0.5 Aux-GAN relu leaky_relu relu 0.5 1.0 0 0.95
 
 ==============================================================================
 """
@@ -79,6 +80,9 @@ from pateda.functions.discrete.additive_decomposable import (
     first_polytree3_ochoa, first_polytree5_ochoa,
     fc2, fc3, fc4, fc5
 )
+
+# Mutation operators
+from pateda.mutation import frequency_balance_mutation
 
 
 # ==============================================================================
@@ -351,6 +355,7 @@ class GANEDA:
         learning_params: Optional[Dict[str, Any]] = None,
         sampling_params: Optional[Dict[str, Any]] = None,
         random_seed: Optional[int] = None,
+        alpha: float = 0.0,
     ):
         """
         Initialize GAN EDA
@@ -386,6 +391,9 @@ class GANEDA:
             Additional sampling parameters
         random_seed : int, optional
             Random seed for reproducibility
+        alpha : float
+            Maximum allowed frequency for ones or zeros (default 0.0, no mutation)
+            If alpha > 0, applies frequency balance mutation
         """
         self.variant = variant
         self.n_vars = n_vars
@@ -401,6 +409,7 @@ class GANEDA:
         self.learning_params = learning_params or {}
         self.sampling_params = sampling_params or {}
         self.random_seed = random_seed
+        self.alpha = alpha
 
         # Set random seed if provided
         if random_seed is not None:
@@ -525,6 +534,23 @@ class GANEDA:
                 population = np.random.randint(0, self.cardinality,
                                              (self.pop_size, self.n_vars))
 
+            # Apply frequency balance mutation if alpha > 0
+            if self.alpha > 0:
+                # Save best solution from selected population before mutation
+                best_solution_pre_mutation = selected_pop[np.argmax(selected_fitness)].copy()
+                
+                # Apply mutation
+                mutation_params = {'alpha': self.alpha}
+                population = frequency_balance_mutation(
+                    self.n_vars,
+                    self.cardinality,
+                    population,
+                    mutation_params
+                )
+
+                # Enforce elitism: replace one solution with the best from previous selected population
+                population[0] = best_solution_pre_mutation
+
             # Evaluate
             fitness = fitness_func(population)
 
@@ -596,6 +622,8 @@ Examples:
                        help='Gumbel-Softmax temperature')
     parser.add_argument('use_surrogate', type=int, choices=[0, 1],
                        help='Use surrogate model for pre-filtering solutions (1=yes, 0=no, Aux-GAN only)')
+    parser.add_argument('alpha', type=float,
+                       help='Max frequency threshold for mutation (default: 0.0, no mutation)')
 
     # Parse arguments
     args = parser.parse_args()
@@ -639,6 +667,7 @@ Examples:
     print(f"Temperature:        {args.temperature}")
     if args.variant == 'Aux-GAN':
         print(f"Use Surrogate:      {args.use_surrogate}")
+    print(f"Alpha (mutation):   {args.alpha}")
     print("=" * 80)
     print()
 
@@ -700,6 +729,7 @@ Examples:
         learning_params=learning_params,
         sampling_params=sampling_params,
         random_seed=args.seed,
+        alpha=args.alpha,
     )
 
     best_fitness, best_solution, history = eda.run(fitness_func, verbose=True)
