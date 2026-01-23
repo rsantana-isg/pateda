@@ -209,6 +209,11 @@ def compute_ranking_loss(logits: torch.Tensor, target: torch.Tensor,
     Uses pairwise ranking: for samples with higher fitness, encourage
     the model to produce predictions that would lead to higher fitness
     (lower cross-entropy loss).
+    
+    Note: This function has O(n²) space complexity for batch size n,
+    as it creates matrices for all pairwise comparisons. For very large
+    batch sizes (>256), this could cause memory issues. The batch sizes
+    in dendiff are typically smaller due to the diffusion training process.
 
     Parameters
     ----------
@@ -247,6 +252,7 @@ def compute_ranking_loss(logits: torch.Tensor, target: torch.Tensor,
     # This means the model should predict better for higher fitness samples
     
     # Compute all pairwise differences
+    # Memory: O(batch_size²)
     fitness_diff = fitness - fitness.t()  # [batch, batch]: fitness[i] - fitness[j]
     loss_diff = ce_loss_per_sample - ce_loss_per_sample.t()  # [batch, batch]: loss[i] - loss[j]
     

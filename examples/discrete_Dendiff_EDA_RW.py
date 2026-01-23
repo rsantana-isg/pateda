@@ -708,6 +708,10 @@ class DendiffEDA:
             # Learn model
             try:
                 # Determine which learning function to use
+                # Enhanced functions are used when:
+                # 1. loss_function requires fitness (weighted_mse, ranking)
+                # 2. fitness_guided is enabled
+                # 3. Any non-MSE loss is specified (enhanced functions support all loss types)
                 use_enhanced = (
                     ENHANCED_AVAILABLE and
                     (self.loss_function in LOSS_FUNCTIONS_REQUIRING_FITNESS or
