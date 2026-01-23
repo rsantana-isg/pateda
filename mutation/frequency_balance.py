@@ -105,7 +105,8 @@ def frequency_balance_mutation(
         if freq_ones > alpha or freq_zeros > alpha:
             # Calculate how many positions to flip
             n_to_flip = int((1 - alpha) * n_individuals)
-            
+
+           
             # Only flip if n_to_flip > 0
             if n_to_flip == 0:
                 continue

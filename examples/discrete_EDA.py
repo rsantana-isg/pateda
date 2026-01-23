@@ -17,7 +17,7 @@ Neural EDAs:
 
 Traditional EDAs:
 - UMDA: Univariate Marginal Distribution Algorithm
-- TreeEDA: Tree-based Factorized Distribution Algorithm
+- TreeEDA: Tree-based Fctorized Distribution Algorithm
 - EBNA: Estimation of Bayesian Network Algorithm
 - MOA: Markovianity Based Optimization Algorithm
 - MN-FDA: Markov Network Factorized Distribution Algorithm
@@ -108,7 +108,7 @@ from pateda.sampling.markov import SampleMarkovChain
 from pateda.sampling.mixture_trees import SampleMixtureTrees
 
 # Mutation modules
-from pateda.mutation import frequency_balance_mutation
+from pateda.mutation import frequency_balance_mutation, FrequencyBalanceMutation
 
 # Benchmark functions
 from pateda.functions.discrete.additive_decomposable import (
@@ -537,6 +537,7 @@ class UnifiedDiscreteNeuralEDA:
             # Apply frequency balance mutation if alpha > 0
             if self.alpha > 0:
                 # Apply mutation
+
                 mutation_params = {'alpha': self.alpha}
                 population = frequency_balance_mutation(
                     self.n_vars,
@@ -582,6 +583,7 @@ def run_traditional_eda(
     n_vars: int,
     pop_size: int,
     max_generations: int,
+    alpha: float,
     random_seed: int = None,
     verbose: bool = True,
 ):
@@ -688,7 +690,8 @@ def run_traditional_eda(
         learning=learning,
         sampling=sampling,
         replacement=ElitistReplacement(),
-        stop_condition=MaxGenerations(max_gen=max_generations),
+        stop_condition=MaxGenerations(max_gen=max_generations),     
+        mutation=FrequencyBalanceMutation(alpha=alpha) if alpha > 0 else None,
     )
     
     # Create and run EDA
@@ -1063,6 +1066,7 @@ def main():
             n_vars=n_vars,
             pop_size=pop_size,
             max_generations=n_gen,
+            alpha=alpha,
             random_seed=myseed,
             verbose=True,
         )
