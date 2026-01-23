@@ -42,17 +42,17 @@ if __name__ == '__main__':
     activation_functions = ['elu', 'relu', 'tanh']
     
     # Boolean flags (weight-transfer, early-stopping, surrogate-filtering)
-    weight_transfer_options = [0]  # 1=True, 0=False
+    weight_transfer_options = [1]  # 1=True, 0=False
     
     early_stopping_options = [0]
     
     surrogate_filtering_options = [0]  # 1=True, 0=False
     
     # Alpha (mutation)
-    alpha_values = [0, 0.95]
+    alpha_values = [0.95]
     
     # Seeds
-    seeds = np.arange(1, 11)
+    seeds = np.arange(1, 21)
     
     n = 100
     # Generate all combinations

@@ -44,7 +44,7 @@ if __name__ == '__main__':
     epochs_options = [50]
     
     #mi_layer_options = [0, 1]
-    mi_layer_options = [0]
+    mi_layer_options = [1]
     
     # Alpha (mutation parameter) - testing both baseline (no mutation) and mutation-enabled
     # 0.0 = no mutation, 0.95 = frequency balance mutation for better exploration
