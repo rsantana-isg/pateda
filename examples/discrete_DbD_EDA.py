@@ -95,6 +95,9 @@ from pateda.sampling.discrete_dbd import (
     sample_binary_dbd_uc_t, sample_binary_dbd_us_t
 )
 
+# Mutation modules
+from pateda.mutation import frequency_balance_mutation
+
 # Benchmark functions
 from pateda.functions.discrete.additive_decomposable import (
     k_deceptive, decep3, decep_marta3, decep_marta3_new, decep3_mh,
@@ -381,6 +384,7 @@ class DbDEDA:
         learning_params: Optional[Dict[str, Any]] = None,
         sampling_params: Optional[Dict[str, Any]] = None,
         random_seed: Optional[int] = None,
+        alpha: float = 0.0,
     ):
         """
         Initialize DbD EDA
@@ -422,6 +426,9 @@ class DbDEDA:
             Additional sampling parameters
         random_seed : int, optional
             Random seed for reproducibility
+        alpha : float
+            Maximum allowed frequency for ones or zeros (default 0.0, no mutation)
+            If alpha > 0, applies frequency balance mutation
         """
         self.variant = variant
         self.n_vars = n_vars
@@ -440,6 +447,7 @@ class DbDEDA:
         self.learning_params = learning_params or {}
         self.sampling_params = sampling_params or {}
         self.random_seed = random_seed
+        self.alpha = alpha
 
         # Set random seed if provided
         if random_seed is not None:
@@ -710,6 +718,24 @@ class DbDEDA:
 
             # Evaluate
             fitness = fitness_func(population)
+            
+            # Apply frequency balance mutation if alpha > 0
+            if self.alpha > 0:
+                # Store the best solution before mutation to enforce elitism
+                best_idx = np.argmax(fitness)
+                best_solution_pre_mutation = population[best_idx].copy()
+                
+                mutation_params = {'alpha': self.alpha}
+                population = frequency_balance_mutation(
+                    self.n_vars,
+                    self.cardinality,
+                    population,
+                    mutation_params
+                )
+                
+                # Enforce elitism: ensure the best solution is not mutated
+                population[best_idx] = best_solution_pre_mutation
+                fitness = fitness_func(population)
 
             # Update best
             gen_best = np.max(fitness)
@@ -787,6 +813,8 @@ Examples:
                         help='Use fitness guidance (1=yes, 0=no)')
     parser.add_argument('use_markov_init', type=int, choices=[0, 1],
                         help='Use Markov model for initialization (1=yes, 0=no)')
+    parser.add_argument('alpha', type=float, nargs='?', default=0.0,
+                        help='Max frequency threshold for mutation (default: 0.0, no mutation)')
 
     # Parse arguments
     args = parser.parse_args()
@@ -832,6 +860,7 @@ Examples:
         print(f"Alpha Smooth:       {args.alpha_smooth}")
     print(f"Fitness Guided:     {args.fitness_guided}")
     print(f"Markov Init:        {args.use_markov_init}")
+    print(f"Alpha (mutation):   {args.alpha}")
     print("=" * 80)
     print()
 
@@ -872,6 +901,7 @@ Examples:
         learning_params=learning_params,
         sampling_params=sampling_params,
         random_seed=args.seed,
+        alpha=args.alpha,
     )
 
     best_fitness, best_solution, history = eda.run(fitness_func, verbose=True)

@@ -135,6 +135,9 @@ from pateda.sampling.discrete_dendiff import (
     sample_discrete_dendiff_deterministic
 )
 
+# Mutation modules
+from pateda.mutation import frequency_balance_mutation
+
 # Benchmark functions
 from pateda.functions.discrete.additive_decomposable import (
     k_deceptive, decep3, decep_marta3, decep_marta3_new, decep3_mh,
@@ -422,6 +425,7 @@ class DendiffEDA:
         learning_params: Optional[Dict[str, Any]] = None,
         sampling_params: Optional[Dict[str, Any]] = None,
         random_seed: Optional[int] = None,
+        alpha: float = 0.0,
     ):
         """
         Initialize Dendiff EDA
@@ -464,6 +468,9 @@ class DendiffEDA:
             Additional sampling parameters
         random_seed : int, optional
             Random seed for reproducibility
+        alpha : float
+            Maximum allowed frequency for ones or zeros (default 0.0, no mutation)
+            If alpha > 0, applies frequency balance mutation
         """
         self.variant = variant
         self.n_vars = n_vars
@@ -483,6 +490,7 @@ class DendiffEDA:
         self.learning_params = learning_params or {}
         self.sampling_params = sampling_params or {}
         self.random_seed = random_seed
+        self.alpha = alpha
 
         # Set random seed if provided
         if random_seed is not None:
@@ -670,6 +678,24 @@ class DendiffEDA:
 
             # Evaluate
             fitness = fitness_func(population)
+            
+            # Apply frequency balance mutation if alpha > 0
+            if self.alpha > 0:
+                # Store the best solution before mutation to enforce elitism
+                best_idx = np.argmax(fitness)
+                best_solution_pre_mutation = population[best_idx].copy()
+                
+                mutation_params = {'alpha': self.alpha}
+                population = frequency_balance_mutation(
+                    self.n_vars,
+                    self.cardinality,
+                    population,
+                    mutation_params
+                )
+                
+                # Enforce elitism: ensure the best solution is not mutated
+                population[best_idx] = best_solution_pre_mutation
+                fitness = fitness_func(population)
 
             # Update best
             gen_best = np.max(fitness)
@@ -749,6 +775,8 @@ Examples:
                         help='Starting noise/corruption level (e.g., 0.0001 for Gumbel, 0.01 for Corruption)')
     parser.add_argument('beta_end', type=float,
                         help='Ending noise/corruption level (e.g., 0.3 for Gumbel, 0.5 for Corruption)')
+    parser.add_argument('alpha', type=float, nargs='?', default=0.0,
+                        help='Max frequency threshold for mutation (default: 0.0, no mutation)')
 
     # Parse arguments
     args = parser.parse_args()
@@ -799,6 +827,7 @@ Examples:
     print(f"Temperature:        {args.temperature}")
     print(f"Beta Start:         {args.beta_start}")
     print(f"Beta End:           {args.beta_end}")
+    print(f"Alpha (mutation):   {args.alpha}")
     print("=" * 80)
     print()
 
@@ -837,6 +866,7 @@ Examples:
         learning_params=learning_params,
         sampling_params=sampling_params,
         random_seed=args.seed,
+        alpha=args.alpha,
     )
 
     best_fitness, best_solution, history = eda.run(fitness_func, verbose=True)
