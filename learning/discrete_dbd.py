@@ -1079,8 +1079,10 @@ def compute_mutual_information_matrix_binary(population: np.ndarray) -> np.ndarr
                     if p_ij > 0 and p_i > 0 and p_j > 0:
                         mi += p_ij * np.log(p_ij / (p_i * p_j))
             
-            # Normalize by cardinalities (2*2 = 4 for binary)
-            mi /= 4.0
+            # Note: No normalization by cardinalities needed since all variables
+            # are binary (cardinality = 2). The relative ordering is preserved.
+            # If mixed cardinalities were present, we would divide by (2 * 2)
+            # as done in tree.py to make MI values comparable.
             
             mi_matrix[i, j] = mi
             mi_matrix[j, i] = mi

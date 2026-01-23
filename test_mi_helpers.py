@@ -33,11 +33,15 @@ def test_mi_matrix():
     # Create correlated variables
     var0 = np.random.randint(0, 2, n_samples)
     var1 = var0.copy()  # Perfect correlation
-    var1[np.random.rand(n_samples) < 0.1] = 1 - var1[np.random.rand(n_samples) < 0.1]  # Add some noise
+    # Add some noise - use consistent random mask
+    noise_mask1 = np.random.rand(n_samples) < 0.1
+    var1[noise_mask1] = 1 - var1[noise_mask1]
     
     var2 = np.random.randint(0, 2, n_samples)
     var3 = var2.copy()  # Perfect correlation  
-    var3[np.random.rand(n_samples) < 0.1] = 1 - var3[np.random.rand(n_samples) < 0.1]  # Add some noise
+    # Add some noise - use consistent random mask
+    noise_mask2 = np.random.rand(n_samples) < 0.1
+    var3[noise_mask2] = 1 - var3[noise_mask2]
     
     population = np.column_stack([var0, var1, var2, var3])
     
