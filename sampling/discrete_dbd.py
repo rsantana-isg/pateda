@@ -13,7 +13,7 @@ random distribution and progressively denoising toward the learned distribution.
 """
 
 import numpy as np
-from typing import Dict, Any, Optional
+from typing import Dict, Any, Optional, List
 import torch
 import torch.nn.functional as F
 
@@ -586,7 +586,7 @@ def sample_from_continuous_probabilities(
     prob_max: float = 0.99,
     denoised_weight: float = DENOISED_WEIGHT,
     conditional_weight: float = CONDITIONAL_WEIGHT,
-    parent_structure: dict = None
+    parent_structure: Optional[Dict[int, List[int]]] = None
 ) -> np.ndarray:
     """
     Sample binary values from continuous probability values using conditional probabilities
@@ -645,6 +645,7 @@ def sample_from_continuous_probabilities(
             # Blend with the denoised continuous value
             for sample_idx in range(n_samples):
                 # Get marginal P(X_i = 1) from learned distribution
+                # Convert to float to prevent numpy array indexing errors
                 marginal_prob_1 = float(cpd[1])
                 
                 # Get denoised probability
@@ -664,6 +665,7 @@ def sample_from_continuous_probabilities(
                     config_idx += int(binary_samples[sample_idx, parent_var]) * (2 ** i)
                 
                 # Get conditional probability P(X_i = 1 | parents)
+                # Convert to float to prevent numpy array indexing errors
                 prob_1_given_parents = float(cpd[config_idx, 1])
                 
                 # Use the continuous value as a modulation factor
@@ -833,8 +835,8 @@ def sample_binary_dbd_uc_t(
     alpha_smooth = model.get('alpha_smooth', 0.1)
     conditional_probs_p0 = compute_conditional_probabilities(p0_binary.astype(int), k, alpha_smooth)
     
-    # Transform to continuous
-    p0_continuous = transform_binary_to_continuous(p0_binary.astype(int), conditional_probs_p0, k)
+    # Transform to continuous (no parent_structure for UC variant)
+    p0_continuous = transform_binary_to_continuous(p0_binary.astype(int), conditional_probs_p0, k, parent_structure=None)
     
     # Use continuous DbD sampling
     from pateda.sampling.dbd import sample_dbd
@@ -894,8 +896,8 @@ def sample_binary_dbd_us_t(
     alpha_smooth = model.get('alpha_smooth', 0.1)
     conditional_probs_p0 = compute_conditional_probabilities(p0_binary.astype(int), k, alpha_smooth)
     
-    # Transform to continuous
-    p0_continuous = transform_binary_to_continuous(p0_binary.astype(int), conditional_probs_p0, k)
+    # Transform to continuous (no parent_structure for US variant)
+    p0_continuous = transform_binary_to_continuous(p0_binary.astype(int), conditional_probs_p0, k, parent_structure=None)
     
     # Use continuous DbD sampling
     from pateda.sampling.dbd import sample_dbd
