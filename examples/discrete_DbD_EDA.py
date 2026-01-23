@@ -724,7 +724,7 @@ class DbDEDA:
             if self.alpha > 0:
                 # Apply mutation
                 mutation_params = {'alpha': self.alpha}
-                print("Mutation", self.alpha)
+               
                 population = frequency_balance_mutation(
                     self.n_vars,
                     self.cardinality,

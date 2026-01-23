@@ -5,6 +5,7 @@ import numpy as np
 # Fixed parameters
 n_gen = 250
 trunc = 0.5
+alpha = 0.95
 
 if __name__ == '__main__':
     # Objective functions to test
@@ -74,5 +75,5 @@ if __name__ == '__main__':
                                                   f"{seed} {obj_func} {n} {p_size} {n_gen} {trunc} "
                                                   f"{variant} {activation} {loss} {num_alpha_samples} "
                                                   f"{n_steps} {k} {alpha_smooth} {fitness_guided} "
-                                                  f"{use_markov_init}")
+                                                  f"{use_markov_init} {alpha}")
                                             print(cmd)
