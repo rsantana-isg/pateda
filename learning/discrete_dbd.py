@@ -1081,8 +1081,8 @@ def compute_mutual_information_matrix_binary(population: np.ndarray) -> np.ndarr
             
             # Note: No normalization by cardinalities needed since all variables
             # are binary (cardinality = 2). The relative ordering is preserved.
-            # If mixed cardinalities were present, we would divide by (2 * 2)
-            # as done in tree.py to make MI values comparable.
+            # If mixed cardinalities were present, we would divide by (card_i * card_j)
+            # as done in tree.py to make MI values comparable across variable pairs.
             
             mi_matrix[i, j] = mi
             mi_matrix[j, i] = mi
