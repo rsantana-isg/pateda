@@ -1025,22 +1025,133 @@ def _prepare_dbd_params_for_continuous(params: Dict[str, Any]) -> Dict[str, Any]
     return dbd_params
 
 
+def compute_mutual_information_matrix_binary(population: np.ndarray) -> np.ndarray:
+    """
+    Compute pairwise mutual information matrix for binary variables.
+    
+    Based on the implementation in learning/tree.py, adapted for binary variables.
+    
+    Parameters:
+    -----------
+    population : np.ndarray
+        Binary population matrix [n_samples, n_vars]
+        
+    Returns:
+    --------
+    np.ndarray
+        Symmetric mutual information matrix [n_vars, n_vars]
+        Diagonal is set to 0
+    """
+    n_samples, n_vars = population.shape
+    mi_matrix = np.zeros((n_vars, n_vars))
+    
+    # Compute univariate marginal probabilities for all variables
+    # For binary: p(X_i = 0) and p(X_i = 1)
+    univ_probs = []
+    for i in range(n_vars):
+        count_0 = np.sum(population[:, i] == 0)
+        count_1 = np.sum(population[:, i] == 1)
+        p_0 = count_0 / n_samples
+        p_1 = count_1 / n_samples
+        univ_probs.append([p_0, p_1])
+    
+    # Compute pairwise MI for all pairs
+    for i in range(n_vars - 1):
+        for j in range(i + 1, n_vars):
+            # Compute bivariate probabilities
+            # For binary: p(X_i=0, X_j=0), p(X_i=0, X_j=1), p(X_i=1, X_j=0), p(X_i=1, X_j=1)
+            joint_counts = np.zeros((2, 2))
+            for sample_idx in range(n_samples):
+                val_i = int(population[sample_idx, i])
+                val_j = int(population[sample_idx, j])
+                joint_counts[val_i, val_j] += 1
+            
+            joint_probs = joint_counts / n_samples
+            
+            # Compute MI: sum over all combinations
+            mi = 0.0
+            for val_i in range(2):
+                for val_j in range(2):
+                    p_ij = joint_probs[val_i, val_j]
+                    p_i = univ_probs[i][val_i]
+                    p_j = univ_probs[j][val_j]
+                    
+                    if p_ij > 0 and p_i > 0 and p_j > 0:
+                        mi += p_ij * np.log(p_ij / (p_i * p_j))
+            
+            # Normalize by cardinalities (2*2 = 4 for binary)
+            mi /= 4.0
+            
+            mi_matrix[i, j] = mi
+            mi_matrix[j, i] = mi
+    
+    return mi_matrix
+
+
+def find_k_highest_mi_parents(mi_matrix: np.ndarray, k: int) -> Dict[int, List[int]]:
+    """
+    For each variable, find the k variables with highest mutual information.
+    
+    Parameters:
+    -----------
+    mi_matrix : np.ndarray
+        Symmetric mutual information matrix [n_vars, n_vars]
+    k : int
+        Number of parents to select for each variable
+        
+    Returns:
+    --------
+    dict
+        Dictionary mapping variable index to list of k parent variable indices
+        with highest mutual information. Variables are sorted by MI (highest first).
+    """
+    n_vars = mi_matrix.shape[0]
+    parent_structure = {}
+    
+    for var in range(n_vars):
+        # Get MI values for this variable with all others
+        mi_values = mi_matrix[var, :].copy()
+        
+        # Set self-MI to -inf so it's not selected
+        mi_values[var] = -np.inf
+        
+        # Find k variables with highest MI
+        # If k >= n_vars, just take all other variables
+        num_parents = min(k, n_vars - 1)
+        
+        # Get indices of k highest MI values
+        parent_indices = np.argsort(mi_values)[-num_parents:][::-1]  # Sort descending
+        
+        parent_structure[var] = parent_indices.tolist()
+    
+    return parent_structure
+
+
 def compute_conditional_probabilities(
     population: np.ndarray,
     k: int,
-    alpha: float = 0.1
+    alpha: float = 0.1,
+    parent_structure: Optional[Dict[int, List[int]]] = None
 ) -> list:
     """
-    Compute conditional probabilities P(X_i | X_{i-1}, ..., X_{i-k}) for binary variables
+    Compute conditional probabilities for binary variables.
+    
+    If parent_structure is provided, computes P(X_i | parents[i]) where parents[i]
+    are the k variables with highest mutual information with X_i.
+    
+    Otherwise, uses the original order: P(X_i | X_{i-1}, ..., X_{i-k})
     
     Parameters:
     -----------
     population : np.ndarray
         Binary population matrix [n_samples, n_vars]
     k : int
-        Number of previous variables to condition on (order of Markov chain)
+        Number of variables to condition on
     alpha : float
         Smoothing parameter (Laplace smoothing)
+    parent_structure : dict, optional
+        Dictionary mapping variable index to list of parent variable indices.
+        If None, uses previous k variables in given order.
         
     Returns:
     --------
@@ -1052,47 +1163,57 @@ def compute_conditional_probabilities(
     n_samples, n_vars = population.shape
     conditional_probs = []
     
-    # For first k variables, use marginal probabilities (no conditioning)
-    for var in range(min(k, n_vars)):
-        # Compute marginal P(X_i = 1) with smoothing
-        count_0 = np.sum(population[:, var] == 0) + alpha
-        count_1 = np.sum(population[:, var] == 1) + alpha
-        total = count_0 + count_1
-        prob_0 = count_0 / total
-        prob_1 = count_1 / total
+    for var in range(n_vars):
+        # Determine parent variables for this variable
+        if parent_structure is not None:
+            # Use MI-based parent structure
+            parent_vars = parent_structure.get(var, [])
+        else:
+            # Use original order: previous k variables
+            if var < k:
+                parent_vars = []
+            else:
+                n_parents = min(k, var)
+                parent_vars = list(range(var - n_parents, var))
         
-        # Store as a simple array [P(X=0), P(X=1)]
-        marginal = np.array([prob_0, prob_1])
-        conditional_probs.append(marginal)
-    
-    # For remaining variables, compute conditional probabilities
-    for var in range(k, n_vars):
-        # Number of previous variables to condition on
-        n_parents = min(k, var)
-        parent_vars = list(range(var - n_parents, var))
-        n_parent_configs = 2 ** n_parents  # For binary variables
-        
-        # Count conditional occurrences
-        # cpd[parent_config, var_value] = count
-        cpd = np.zeros((n_parent_configs, 2))
-        
-        for sample_idx in range(n_samples):
-            # Calculate parent configuration index (binary encoding)
-            config_idx = 0
-            for i, parent_var in enumerate(parent_vars):
-                config_idx += int(population[sample_idx, parent_var]) * (2 ** i)
+        # If no parents, use marginal probability
+        if len(parent_vars) == 0:
+            # Compute marginal P(X_i = 0) and P(X_i = 1) with smoothing
+            count_0 = np.sum(population[:, var] == 0) + alpha
+            count_1 = np.sum(population[:, var] == 1) + alpha
+            total = count_0 + count_1
+            prob_0 = count_0 / total
+            prob_1 = count_1 / total
             
-            var_value = int(population[sample_idx, var])
-            cpd[config_idx, var_value] += 1
-        
-        # Apply smoothing
-        cpd += alpha
-        
-        # Normalize each row to get conditional probabilities
-        row_sums = cpd.sum(axis=1, keepdims=True)
-        cpd = cpd / row_sums
-        
-        conditional_probs.append(cpd)
+            # Store as a simple array [P(X=0), P(X=1)]
+            marginal = np.array([prob_0, prob_1])
+            conditional_probs.append(marginal)
+        else:
+            # Compute conditional probabilities P(X_var | parents)
+            n_parents = len(parent_vars)
+            n_parent_configs = 2 ** n_parents  # For binary variables
+            
+            # Count conditional occurrences
+            # cpd[parent_config, var_value] = count
+            cpd = np.zeros((n_parent_configs, 2))
+            
+            for sample_idx in range(n_samples):
+                # Calculate parent configuration index (binary encoding)
+                config_idx = 0
+                for i, parent_var in enumerate(parent_vars):
+                    config_idx += int(population[sample_idx, parent_var]) * (2 ** i)
+                
+                var_value = int(population[sample_idx, var])
+                cpd[config_idx, var_value] += 1
+            
+            # Apply smoothing
+            cpd += alpha
+            
+            # Normalize each row to get conditional probabilities
+            row_sums = cpd.sum(axis=1, keepdims=True)
+            cpd = cpd / row_sums
+            
+            conditional_probs.append(cpd)
     
     return conditional_probs
 
@@ -1100,13 +1221,14 @@ def compute_conditional_probabilities(
 def transform_binary_to_continuous(
     population: np.ndarray,
     conditional_probs: list,
-    k: int
+    k: int,
+    parent_structure: Optional[Dict[int, List[int]]] = None
 ) -> np.ndarray:
     """
-    Transform binary population to continuous using conditional probabilities
+    Transform binary population to continuous using conditional probabilities.
     
-    For each variable X_i with value x_i, the continuous value is
-    P(X_i = x_i | X_{i-1} = x_{i-1}, ..., X_{i-k} = x_{i-k})
+    For each variable X_i with value x_i, the continuous value is the
+    conditional probability P(X_i = x_i | parents).
     
     Parameters:
     -----------
@@ -1115,7 +1237,10 @@ def transform_binary_to_continuous(
     conditional_probs : list
         List of conditional probability tables from compute_conditional_probabilities
     k : int
-        Number of previous variables used for conditioning
+        Number of variables used for conditioning
+    parent_structure : dict, optional
+        Dictionary mapping variable index to list of parent variable indices.
+        If None, uses previous k variables in given order.
         
     Returns:
     --------
@@ -1128,16 +1253,25 @@ def transform_binary_to_continuous(
     for var in range(n_vars):
         cpd = conditional_probs[var]
         
-        if var < k:
-            # For first k variables, use marginal probabilities
+        # Determine parent variables for this variable
+        if parent_structure is not None:
+            # Use MI-based parent structure
+            parent_vars = parent_structure.get(var, [])
+        else:
+            # Use original order: previous k variables
+            if var < k:
+                parent_vars = []
+            else:
+                n_parents = min(k, var)
+                parent_vars = list(range(var - n_parents, var))
+        
+        # If no parents, use marginal probability
+        if len(parent_vars) == 0:
             for sample_idx in range(n_samples):
                 var_value = int(population[sample_idx, var])
                 continuous_pop[sample_idx, var] = cpd[var_value]
         else:
-            # For remaining variables, use conditional probabilities
-            n_parents = min(k, var)
-            parent_vars = list(range(var - n_parents, var))
-            
+            # Use conditional probabilities
             for sample_idx in range(n_samples):
                 # Calculate parent configuration index
                 config_idx = 0
@@ -1180,27 +1314,41 @@ def learn_binary_dbd_cs_t(
     k = params.get('k', 1)
     alpha_smooth = params.get('alpha', 0.1)
     
-    # Step 1: Compute conditional probabilities for source population
-    conditional_probs_p0 = compute_conditional_probabilities(current_pop, k, alpha_smooth)
+    # NEW: Step 1: Compute MI matrix for selected population
+    mi_matrix = compute_mutual_information_matrix_binary(selected_pop)
     
-    # Step 2: Compute conditional probabilities for target population
-    conditional_probs_p1 = compute_conditional_probabilities(selected_pop, k, alpha_smooth)
+    # NEW: Step 2: Find k variables with highest MI for each variable
+    parent_structure = find_k_highest_mi_parents(mi_matrix, k)
     
-    # Step 3: Transform binary populations to continuous
-    p0_continuous = transform_binary_to_continuous(current_pop, conditional_probs_p0, k)
-    p1_continuous = transform_binary_to_continuous(selected_pop, conditional_probs_p1, k)
+    # Step 3: Compute conditional probabilities using MI-based parent structure
+    conditional_probs_p0 = compute_conditional_probabilities(
+        current_pop, k, alpha_smooth, parent_structure
+    )
+    conditional_probs_p1 = compute_conditional_probabilities(
+        selected_pop, k, alpha_smooth, parent_structure
+    )
     
-    # Step 4: Learn continuous DbD model
+    # Step 4: Transform binary populations to continuous
+    p0_continuous = transform_binary_to_continuous(
+        current_pop, conditional_probs_p0, k, parent_structure
+    )
+    p1_continuous = transform_binary_to_continuous(
+        selected_pop, conditional_probs_p1, k, parent_structure
+    )
+    
+    # Step 5: Learn continuous DbD model
     from pateda.learning.dbd import learn_dbd
     dbd_params = _prepare_dbd_params_for_continuous(params)
     
     model = learn_dbd(p0_continuous, p1_continuous, dbd_params)
     
-    # Step 5: Add transformation info to model
+    # Step 6: Add transformation info to model
     model['variant'] = 'cs_t'
     model['k'] = k
     model['alpha_smooth'] = alpha_smooth
     model['conditional_probs'] = conditional_probs_p1  # Store target conditional probs for sampling
+    model['parent_structure'] = parent_structure  # Store parent structure for sampling
+    model['mi_matrix'] = mi_matrix  # Store MI matrix for analysis
     
     return model
 
@@ -1234,24 +1382,41 @@ def learn_binary_dbd_cd_t(
     # Find closest neighbors in selected population
     p1_closest = find_closest_neighbors_binary(current_pop, selected_pop)
     
-    # Compute conditional probabilities
-    conditional_probs_p0 = compute_conditional_probabilities(current_pop, k, alpha_smooth)
-    conditional_probs_p1 = compute_conditional_probabilities(selected_pop, k, alpha_smooth)
+    # NEW: Step 1: Compute MI matrix for selected population
+    mi_matrix = compute_mutual_information_matrix_binary(selected_pop)
     
-    # Transform to continuous
-    p0_continuous = transform_binary_to_continuous(current_pop, conditional_probs_p0, k)
-    p1_continuous = transform_binary_to_continuous(p1_closest, conditional_probs_p1, k)
+    # NEW: Step 2: Find k variables with highest MI for each variable
+    parent_structure = find_k_highest_mi_parents(mi_matrix, k)
     
-    # Learn continuous DbD model
+    # Step 3: Compute conditional probabilities using MI-based parent structure
+    conditional_probs_p0 = compute_conditional_probabilities(
+        current_pop, k, alpha_smooth, parent_structure
+    )
+    conditional_probs_p1 = compute_conditional_probabilities(
+        selected_pop, k, alpha_smooth, parent_structure
+    )
+    
+    # Step 4: Transform to continuous
+    p0_continuous = transform_binary_to_continuous(
+        current_pop, conditional_probs_p0, k, parent_structure
+    )
+    p1_continuous = transform_binary_to_continuous(
+        p1_closest, conditional_probs_p1, k, parent_structure
+    )
+    
+    # Step 5: Learn continuous DbD model
     from pateda.learning.dbd import learn_dbd
     dbd_params = _prepare_dbd_params_for_continuous(params)
     
     model = learn_dbd(p0_continuous, p1_continuous, dbd_params)
     
+    # Step 6: Add transformation info to model
     model['variant'] = 'cd_t'
     model['k'] = k
     model['alpha_smooth'] = alpha_smooth
     model['conditional_probs'] = conditional_probs_p1
+    model['parent_structure'] = parent_structure  # Store parent structure for sampling
+    model['mi_matrix'] = mi_matrix  # Store MI matrix for analysis
     
     return model
 
