@@ -102,6 +102,11 @@ from pateda.functions.discrete.additive_decomposable import (
 # Success threshold as a fraction of optimal fitness
 SUCCESS_THRESHOLD = 0.01
 
+# Tolerance for checking if optimum is reached (absolute difference)
+# A value of 1e-6 is used to account for floating-point arithmetic precision
+# while being strict enough to ensure the optimum is truly reached
+OPTIMUM_TOLERANCE = 1e-6
+
 # Surrogate filtering: factor for generating candidate solutions
 # Generate this many times more solutions than needed, then filter
 SURROGATE_CANDIDATE_FACTOR = 3
@@ -464,7 +469,7 @@ class BackdriveEDA:
         # Store model for weight transfer
         self.previous_model = None
 
-    def run(self, fitness_func, verbose=True):
+    def run(self, fitness_func, verbose=True, optimal_fitness=None):
         """
         Run the Backdrive EDA
 
@@ -474,6 +479,8 @@ class BackdriveEDA:
             Fitness function
         verbose : bool
             Print progress
+        optimal_fitness : float, optional
+            Known optimal fitness value for early termination
 
         Returns
         -------
@@ -507,6 +514,15 @@ class BackdriveEDA:
 
         if verbose:
             print(f"Generation 0: Best Fitness = {best_fitness:.4f}")
+
+        # Check if optimum reached in initial population
+        if optimal_fitness is not None and abs(best_fitness - optimal_fitness) < OPTIMUM_TOLERANCE:
+            if verbose:
+                print(f"\nOptimum reached!")
+                print(f"\nBackdrive-EDA completed after 0 generations")
+                print(f"Best fitness found: {best_fitness:.6f}")
+                print(f"  at generation {generation_found}")
+            return best_fitness, best_solution, history
 
         for gen in range(self.max_generations):
             # Selection
@@ -680,6 +696,15 @@ class BackdriveEDA:
 
             if verbose and (gen + 1) % 1 == 0:
                 print(f"Generation {gen+1}: Best Fitness = {best_fitness:.4f}")
+
+            # Check if optimum reached
+            if optimal_fitness is not None and abs(best_fitness - optimal_fitness) < OPTIMUM_TOLERANCE:
+                if verbose:
+                    print(f"\nOptimum reached!")
+                    print(f"\nBackdrive-EDA completed after {gen+1} generations")
+                    print(f"Best fitness found: {best_fitness:.6f}")
+                    print(f"  at generation {generation_found}")
+                return best_fitness, best_solution, history
 
         # Print completion summary
         if verbose:
@@ -859,7 +884,7 @@ Examples:
         alpha=args.alpha,
     )
     
-    best_fitness, best_solution, history = eda.run(fitness_func, verbose=True)
+    best_fitness, best_solution, history = eda.run(fitness_func, verbose=True, optimal_fitness=optimal_fitness)
     
     elapsed_time = time.time() - start_time
     

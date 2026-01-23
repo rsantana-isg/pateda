@@ -127,6 +127,11 @@ from pateda.functions.discrete.additive_decomposable import (
 # Success threshold as a fraction of optimal fitness
 SUCCESS_THRESHOLD = 0.01
 
+# Tolerance for checking if optimum is reached (absolute difference)
+# A value of 1e-6 is used to account for floating-point arithmetic precision
+# while being strict enough to ensure the optimum is truly reached
+OPTIMUM_TOLERANCE = 1e-6
+
 
 # ==============================================================================
 # Fitness Function Wrappers
@@ -420,7 +425,7 @@ class UnifiedDiscreteNeuralEDA:
             'backdrive_weighted_mse', 'backdrive_ranking', 'backdrive_huber'
         }
 
-    def run(self, fitness_func, verbose=True):
+    def run(self, fitness_func, verbose=True, optimal_fitness=None):
         """
         Run the EDA
 
@@ -430,6 +435,8 @@ class UnifiedDiscreteNeuralEDA:
             Fitness function
         verbose : bool
             Print progress
+        optimal_fitness : float, optional
+            Known optimal fitness value for early termination
 
         Returns
         -------
@@ -456,6 +463,15 @@ class UnifiedDiscreteNeuralEDA:
 
         if verbose:
             print(f"Generation 0: Best Fitness = {best_fitness:.4f}")
+
+        # Check if optimum reached in initial population
+        if optimal_fitness is not None and abs(best_fitness - optimal_fitness) < OPTIMUM_TOLERANCE:
+            if verbose:
+                print(f"\nOptimum reached!")
+                print(f"\nEDA completed after 0 generations")
+                print(f"Best fitness found: {best_fitness:.6f}")
+                print(f"  at generation {generation_found}")
+            return best_fitness, best_solution, history
 
         # Keep track of previous population for DbD variants
         prev_population = None
@@ -564,6 +580,15 @@ class UnifiedDiscreteNeuralEDA:
             if verbose and (gen + 1) % 1 == 0:
                 print(f"Generation {gen+1}: Best Fitness = {best_fitness:.4f}")
 
+            # Check if optimum reached
+            if optimal_fitness is not None and abs(best_fitness - optimal_fitness) < OPTIMUM_TOLERANCE:
+                if verbose:
+                    print(f"\nOptimum reached!")
+                    print(f"\nEDA completed after {gen+1} generations")
+                    print(f"Best fitness found: {best_fitness:.6f}")
+                    print(f"  at generation {generation_found}")
+                return best_fitness, best_solution, history
+
         # Print completion summary (matching traditional EDA format)
         if verbose:
             print(f"\nEDA completed after {self.max_generations} generations")
@@ -586,6 +611,7 @@ def run_traditional_eda(
     alpha: float,
     random_seed: int = None,
     verbose: bool = True,
+    optimal_fitness: float = None,
 ):
     """
     Run a traditional EDA algorithm
@@ -607,6 +633,10 @@ def run_traditional_eda(
         Random seed
     verbose : bool
         Print progress
+    optimal_fitness : float, optional
+        Known optimal fitness value. Note: Traditional EDAs do not currently
+        implement early termination based on optimal fitness. This parameter
+        is accepted for API consistency but is not used.
         
     Returns
     -------
@@ -1056,7 +1086,7 @@ def main():
             alpha=alpha,
         )
         
-        best_fitness, best_solution, history = eda.run(fitness_func, verbose=True)
+        best_fitness, best_solution, history = eda.run(fitness_func, verbose=True, optimal_fitness=optimal_fitness)
         
     elif alg in traditional_edas:
         # Run traditional EDA
@@ -1069,6 +1099,7 @@ def main():
             alpha=alpha,
             random_seed=myseed,
             verbose=True,
+            optimal_fitness=optimal_fitness,
         )
         
     else:
