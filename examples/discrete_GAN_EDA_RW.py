@@ -97,6 +97,9 @@ SUCCESS_THRESHOLD = 0.01
 # Constant for unknown optimal values
 UNKNOWN_OPTIMAL = "Unknown"
 
+# Tolerance for checking if optimal value is reached
+OPTIMUM_TOLERANCE = 1e-6
+
 
 # ==============================================================================
 # Seeding Utilities
@@ -203,7 +206,13 @@ def load_sat_instance(instance_name: str):
                 # Skip lines that can't be parsed as integers
                 continue
     
-    return n_vars, clauses, UNKNOWN_OPTIMAL
+    # Known optimal values for specific instances
+    optimal_fitness = UNKNOWN_OPTIMAL
+    instance_base = instance_name.replace('.cnf', '')
+    if instance_base in ['uf100-01', 'uf100-02', 'uf100-03', 'uf100-04', 'uf100-05']:
+        optimal_fitness = 430
+    
+    return n_vars, clauses, optimal_fitness
 
 
 def evaluate_sat(solution: np.ndarray, clauses) -> float:
@@ -311,7 +320,18 @@ def load_ising_instance(instance_name: str):
                 for j in range(n_neighbors):
                     inter[i, j] = float(line[1 + n_neighbors + j])
     
-    return n_vars, lattice, inter, UNKNOWN_OPTIMAL
+    # Known optimal values for specific instances
+    optimal_fitness = UNKNOWN_OPTIMAL
+    if instance_name.replace('.txt', '') == 'SG_100_1':
+        optimal_fitness = 130
+    elif instance_name.replace('.txt', '') == 'SG_100_2':
+        optimal_fitness = 136
+    elif instance_name.replace('.txt', '') == 'SG_100_3':
+        optimal_fitness = 136
+    elif instance_name.replace('.txt', '') == 'SG_100_4':
+        optimal_fitness = 130
+    
+    return n_vars, lattice, inter, optimal_fitness
 
 
 def evaluate_ising(solution: np.ndarray, lattice, inter) -> float:
@@ -387,7 +407,13 @@ def load_ubqp_instance(instance_name: str):
             weight = float(parts[2])
             ubqp_instance.add_interaction(0, i, j, weight)
     
-    return n_vars, ubqp_instance, UNKNOWN_OPTIMAL
+    # Known optimal values for specific instances
+    optimal_fitness = UNKNOWN_OPTIMAL
+    instance_base = instance_name.replace('.txt', '')
+    if instance_base == 'bqp100':
+        optimal_fitness = 3955
+    
+    return n_vars, ubqp_instance, optimal_fitness
 
 
 def evaluate_ubqp(solution: np.ndarray, ubqp_instance: UBQPInstance) -> float:
@@ -582,7 +608,7 @@ class GANEDA:
             'Hybrid-GAN-VAE': sample_binary_gan_hybrid_vae,
         }
 
-    def run(self, fitness_func, verbose=True):
+    def run(self, fitness_func, verbose=True, optimal_fitness=None):
         """
         Run the GAN EDA
 
@@ -592,6 +618,8 @@ class GANEDA:
             Fitness function
         verbose : bool
             Print progress
+        optimal_fitness : float, optional
+            Known optimal fitness value for early termination
 
         Returns
         -------
@@ -620,6 +648,15 @@ class GANEDA:
 
         if verbose:
             print(f"Generation 0: Best Fitness = {best_fitness:.4f}")
+
+        # Check if optimum reached in initial population
+        if optimal_fitness is not None and optimal_fitness != UNKNOWN_OPTIMAL and abs(best_fitness - optimal_fitness) < OPTIMUM_TOLERANCE:
+            if verbose:
+                print(f"\nOptimum reached!")
+                print(f"\nGAN-EDA completed after 0 generations")
+                print(f"Best fitness found: {best_fitness:.6f}")
+                print(f"  at generation {generation_found}")
+            return best_fitness, best_solution, history
 
         for gen in range(self.max_generations):
             # Selection
@@ -705,6 +742,15 @@ class GANEDA:
 
             if verbose and (gen + 1) % 1 == 0:
                 print(f"Generation {gen+1}: Best Fitness = {best_fitness:.4f}")
+
+            # Check if optimum reached
+            if optimal_fitness is not None and optimal_fitness != UNKNOWN_OPTIMAL and abs(best_fitness - optimal_fitness) < OPTIMUM_TOLERANCE:
+                if verbose:
+                    print(f"\nOptimum reached!")
+                    print(f"\nGAN-EDA completed after {gen+1} generations")
+                    print(f"Best fitness found: {best_fitness:.6f}")
+                    print(f"  at generation {generation_found}")
+                return best_fitness, best_solution, history
 
         # Print completion summary
         if verbose:
@@ -876,7 +922,9 @@ Examples:
         alpha=args.alpha,
     )
 
-    best_fitness, best_solution, history = eda.run(fitness_func, verbose=True)
+    # Pass optimal_fitness only if it's known (not UNKNOWN_OPTIMAL)
+    optimal_fitness_param = None if optimal_fitness == UNKNOWN_OPTIMAL else optimal_fitness
+    best_fitness, best_solution, history = eda.run(fitness_func, verbose=True, optimal_fitness=optimal_fitness_param)
 
     elapsed_time = time.time() - start_time
 
