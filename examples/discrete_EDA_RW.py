@@ -98,7 +98,7 @@ from pateda.sampling.discrete_dendiff import (
 
 # Traditional EDA modules
 from pateda.core.eda import EDA, EDAComponents
-from pateda.stop_conditions import MaxGenerations
+from pateda.stop_conditions import MaxGenerations, MaxGenerationsOrOptimum
 from pateda.seeding import RandomInit
 from pateda.selection import TruncationSelection
 from pateda.replacement import ElitistReplacement
@@ -895,10 +895,11 @@ def run_traditional_eda(
     verbose: bool = True,
     alpha: float = 0.0,
     truncation_ratio: float = 0.5,
+    optimal_fitness = None,
 ):
     """
     Run a traditional EDA algorithm
-    
+
     Parameters
     ----------
     alg : str
@@ -920,7 +921,10 @@ def run_traditional_eda(
         Maximum allowed frequency for ones or zeros (default 0.0, no mutation)
     truncation_ratio : float
         Truncation selection ratio (default 0.5)
-        
+    optimal_fitness : float or str, optional
+        Known optimal fitness value for early termination (default None).
+        If UNKNOWN_OPTIMAL, termination based on optimum is disabled.
+
     Returns
     -------
     best_fitness : float
@@ -995,7 +999,13 @@ def run_traditional_eda(
         
     else:
         raise ValueError(f"Unknown traditional EDA: {alg}")
-    
+
+    # Create stop condition based on whether optimal_fitness is known
+    if optimal_fitness is not None and optimal_fitness != UNKNOWN_OPTIMAL:
+        stop_condition = MaxGenerationsOrOptimum(max_gen=max_generations, optimal_fitness=optimal_fitness)
+    else:
+        stop_condition = MaxGenerations(max_gen=max_generations)
+
     # Create EDA components
     components = EDAComponents(
         seeding=RandomInit(),
@@ -1003,7 +1013,7 @@ def run_traditional_eda(
         learning=learning,
         sampling=sampling,
         replacement=ElitistReplacement(),
-        stop_condition=MaxGenerations(max_gen=max_generations),
+        stop_condition=stop_condition,
         mutation=FrequencyBalanceMutation(alpha=alpha) if alpha > 0 else None,
     )
     
@@ -1541,6 +1551,7 @@ def main():
             verbose=True,
             alpha=alpha,
             truncation_ratio=truncation_ratio,
+            optimal_fitness=optimal_fitness,
         )
         
     else:
