@@ -17,30 +17,16 @@ Supports comprehensive Dendiff-EDA variants:
 - Dendiff-Deterministic: Deterministic softmax without Gumbel noise for cleaner gradients
 
 **Enhanced Dendiff Variants (with alternative loss functions):**
-All variants now support alternative loss functions:
 - Dendiff-Gumbel-WeightedMSE: Gumbel variant with fitness-weighted loss
 - Dendiff-Gumbel-Ranking: Gumbel variant with ranking loss
 - Dendiff-Gumbel-Huber: Gumbel variant with Huber loss (robust to outliers)
 - Dendiff-Corruption-WeightedMSE: Corruption variant with fitness-weighted loss
 - Dendiff-Corruption-Ranking: Corruption variant with ranking loss
 - Dendiff-Corruption-Huber: Corruption variant with Huber loss
-- Dendiff-STE-WeightedMSE: STE variant with fitness-weighted loss
-- Dendiff-STE-Ranking: STE variant with ranking loss
-- Dendiff-STE-Huber: STE variant with Huber loss
-- Dendiff-HardConcrete-WeightedMSE: Hard Concrete variant with fitness-weighted loss
-- Dendiff-HardConcrete-Ranking: Hard Concrete variant with ranking loss
-- Dendiff-HardConcrete-Huber: Hard Concrete variant with Huber loss
-- Dendiff-Deterministic-WeightedMSE: Deterministic variant with fitness-weighted loss
-- Dendiff-Deterministic-Ranking: Deterministic variant with ranking loss
-- Dendiff-Deterministic-Huber: Deterministic variant with Huber loss
 
 **Fitness-Guided Dendiff Variants:**
-All variants now support fitness guidance/conditioning:
 - Dendiff-Gumbel-FitnessGuided: Conditional on fitness (inspired by C-VAE)
 - Dendiff-Corruption-FitnessGuided: Corruption variant with fitness conditioning
-- Dendiff-STE-FitnessGuided: STE variant with fitness conditioning
-- Dendiff-HardConcrete-FitnessGuided: Hard Concrete variant with fitness conditioning
-- Dendiff-Deterministic-FitnessGuided: Deterministic variant with fitness conditioning
 
 Configurable Parameters (all positional):
 - seed: Random seed
@@ -72,23 +58,20 @@ Examples:
     # Dendiff-Corruption with tanh activation
     python discrete_Dendiff_EDA.py 1 Deceptive3 30 100 30 0.5 dendiff_corruption corruption tanh mse 50 20 0 0.5 0.01 0.5
     
-    # Dendiff-STE (Straight-Through Estimator) with weighted MSE
-    python discrete_Dendiff_EDA.py 0 OneMax 20 80 20 0.5 dendiff_ste ste relu weighted_mse 50 20 0 0.5 0.01 0.5
+    # Dendiff-STE (Straight-Through Estimator)
+    python discrete_Dendiff_EDA.py 0 OneMax 20 80 20 0.5 dendiff_ste ste relu mse 50 20 0 0.5 0.01 0.5
     
-    # Dendiff-HardConcrete with exact 0s and 1s and Huber loss
-    python discrete_Dendiff_EDA.py 0 OneMax 20 80 20 0.5 dendiff_hard_concrete hard_concrete relu huber 100 20 0 0.1 0.0001 0.3
+    # Dendiff-HardConcrete with exact 0s and 1s
+    python discrete_Dendiff_EDA.py 0 OneMax 20 80 20 0.5 dendiff_hard_concrete hard_concrete relu mse 100 20 0 0.1 0.0001 0.3
     
-    # Dendiff-Deterministic for optimization tasks with ranking loss
-    python discrete_Dendiff_EDA.py 0 OneMax 20 80 20 0.5 dendiff_deterministic deterministic relu ranking 100 20 0 1.0 0.0001 0.3
+    # Dendiff-Deterministic for optimization tasks
+    python discrete_Dendiff_EDA.py 0 OneMax 20 80 20 0.5 dendiff_deterministic deterministic relu mse 100 20 0 1.0 0.0001 0.3
 
     # Dendiff-Gumbel with weighted MSE and fitness guidance
     python discrete_Dendiff_EDA.py 2 HIFF 64 200 50 0.5 dendiff_gumbel gumbel elu weighted_mse 100 20 1 1.0 0.0001 0.3
 
     # Dendiff-Corruption with fitness guidance and ranking loss
     python discrete_Dendiff_EDA.py 3 FC3 30 150 40 0.5 dendiff_corruption corruption relu ranking 50 20 1 0.5 0.01 0.5
-    
-    # Dendiff-STE with fitness guidance and Huber loss
-    python discrete_Dendiff_EDA.py 4 KDeceptive3 30 150 40 0.5 dendiff_ste ste relu huber 50 20 1 0.5 0.01 0.5
 
 ==============================================================================
 """
@@ -118,9 +101,6 @@ from pateda.learning.discrete_dendiff_deterministic import learn_discrete_dendif
 try:
     from pateda.learning.discrete_dendiff_gumbel_enhanced import learn_discrete_dendiff_gumbel_enhanced
     from pateda.learning.discrete_dendiff_corruption_enhanced import learn_discrete_dendiff_corruption_enhanced
-    from pateda.learning.discrete_dendiff_ste_enhanced import learn_discrete_dendiff_ste_enhanced
-    from pateda.learning.discrete_dendiff_hard_concrete_enhanced import learn_discrete_dendiff_hard_concrete_enhanced
-    from pateda.learning.discrete_dendiff_deterministic_enhanced import learn_discrete_dendiff_deterministic_enhanced
     ENHANCED_AVAILABLE = True
 except ImportError:
     ENHANCED_AVAILABLE = False
@@ -134,9 +114,6 @@ from pateda.sampling.discrete_dendiff import (
     sample_discrete_dendiff_hard_concrete,
     sample_discrete_dendiff_deterministic
 )
-
-# Mutation modules
-from pateda.mutation import frequency_balance_mutation
 
 # Benchmark functions
 from pateda.functions.discrete.additive_decomposable import (
@@ -154,11 +131,6 @@ from pateda.functions.discrete.additive_decomposable import (
 
 # Success threshold as a fraction of optimal fitness
 SUCCESS_THRESHOLD = 0.01
-
-# Tolerance for checking if optimum is reached (absolute difference)
-# A value of 1e-6 is used to account for floating-point arithmetic precision
-# while being strict enough to ensure the optimum is truly reached
-OPTIMUM_TOLERANCE = 1e-6
 
 # Loss functions that require fitness values for computation
 LOSS_FUNCTIONS_REQUIRING_FITNESS = ['weighted_mse', 'ranking']
@@ -430,7 +402,6 @@ class DendiffEDA:
         learning_params: Optional[Dict[str, Any]] = None,
         sampling_params: Optional[Dict[str, Any]] = None,
         random_seed: Optional[int] = None,
-        alpha: float = 0.0,
     ):
         """
         Initialize Dendiff EDA
@@ -473,9 +444,6 @@ class DendiffEDA:
             Additional sampling parameters
         random_seed : int, optional
             Random seed for reproducibility
-        alpha : float
-            Maximum allowed frequency for ones or zeros (default 0.0, no mutation)
-            If alpha > 0, applies frequency balance mutation
         """
         self.variant = variant
         self.n_vars = n_vars
@@ -495,7 +463,6 @@ class DendiffEDA:
         self.learning_params = learning_params or {}
         self.sampling_params = sampling_params or {}
         self.random_seed = random_seed
-        self.alpha = alpha
 
         # Set random seed if provided
         if random_seed is not None:
@@ -513,7 +480,7 @@ class DendiffEDA:
         if variant not in self.variant_map:
             raise ValueError(f"Invalid variant: {variant}. Must be one of {list(self.variant_map.keys())}")
 
-    def run(self, fitness_func, verbose=True, optimal_fitness=None):
+    def run(self, fitness_func, verbose=True):
         """
         Run the Dendiff EDA
 
@@ -523,8 +490,6 @@ class DendiffEDA:
             Fitness function
         verbose : bool
             Print progress
-        optimal_fitness : float, optional
-            Known optimal fitness value for early termination
 
         Returns
         -------
@@ -552,26 +517,12 @@ class DendiffEDA:
         if verbose:
             print(f"Generation 0: Best Fitness = {best_fitness:.4f}")
 
-        # Check if optimum reached in initial population
-        if optimal_fitness is not None and abs(best_fitness - optimal_fitness) < OPTIMUM_TOLERANCE:
-            if verbose:
-                print(f"\nOptimum reached!")
-                print(f"\nDendiff-EDA completed after 0 generations")
-                print(f"Best fitness found: {best_fitness:.6f}")
-                print(f"  at generation {generation_found}")
-            return best_fitness, best_solution, history
-
         for gen in range(self.max_generations):
             # Selection
             n_selected = int(self.pop_size * self.selection_ratio)
             selected_idx = np.argsort(fitness)[-n_selected:]
             selected_pop = population[selected_idx]
             selected_fitness = fitness[selected_idx]
-
-            # Store the best solution from selected population before mutation (for elitism with mutation)
-            if self.alpha > 0:
-                best_idx_in_selected = np.argmax(selected_fitness)
-                best_solution_pre_mutation = selected_pop[best_idx_in_selected].copy()
 
             # Prepare learning parameters
             # Dynamic hidden layer computation based on n_vars and population size
@@ -650,8 +601,9 @@ class DendiffEDA:
                      self.loss_function != 'mse')
                 )
 
-                # All variants now have enhanced versions
-                if use_enhanced:
+                # Only dendiff_gumbel and dendiff_corruption have enhanced versions
+                # For other variants (ste, hard_concrete, deterministic), use standard functions
+                if use_enhanced and self.variant in ['dendiff_gumbel', 'dendiff_corruption']:
                     # Use enhanced learning functions with loss/fitness support
                     if self.variant == 'dendiff_gumbel':
                         model = learn_discrete_dendiff_gumbel_enhanced(
@@ -661,21 +613,6 @@ class DendiffEDA:
                         model = learn_discrete_dendiff_corruption_enhanced(
                             selected_pop, selected_fitness, learning_params
                         )
-                    elif self.variant == 'dendiff_ste':
-                        model = learn_discrete_dendiff_ste_enhanced(
-                            selected_pop, selected_fitness, learning_params
-                        )
-                    elif self.variant == 'dendiff_hard_concrete':
-                        model = learn_discrete_dendiff_hard_concrete_enhanced(
-                            selected_pop, selected_fitness, learning_params
-                        )
-                    elif self.variant == 'dendiff_deterministic':
-                        model = learn_discrete_dendiff_deterministic_enhanced(
-                            selected_pop, selected_fitness, learning_params
-                        )
-                    else:
-                        # Fallback to standard function
-                        model = learn_fn(selected_pop, selected_fitness, learning_params)
                 else:
                     # Use standard learning functions
                     model = learn_fn(selected_pop, selected_fitness, learning_params)
@@ -697,21 +634,7 @@ class DendiffEDA:
                 population = np.random.randint(0, self.cardinality,
                                              (self.pop_size, self.n_vars))
 
-            # Apply frequency balance mutation if alpha > 0
-            if self.alpha > 0:
-                # Apply mutation
-                mutation_params = {'alpha': self.alpha}
-                population = frequency_balance_mutation(
-                    self.n_vars,
-                    self.cardinality,
-                    population,
-                    mutation_params
-                )
-
-                # Enforce elitism: replace one solution with the best from previous selected population
-                population[0] = best_solution_pre_mutation
-
-            # Evaluate (only once)
+            # Evaluate
             fitness = fitness_func(population)
 
             # Update best
@@ -725,15 +648,6 @@ class DendiffEDA:
 
             if verbose and (gen + 1) % 1 == 0:
                 print(f"Generation {gen+1}: Best Fitness = {best_fitness:.4f}")
-
-            # Check if optimum reached
-            if optimal_fitness is not None and abs(best_fitness - optimal_fitness) < OPTIMUM_TOLERANCE:
-                if verbose:
-                    print(f"\nOptimum reached!")
-                    print(f"\nDendiff-EDA completed after {gen+1} generations")
-                    print(f"Best fitness found: {best_fitness:.6f}")
-                    print(f"  at generation {generation_found}")
-                return best_fitness, best_solution, history
 
         # Print completion summary
         if verbose:
@@ -801,8 +715,6 @@ Examples:
                         help='Starting noise/corruption level (e.g., 0.0001 for Gumbel, 0.01 for Corruption)')
     parser.add_argument('beta_end', type=float,
                         help='Ending noise/corruption level (e.g., 0.3 for Gumbel, 0.5 for Corruption)')
-    parser.add_argument('alpha', type=float, nargs='?', default=0.0,
-                        help='Max frequency threshold for mutation (default: 0.0, no mutation)')
 
     # Parse arguments
     args = parser.parse_args()
@@ -853,7 +765,6 @@ Examples:
     print(f"Temperature:        {args.temperature}")
     print(f"Beta Start:         {args.beta_start}")
     print(f"Beta End:           {args.beta_end}")
-    print(f"Alpha (mutation):   {args.alpha}")
     print("=" * 80)
     print()
 
@@ -892,10 +803,9 @@ Examples:
         learning_params=learning_params,
         sampling_params=sampling_params,
         random_seed=args.seed,
-        alpha=args.alpha,
     )
 
-    best_fitness, best_solution, history = eda.run(fitness_func, verbose=True, optimal_fitness=optimal_fitness)
+    best_fitness, best_solution, history = eda.run(fitness_func, verbose=True)
 
     elapsed_time = time.time() - start_time
 

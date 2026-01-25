@@ -45,7 +45,7 @@ if __name__ == '__main__':
     use_markov_init_values = [0]
 
     # Seeds to test
-    seeds = np.arange(10, 11)  # 30 different seeds
+    seeds = np.arange(8, 10)  # 30 different seeds
 
     # Generate all combinations
     for seed in seeds:

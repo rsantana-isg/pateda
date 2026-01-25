@@ -29,8 +29,8 @@
 
 
 
-echo   "bnd -exec python3 $1 $2 $3 $4 $5 $6 $7 > results_discrete_eda_v2_$3_$4_$5_$6_$7_$2.dat"        
-        bnd -exec python3 $1 $2 $3 $4 $5 $6 $7 > results_discrete_eda_v2_$3_$4_$5_$6_$7_$2.dat
+echo   "bnd -exec python3 $1 $2 $3 $4 $5 $6 $7 $8 > results_discrete_eda_v2_$3_$4_$5_$6_$7_$8_$2.dat"        
+        bnd -exec python3 $1 $2 $3 $4 $5 $6 $7 $8 > results_discrete_eda_v2_$3_$4_$5_$6_$7_$8_$2.dat
 
 
-# sbatch examples/slurm_pateda.sh discrete_eda.py 111 OneMax 20 80 20 VAE
+# sbatch examples/slurm_pateda.sh discrete_eda.py 111 OneMax 20 80 20 VAE 0.95
