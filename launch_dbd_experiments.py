@@ -9,7 +9,8 @@ alpha = 0.95
 
 if __name__ == '__main__':
     # Objective functions to test
-    obj_functions = ['OneMax', 'KDeceptive3', 'Deceptive3', 'HIFF', 'KDeceptive5', 'FC5']
+    #obj_functions = ['OneMax', 'KDeceptive3', 'Deceptive3', 'HIFF', 'KDeceptive5', 'FC5']
+    obj_functions = ['OneMax', 'KDeceptive3', 'Deceptive3', 'HIFF', 'KDeceptive5']
 
     # DbD variants to test
     #dbd_variants = ['dbd', 'dbd_cs', 'dbd_cd', 'dbd_uc', 'dbd_us',
@@ -44,7 +45,7 @@ if __name__ == '__main__':
     use_markov_init_values = [0]
 
     # Seeds to test
-    seeds = np.arange(11, 21)  # 30 different seeds
+    seeds = np.arange(10, 11)  # 30 different seeds
 
     # Generate all combinations
     for seed in seeds:
