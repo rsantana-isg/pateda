@@ -1,0 +1,756 @@
+\documentclass[11pt,a4paper]{article}
+\usepackage[utf8]{inputenc}
+\usepackage{amsmath,amssymb,amsthm}
+\usepackage{algorithm}
+\usepackage{algpseudocode}
+\usepackage{graphicx}
+\usepackage{hyperref}
+\usepackage{booktabs}
+\usepackage{bm}
+\usepackage{bbm}
+
+% Custom commands
+\newcommand{\R}{\mathbb{R}}
+\newcommand{\E}{\mathbb{E}}
+\newcommand{\prob}{\mathbb{P}}
+\newcommand{\vx}{\mathbf{x}}
+\newcommand{\vy}{\mathbf{y}}
+\newcommand{\vz}{\mathbf{z}}
+\newcommand{\vtheta}{\boldsymbol{\theta}}
+\newcommand{\sigmoid}{\sigma}
+\DeclareMathOperator{\softmax}{softmax}
+
+\title{Discrete Diffusion-by-Deblending EDA:\\
+A Technical Documentation for the DbD-CS and DbD-CD Variants}
+\author{Pateda Framework}
+\date{\today}
+
+\begin{document}
+
+\maketitle
+
+\begin{abstract}
+This document provides a comprehensive mathematical description of the Discrete Diffusion-by-Deblending Estimation of Distribution Algorithm (DbD-EDA) for binary optimization problems. The DbD-EDA is a minimalist diffusion model that learns to transition between two distributions by training a neural network to predict the \emph{difference} (velocity) between blended samples and target samples. We focus on two main variants: DbD-CS (Current to Selected) and DbD-CD (Current to Closest in selected based on Distance). We describe the probabilistic blending process, the neural network architecture for deblending, the Gumbel-Softmax reparameterization, the learning procedure with multiple loss functions, the sampling mechanism, and the role of key hyperparameters including the number of alpha samples.
+\end{abstract}
+
+\tableofcontents
+\newpage
+
+%==============================================================================
+\section{Introduction}
+%==============================================================================
+
+Estimation of Distribution Algorithms (EDAs) are population-based optimization methods that learn and sample from probabilistic models of promising solutions. The Discrete Diffusion-by-Deblending EDA (DbD-EDA) introduces a novel approach by leveraging concepts from flow-based diffusion models, adapted for binary optimization.
+
+The key insight of DbD is that instead of learning to denoise corrupted data (as in traditional diffusion models), we learn the \emph{transformation} between two distributions: a source distribution $p_0$ and a target distribution $p_1$. The network learns to predict the ``velocity'' or difference that transforms samples from one distribution toward the other.
+
+The key innovations of Discrete DbD-EDA include:
+\begin{enumerate}
+    \item \textbf{Probabilistic blending}: Creating intermediate samples by stochastically mixing two distributions using an interpolation parameter $\alpha$
+    \item \textbf{Velocity prediction}: Training a neural network to predict the difference $(\vx_1 - \vx_0)$ given blended samples and the blending parameter $\alpha$
+    \item \textbf{Gumbel-Softmax reparameterization}: Enabling differentiable discrete sampling during training
+    \item \textbf{Iterative deblending}: Generating new samples by progressively applying the learned velocity field
+    \item \textbf{Fitness-guided generation}: Optional conditioning on fitness values to bias sampling toward high-quality solutions
+\end{enumerate}
+
+%==============================================================================
+\section{Problem Setting}
+%==============================================================================
+
+Consider a binary optimization problem where we seek to maximize (or minimize) an objective function $f: \{0,1\}^n \rightarrow \R$ over $n$ binary variables. In the context of an EDA, at each generation we have:
+
+\begin{itemize}
+    \item A \textbf{current population} $\mathcal{P}_{\text{current}} = \{\vx^{(1)}_c, \ldots, \vx^{(N)}_c\}$ representing the full population before selection
+    \item A \textbf{selected population} $\mathcal{P}_{\text{selected}} = \{\vx^{(1)}_s, \ldots, \vx^{(M)}_s\}$ containing the top $M$ individuals by fitness, where $M = \lfloor \rho \cdot N \rfloor$ and $\rho$ is the selection ratio (truncation percent)
+    \item Associated fitness values $\{f^{(1)}_c, \ldots, f^{(N)}_c\}$ and $\{f^{(1)}_s, \ldots, f^{(M)}_s\}$
+\end{itemize}
+
+The goal of DbD-EDA is to learn a generative model that can produce new candidate solutions that are likely to have high fitness by learning the transformation from one distribution to another.
+
+%==============================================================================
+\section{The Probabilistic Blending Process}
+%==============================================================================
+
+\subsection{Continuous vs. Discrete Blending}
+
+In continuous domains, diffusion-by-deblending uses linear interpolation:
+\begin{equation}
+    \vx_\alpha = (1-\alpha)\vx_0 + \alpha \vx_1, \quad \alpha \in [0,1]
+\end{equation}
+
+For discrete (binary) variables, this deterministic interpolation is not directly applicable. Instead, we use \textbf{probabilistic blending}, where for each variable we sample from a mixture of two Bernoulli distributions.
+
+\subsection{Probabilistic Blending for Binary Variables}
+
+Given a pair of binary samples $\vx_0 \in \{0,1\}^n$ (from the source distribution) and $\vx_1 \in \{0,1\}^n$ (from the target distribution), the blending parameter $\alpha \in [0,1]$ defines the probability of selecting from each distribution.
+
+For each variable $i$, the blended value is sampled as:
+\begin{equation}
+    p(x_{\alpha,i} = 1 | \vx_0, \vx_1, \alpha) = (1-\alpha) \cdot x_{0,i} + \alpha \cdot x_{1,i}
+\end{equation}
+
+This means:
+\begin{equation}
+    x_{\alpha,i} \sim \text{Bernoulli}\left((1-\alpha) \cdot x_{0,i} + \alpha \cdot x_{1,i}\right)
+\end{equation}
+
+\subsection{Interpretation}
+
+The probabilistic blending creates a stochastic interpolation path:
+\begin{itemize}
+    \item At $\alpha = 0$: $x_{\alpha,i} = x_{0,i}$ (fully at source)
+    \item At $\alpha = 1$: $x_{\alpha,i} = x_{1,i}$ (fully at target)
+    \item At $\alpha = 0.5$: Equal probability of taking value from either distribution
+\end{itemize}
+
+\subsection{Creating Blended Training Samples}
+
+The function \texttt{create\_blended\_binary\_samples} generates the training data:
+
+\begin{algorithm}[H]
+\caption{Create Blended Binary Samples for Training}
+\label{alg:blending}
+\begin{algorithmic}[1]
+\Require Source population $P_0 = \{\vx^{(1)}_0, \ldots, \vx^{(N)}_0\}$
+\Require Target population $P_1 = \{\vx^{(1)}_1, \ldots, \vx^{(N)}_1\}$
+\Require Number of alpha samples $K$ per pair
+\Require Fitness values $\{f^{(1)}_0, \ldots, f^{(N)}_0\}$ and $\{f^{(1)}_1, \ldots, f^{(N)}_1\}$ (optional)
+\State Initialize empty lists: $\mathcal{A}$, $\mathcal{X}_{\alpha}$, $\mathcal{D}$, $\mathcal{F}$
+\For{each pair $(\vx_0^{(j)}, \vx_1^{(j)})$ for $j = 1, \ldots, N$}
+    \For{$k = 1$ to $K$}
+        \State Sample $\alpha \sim \text{Uniform}(0, 1)$
+        \State Compute mixture probability: $\mathbf{p} = (1-\alpha)\vx_0^{(j)} + \alpha \vx_1^{(j)}$
+        \State Sample blended: $\vx_\alpha \sim \text{Bernoulli}(\mathbf{p})$ \Comment{Element-wise}
+        \State Compute difference: $\mathbf{d} = \vx_1^{(j)} - \vx_0^{(j)}$ \Comment{Target for learning}
+        \State Append $\alpha$ to $\mathcal{A}$
+        \State Append $\vx_\alpha$ to $\mathcal{X}_{\alpha}$
+        \State Append $\mathbf{d}$ to $\mathcal{D}$
+        \If{fitness values provided}
+            \State Compute blended fitness: $f_\alpha = (1-\alpha)f_0^{(j)} + \alpha f_1^{(j)}$
+            \State Append $f_\alpha$ to $\mathcal{F}$
+        \EndIf
+    \EndFor
+\EndFor
+\State \Return $\mathcal{A}$, $\mathcal{X}_{\alpha}$, $\mathcal{D}$, $\mathcal{F}$
+\end{algorithmic}
+\end{algorithm}
+
+%==============================================================================
+\section{Neural Network Architecture}
+%==============================================================================
+
+\subsection{The Deblending Network}
+
+The core component of DbD-EDA is a Multi-Layer Perceptron (MLP) called the \textbf{BinaryDeblendingNet}. Unlike traditional diffusion models that predict the clean data, this network learns to predict the \emph{difference} (velocity) between the target and source distributions.
+
+\subsubsection{Network Structure}
+
+The network architecture consists of:
+\begin{enumerate}
+    \item \textbf{Input layer}: Concatenation of:
+        \begin{itemize}
+            \item Blended binary data $\vx_\alpha \in \R^n$
+            \item Blending parameter $\alpha \in \R$
+            \item (Optional) Normalized fitness value $\tilde{f} \in \R$
+        \end{itemize}
+    \item \textbf{Hidden layers}: Sequence of fully-connected layers with configurable activation functions and dropout
+    \item \textbf{Output layer}: Produces difference prediction $\hat{\mathbf{d}} \in \R^n$
+\end{enumerate}
+
+\subsubsection{Network Forward Pass}
+
+Let $\vtheta$ denote the network parameters. The deblending network computes:
+
+\begin{equation}
+    \mathbf{h}_0 = \begin{cases}
+        [\vx_\alpha; \alpha] \in \R^{n+1} & \text{if not fitness-guided} \\
+        [\vx_\alpha; \alpha; \tilde{f}] \in \R^{n+2} & \text{if fitness-guided}
+    \end{cases}
+\end{equation}
+
+\begin{equation}
+    \mathbf{h}_\ell = \text{Dropout}\left(\phi_\ell\left(W_\ell \mathbf{h}_{\ell-1} + \mathbf{b}_\ell\right)\right), \quad \ell = 1, \ldots, L
+\end{equation}
+
+\begin{equation}
+    \hat{\mathbf{d}} = W_{\text{out}} \mathbf{h}_L + \mathbf{b}_{\text{out}} \in \R^n
+\end{equation}
+
+where $\phi_\ell$ is the activation function for layer $\ell$ (configurable: ReLU, Tanh, Sigmoid, LeakyReLU, ELU, SELU, GELU, etc.).
+
+\subsection{Network Inputs and Outputs}
+
+\begin{table}[h]
+\centering
+\begin{tabular}{@{}lll@{}}
+\toprule
+\textbf{Component} & \textbf{Shape} & \textbf{Description} \\
+\midrule
+\textbf{Inputs:} & & \\
+$\vx_\alpha$ & $(B, n)$ & Blended binary data (as floats) \\
+$\alpha$ & $(B, 1)$ & Blending parameter \\
+$\tilde{f}$ (optional) & $(B, 1)$ & Normalized fitness values \\
+\midrule
+\textbf{Outputs:} & & \\
+$\hat{\mathbf{d}}$ & $(B, n)$ & Predicted difference $(\vx_1 - \vx_0)$ \\
+\bottomrule
+\end{tabular}
+\caption{Network inputs and outputs, where $B$ is batch size and $n$ is number of variables.}
+\label{tab:io}
+\end{table}
+
+\subsection{Interpretation of the Difference Prediction}
+
+The network learns to predict:
+\begin{equation}
+    \hat{\mathbf{d}} = D_\vtheta(\vx_\alpha, \alpha) \approx \vx_1 - \vx_0
+\end{equation}
+
+For binary variables, the true difference $\mathbf{d} = \vx_1 - \vx_0$ takes values in $\{-1, 0, 1\}$:
+\begin{itemize}
+    \item $d_i = -1$: Bit flips from 1 to 0
+    \item $d_i = 0$: Bit remains unchanged
+    \item $d_i = 1$: Bit flips from 0 to 1
+\end{itemize}
+
+This formulation allows the network to learn the \emph{direction} of change needed to transform source samples toward the target distribution.
+
+%==============================================================================
+\section{Gumbel-Softmax Reparameterization}
+%==============================================================================
+
+\subsection{The Discrete Sampling Challenge}
+
+During the sampling (deblending) process, we need to convert continuous probability values to discrete binary samples. However, standard discrete sampling (e.g., Bernoulli sampling) is non-differentiable, which poses challenges for gradient-based training.
+
+\subsection{Gumbel-Softmax Distribution}
+
+The Gumbel-Softmax trick provides a differentiable approximation to discrete sampling. Given logits $\mathbf{z} \in \R^{n \times 2}$ (representing probabilities for 0 and 1 for each variable) and temperature $\tau > 0$:
+
+\begin{enumerate}
+    \item Sample Gumbel noise:
+    \begin{equation}
+        g_{i,c} = -\log(-\log(u_{i,c})), \quad u_{i,c} \sim \text{Uniform}(0,1)
+    \end{equation}
+
+    \item Compute soft samples:
+    \begin{equation}
+        y_{i,c} = \frac{\exp((z_{i,c} + g_{i,c})/\tau)}{\sum_{c'=0}^{1} \exp((z_{i,c'} + g_{i,c'})/\tau)}
+    \end{equation}
+\end{enumerate}
+
+\subsection{Straight-Through Estimator}
+
+For obtaining hard (discrete) samples while maintaining gradient flow, the straight-through estimator is used:
+
+\begin{equation}
+    \hat{y}_{i,c} = \begin{cases}
+        1 & \text{if } c = \arg\max_{c'} y_{i,c'} \\
+        0 & \text{otherwise}
+    \end{cases}
+\end{equation}
+
+\begin{equation}
+    \tilde{y} = \hat{y} - \text{sg}(y) + y
+\end{equation}
+
+where $\text{sg}(\cdot)$ is the stop-gradient operator. This allows gradients to flow through $y$ in the backward pass while using $\hat{y}$ in the forward pass.
+
+\subsection{Role in DbD-EDA Sampling}
+
+In the sampling phase, the Gumbel-Softmax mechanism is used to:
+\begin{enumerate}
+    \item Convert the continuous probability predictions to binary samples
+    \item Maintain stochasticity in the sampling process
+    \item Allow for temperature-controlled exploration (higher temperature = more random, lower temperature = more deterministic)
+\end{enumerate}
+
+The sampling process uses Bernoulli sampling on the clipped probabilities:
+\begin{equation}
+    \vx_{\text{new}} = \text{Bernoulli}\left(\text{clip}(\vx + \Delta\alpha \cdot \hat{\mathbf{d}}, 0, 1)\right)
+\end{equation}
+
+%==============================================================================
+\section{Learning Algorithm}
+%==============================================================================
+
+\subsection{Training Objective}
+
+The model is trained to predict the difference between target and source samples given blended inputs. The primary objective minimizes the prediction error:
+
+\begin{equation}
+    \mathcal{L}(\vtheta) = \E_{\alpha, \vx_0, \vx_1, \vx_\alpha}\left[\ell\left(D_\vtheta(\vx_\alpha, \alpha), \vx_1 - \vx_0\right)\right]
+\end{equation}
+
+where $\ell$ is the loss function and the expectation is over:
+\begin{itemize}
+    \item Blending parameters $\alpha \sim \text{Uniform}(0, 1)$
+    \item Source samples $\vx_0 \sim p_0$ (current or random population)
+    \item Target samples $\vx_1 \sim p_1$ (selected population)
+    \item Blended samples $\vx_\alpha \sim q(\vx_\alpha | \vx_0, \vx_1, \alpha)$
+\end{itemize}
+
+\subsection{Learning Procedure}
+
+\begin{algorithm}[H]
+\caption{Learning Binary DbD Model}
+\label{alg:learning}
+\begin{algorithmic}[1]
+\Require Source population $P_0$, Target population $P_1$
+\Require Fitness values $F_0$, $F_1$ (optional)
+\Require Parameters: epochs $E$, batch size $B$, learning rate $\eta$, alpha samples $K$
+\State Initialize deblending network $D_\vtheta$
+\State Create blended samples: $(\mathcal{A}, \mathcal{X}_\alpha, \mathcal{D}, \mathcal{F}) \gets \texttt{create\_blended\_binary\_samples}(P_0, P_1, K, F_0, F_1)$
+\For{epoch $= 1$ to $E$}
+    \State Shuffle training data indices
+    \For{each mini-batch $\mathcal{B}$ of size $B$}
+        \State Extract batch: $\alpha_\mathcal{B}, \vx_{\alpha,\mathcal{B}}, \mathbf{d}_\mathcal{B}, f_\mathcal{B}$
+        \State Forward pass: $\hat{\mathbf{d}}_\mathcal{B} \gets D_\vtheta(\vx_{\alpha,\mathcal{B}}, \alpha_\mathcal{B}, f_\mathcal{B})$
+        \State Compute loss: $\mathcal{L} \gets \texttt{compute\_loss}(\hat{\mathbf{d}}_\mathcal{B}, \mathbf{d}_\mathcal{B}, f_\mathcal{B})$
+        \State Backward pass: $\nabla_\vtheta \mathcal{L}$
+        \State Update parameters: $\vtheta \gets \vtheta - \eta \nabla_\vtheta \mathcal{L}$
+    \EndFor
+\EndFor
+\State \Return trained model $D_\vtheta$
+\end{algorithmic}
+\end{algorithm}
+
+%==============================================================================
+\section{Loss Functions}
+%==============================================================================
+
+The implementation supports multiple loss functions, each with different properties for guiding the learning process.
+
+\subsection{Standard MSE Loss}
+
+The default loss function measures the squared error between predicted and actual differences:
+
+\begin{equation}
+    \mathcal{L}_{\text{MSE}} = \frac{1}{Bn}\sum_{j=1}^{B}\sum_{i=1}^{n} \left(\hat{d}_i^{(j)} - d_i^{(j)}\right)^2
+\end{equation}
+
+where $\hat{d}_i^{(j)}$ is the predicted difference and $d_i^{(j)} = x_{1,i}^{(j)} - x_{0,i}^{(j)}$ is the true difference.
+
+\subsection{Weighted MSE Loss}
+
+Higher fitness samples receive higher weight in the loss:
+
+\begin{equation}
+    w^{(j)} = \gamma + (1 - \gamma) \cdot \frac{f^{(j)} - f_{\min}}{f_{\max} - f_{\min} + \epsilon}
+\end{equation}
+
+where $\gamma$ is the base weight (fitness\_weight parameter, default 0.1).
+
+\begin{equation}
+    \mathcal{L}_{\text{weighted}} = \frac{1}{Bn}\sum_{j=1}^{B} w^{(j)} \cdot \sum_{i=1}^{n}\left(\hat{d}_i^{(j)} - d_i^{(j)}\right)^2
+\end{equation}
+
+This encourages the model to more accurately predict transformations for high-fitness solutions.
+
+\subsection{Ranking Loss}
+
+The ranking loss prioritizes learning the relative ordering of solutions:
+
+\begin{equation}
+    \mathcal{L}_{\text{ranking}} = \mathcal{L}_{\text{MSE}} + \gamma \cdot \mathcal{L}_{\text{pairwise}}
+\end{equation}
+
+where the pairwise ranking component is:
+
+\begin{equation}
+    \mathcal{L}_{\text{pairwise}} = \frac{1}{|\mathcal{S}|} \sum_{(j,k) \in \mathcal{S}} L_\delta\left(\|\hat{\mathbf{d}}^{(j)}\|_2 - \|\hat{\mathbf{d}}^{(k)}\|_2 - \text{sign}(f^{(j)} - f^{(k)}) \cdot s\right)
+\end{equation}
+
+where:
+\begin{itemize}
+    \item $\mathcal{S}$ is a set of randomly sampled pairs
+    \item $L_\delta$ is the Huber loss for robustness
+    \item $s$ is a scaling factor (typically 0.1)
+\end{itemize}
+
+This loss encourages the network to preserve fitness ordering in its predictions.
+
+\subsection{Huber Loss}
+
+The Huber loss provides robustness to outliers:
+
+\begin{equation}
+    L_\delta(a) = \begin{cases}
+        \frac{1}{2}a^2 & \text{if } |a| \leq \delta \\
+        \delta\left(|a| - \frac{1}{2}\delta\right) & \text{otherwise}
+    \end{cases}
+\end{equation}
+
+Applied element-wise:
+\begin{equation}
+    \mathcal{L}_{\text{Huber}} = \frac{1}{Bn}\sum_{j=1}^{B}\sum_{i=1}^{n} L_\delta\left(\hat{d}_i^{(j)} - d_i^{(j)}\right)
+\end{equation}
+
+%==============================================================================
+\section{Fitness-Guided Generation}
+%==============================================================================
+
+\subsection{Conditional Deblending Network}
+
+The fitness-guided variant conditions the deblending process on fitness information, inspired by conditional VAEs (C-VAE) and fitness-guided EDAs.
+
+The network architecture is modified to include a fitness input:
+\begin{equation}
+    \tilde{f} = \frac{f - f_{\min}}{f_{\max} - f_{\min}}
+\end{equation}
+
+The concatenated input becomes:
+\begin{equation}
+    \mathbf{h}_0 = [\vx_\alpha; \alpha; \tilde{f}] \in \R^{n + 2}
+\end{equation}
+
+\subsection{Biasing Mechanism}
+
+During training, the network learns the conditional distribution:
+\begin{equation}
+    D_\vtheta(\vx_\alpha, \alpha, \tilde{f}) \approx \E[\vx_1 - \vx_0 | \vx_\alpha, \alpha, f]
+\end{equation}
+
+This enables the network to:
+\begin{enumerate}
+    \item Learn that high-fitness solutions have certain structural patterns
+    \item Associate different transformation directions with different fitness levels
+    \item Generate solutions biased toward high-fitness regions when conditioned on high fitness values
+\end{enumerate}
+
+\subsection{Guided Sampling}
+
+During sampling, we set a target fitness value (typically the maximum normalized fitness $\tilde{f} = 1.0$):
+\begin{equation}
+    \hat{\mathbf{d}} = D_\vtheta(\vx_\alpha, \alpha, \tilde{f}_{\text{target}} = 1.0)
+\end{equation}
+
+This biases the generation toward solutions that the model associates with high fitness.
+
+%==============================================================================
+\section{Sampling Algorithm}
+%==============================================================================
+
+\subsection{Iterative Deblending Process}
+
+Sampling is performed via iterative application of the learned velocity field, progressively transforming samples from the initial distribution toward the target distribution.
+
+\begin{algorithm}[H]
+\caption{Sampling from Binary DbD Model}
+\label{alg:sampling}
+\begin{algorithmic}[1]
+\Require Trained model $D_\vtheta$, number of samples $M$, denoising steps $S$, temperature $\tau$
+\Require Initial population $P_{\text{init}}$ (for CS/CD variants) or random initialization
+\State \textbf{Initialization:}
+\If{DbD-CS variant}
+    \State Sample $\vx_0$ from selected population with replacement
+\ElsIf{DbD-CD variant}
+    \State Sample $\vx_0$ from current population with replacement
+\Else
+    \State $\vx_0 \sim \text{Uniform}(\{0,1\}^n)$ or $\vx_0 \sim \text{Bernoulli}(0.5)^n$
+\EndIf
+\State Set $\vx \gets \vx_0$ as float tensor
+\If{fitness-guided}
+    \State Set target fitness: $\tilde{f}_{\text{target}} \gets 1.0$
+\EndIf
+\State Create alpha schedule: $\{\alpha_1, \alpha_2, \ldots, \alpha_S\}$ evenly spaced from $\frac{1}{S}$ to $1$
+\State
+\State \textbf{Iterative Deblending:}
+\For{$s = 1$ to $S$}
+    \State $\alpha_{\text{current}} \gets \alpha_{s-1}$ (with $\alpha_0 = 0$)
+    \State $\alpha \gets \alpha_s$
+    \State $\Delta\alpha \gets \alpha - \alpha_{\text{current}}$
+    \State
+    \If{fitness-guided}
+        \State $\hat{\mathbf{d}} \gets D_\vtheta(\vx, \alpha, \tilde{f}_{\text{target}})$
+    \Else
+        \State $\hat{\mathbf{d}} \gets D_\vtheta(\vx, \alpha)$
+    \EndIf
+    \State
+    \State \textbf{Update using velocity:}
+    \State $\vx \gets \vx + \Delta\alpha \cdot \hat{\mathbf{d}}$
+    \State $\vx \gets \text{clip}(\vx, 0, 1)$
+    \State
+    \State \textbf{Stochastic sampling:}
+    \State $\mathbf{p} \gets \vx / \tau$ if $\tau \neq 1$ else $\vx$
+    \State $\mathbf{p} \gets \text{clip}(\mathbf{p}, 0, 1)$
+    \State $\vx \gets \text{Bernoulli}(\mathbf{p})$
+\EndFor
+\State \Return $\vx$ as integer binary samples
+\end{algorithmic}
+\end{algorithm}
+
+\subsection{Progressive Transformation}
+
+The key insight is the incremental update using the predicted velocity:
+\begin{equation}
+    \vx_{s+1} = \vx_s + \Delta\alpha_s \cdot D_\vtheta(\vx_s, \alpha_s)
+\end{equation}
+
+As $s$ increases (and thus $\alpha$ increases from 0 to 1):
+\begin{itemize}
+    \item The samples progressively move toward the target distribution
+    \item Early steps make larger structural changes
+    \item Later steps refine the solutions
+    \item The Bernoulli sampling at each step maintains discrete structure
+\end{itemize}
+
+%==============================================================================
+\section{DbD-CS vs DbD-CD Variants}
+%==============================================================================
+
+The two main variants differ in how the source population $P_0$ is constructed and how the target samples are paired.
+
+\subsection{DbD-CS: Current to Selected}
+
+In the DbD-CS (Current to Selected) variant:
+
+\begin{itemize}
+    \item \textbf{Source population ($P_0$)}: The current population before selection (or a random population in the first generation)
+    \item \textbf{Target population ($P_1$)}: The selected population (top individuals by fitness)
+    \item \textbf{Pairing}: Random pairing between source and target samples
+    \item \textbf{Sampling initialization}: Samples are initialized from the selected population
+\end{itemize}
+
+\textbf{Learning:}
+\begin{equation}
+    D_\vtheta \text{ learns: } \vx_{\text{current}} \rightarrow \vx_{\text{selected}}
+\end{equation}
+
+\textbf{Characteristics:}
+\begin{itemize}
+    \item Learns the general direction of fitness improvement
+    \item May learn longer-range transformations
+    \item Better for exploration when current and selected populations are diverse
+\end{itemize}
+
+\subsection{DbD-CD: Current to Closest in selected (Distance-based)}
+
+In the DbD-CD (Current to Closest by Distance) variant:
+
+\begin{itemize}
+    \item \textbf{Source population ($P_0$)}: The current population before selection
+    \item \textbf{Target population ($P_1$)}: For each source sample, the \emph{closest} sample in the selected population based on Hamming distance
+    \item \textbf{Pairing}: Each source sample is paired with its nearest neighbor in the selected population
+    \item \textbf{Sampling initialization}: Samples are initialized from the current population
+\end{itemize}
+
+\textbf{Closest Neighbor Computation:}
+\begin{equation}
+    \vx_1^{(j)} = \arg\min_{\vx \in P_{\text{selected}}} d_H(\vx_0^{(j)}, \vx)
+\end{equation}
+where $d_H(\cdot, \cdot)$ is the Hamming distance.
+
+\textbf{Learning:}
+\begin{equation}
+    D_\vtheta \text{ learns: } \vx_{\text{current}} \rightarrow \text{closest}(\vx_{\text{current}}, P_{\text{selected}})
+\end{equation}
+
+\textbf{Characteristics:}
+\begin{itemize}
+    \item Learns smaller, more local transformations
+    \item Focuses on minimal changes needed for improvement
+    \item Better for exploitation and fine-tuning
+    \item Reduces the complexity of the learning task
+\end{itemize}
+
+\subsection{Comparison Summary}
+
+\begin{table}[h]
+\centering
+\begin{tabular}{@{}lcc@{}}
+\toprule
+\textbf{Aspect} & \textbf{DbD-CS} & \textbf{DbD-CD} \\
+\midrule
+Source ($P_0$) & Current/Random population & Current population \\
+Target ($P_1$) & Selected population & Closest in selected \\
+Pairing & Random & Nearest neighbor \\
+Sampling init & From selected & From current \\
+Transformation & Long-range & Local \\
+Emphasis & Exploration & Exploitation \\
+\bottomrule
+\end{tabular}
+\caption{Comparison of DbD-CS and DbD-CD variants.}
+\label{tab:variants}
+\end{table}
+
+%==============================================================================
+\section{Role of \texttt{num\_alpha\_samples}}
+%==============================================================================
+
+The parameter \texttt{num\_alpha\_samples} (denoted $K$) controls how many blended training samples are created for each pair of source and target samples.
+
+\subsection{Training Data Augmentation}
+
+For each pair $(\vx_0^{(j)}, \vx_1^{(j)})$, the algorithm creates $K$ training examples:
+\begin{equation}
+    \{(\alpha_k, \vx_{\alpha_k}^{(j)}, \mathbf{d}^{(j)})\}_{k=1}^{K}
+\end{equation}
+
+where each $\alpha_k \sim \text{Uniform}(0, 1)$ is independently sampled.
+
+\subsection{Impact on Learning}
+
+\textbf{Total training samples:}
+\begin{equation}
+    N_{\text{train}} = N \times K
+\end{equation}
+
+where $N$ is the number of source-target pairs.
+
+\textbf{Effects of increasing $K$:}
+\begin{enumerate}
+    \item \textbf{Better coverage of $\alpha$ values}: More alpha samples means the network sees the transformation at more intermediate stages
+    \item \textbf{Improved velocity field estimation}: Denser sampling of the interpolation path leads to more accurate velocity predictions
+    \item \textbf{Reduced overfitting}: More training data with variety helps generalization
+    \item \textbf{Computational cost}: Linear increase in training time and memory
+\end{enumerate}
+
+\subsection{Recommended Values}
+
+\begin{itemize}
+    \item \textbf{Default}: $K = 20$ (a good balance between quality and efficiency)
+    \item \textbf{Small populations}: Consider $K = 30$--$50$ to compensate for fewer pairs
+    \item \textbf{Large populations}: $K = 10$--$20$ may suffice
+    \item \textbf{Complex problems}: Higher $K$ can help learn intricate transformations
+\end{itemize}
+
+\subsection{Mathematical Interpretation}
+
+The parameter $K$ controls the granularity of the learned velocity field. With more alpha samples, the network learns a more continuous approximation to:
+
+\begin{equation}
+    D_\vtheta(\vx_\alpha, \alpha) \approx \frac{\partial \vx_\alpha}{\partial \alpha} = \vx_1 - \vx_0
+\end{equation}
+
+This is analogous to numerical differentiation: more samples lead to better approximation of the derivative (velocity) along the interpolation path.
+
+%==============================================================================
+\section{Complete EDA Algorithm}
+%==============================================================================
+
+\begin{algorithm}[H]
+\caption{Discrete DbD-EDA (CS/CD Variants)}
+\label{alg:eda}
+\begin{algorithmic}[1]
+\Require Fitness function $f$, population size $N$, generations $G$, selection ratio $\rho$
+\Require DbD parameters: hidden\_dims, epochs, batch\_size, num\_alpha\_samples $K$, n\_steps $S$
+\Require Variant: \texttt{dbd\_cs} or \texttt{dbd\_cd}
+\State
+\State \textbf{Initialization:}
+\State $\mathcal{P}_0 \gets$ random binary population of size $N$
+\State Evaluate: $f^{(i)} \gets f(\vx^{(i)})$ for all $\vx^{(i)} \in \mathcal{P}_0$
+\State Track best: $\vx^* \gets \arg\max_{\vx \in \mathcal{P}_0} f(\vx)$
+\State $P_{\text{prev}} \gets \texttt{None}$
+\State
+\For{generation $g = 1$ to $G$}
+    \State \textbf{Selection:}
+    \State $M \gets \lfloor \rho \cdot N \rfloor$
+    \State $\mathcal{S}_g \gets$ top-$M$ individuals from $\mathcal{P}_{g-1}$ by fitness
+    \State
+    \State \textbf{Prepare Source Population:}
+    \If{$P_{\text{prev}}$ is \texttt{None}}
+        \State $P_0 \gets$ random binary samples of size $M$
+    \Else
+        \State $P_0 \gets$ sample $M$ from $P_{\text{prev}}$
+    \EndIf
+    \State
+    \State \textbf{Prepare Target Population:}
+    \If{variant is \texttt{dbd\_cs}}
+        \State $P_1 \gets \mathcal{S}_g$
+    \ElsIf{variant is \texttt{dbd\_cd}}
+        \State $P_1 \gets \texttt{find\_closest\_neighbors}(P_0, \mathcal{S}_g)$
+    \EndIf
+    \State
+    \State \textbf{Learning:}
+    \State $D_\vtheta \gets \texttt{learn\_binary\_dbd}(P_0, P_1, \text{params})$
+    \State
+    \State \textbf{Sampling:}
+    \If{variant is \texttt{dbd\_cs}}
+        \State $\mathcal{P}_g \gets \texttt{sample\_binary\_dbd\_cs}(D_\vtheta, N, \mathcal{S}_g, \text{sampling\_params})$
+    \ElsIf{variant is \texttt{dbd\_cd}}
+        \State $\mathcal{P}_g \gets \texttt{sample\_binary\_dbd\_cd}(D_\vtheta, N, \mathcal{P}_{g-1}, \text{sampling\_params})$
+    \EndIf
+    \State
+    \State \textbf{Evaluation:}
+    \State $f^{(i)} \gets f(\vx^{(i)})$ for all $\vx^{(i)} \in \mathcal{P}_g$
+    \State
+    \State \textbf{Update best:}
+    \If{$\max_{\vx \in \mathcal{P}_g} f(\vx) > f(\vx^*)$}
+        \State $\vx^* \gets \arg\max_{\vx \in \mathcal{P}_g} f(\vx)$
+    \EndIf
+    \State
+    \State $P_{\text{prev}} \gets \mathcal{P}_{g-1}$
+    \State
+    \State \textbf{Early termination:}
+    \If{$|f(\vx^*) - f_{\text{optimal}}| < \epsilon$}
+        \State \textbf{break}
+    \EndIf
+\EndFor
+\State \Return $\vx^*$, $f(\vx^*)$
+\end{algorithmic}
+\end{algorithm}
+
+%==============================================================================
+\section{Summary of Mathematical Formulations}
+%==============================================================================
+
+\subsection{Probabilistic Blending}
+\begin{equation}
+    x_{\alpha,i} \sim \text{Bernoulli}\left((1-\alpha) x_{0,i} + \alpha x_{1,i}\right), \quad \forall i \in \{1, \ldots, n\}
+\end{equation}
+
+\subsection{Deblending Network}
+\begin{equation}
+    \hat{\mathbf{d}} = D_\vtheta(\vx_\alpha, \alpha) \approx \vx_1 - \vx_0
+\end{equation}
+
+\subsection{Loss Functions}
+\begin{align}
+    \mathcal{L}_{\text{MSE}} &= \frac{1}{Bn}\sum_{j,i} \left(\hat{d}_i^{(j)} - d_i^{(j)}\right)^2 \\
+    \mathcal{L}_{\text{weighted}} &= \frac{1}{Bn}\sum_{j,i} w^{(j)} \left(\hat{d}_i^{(j)} - d_i^{(j)}\right)^2 \\
+    \mathcal{L}_{\text{ranking}} &= \mathcal{L}_{\text{MSE}} + \gamma \cdot \mathcal{L}_{\text{pairwise}} \\
+    \mathcal{L}_{\text{Huber}} &= \frac{1}{Bn}\sum_{j,i} L_\delta\left(\hat{d}_i^{(j)} - d_i^{(j)}\right)
+\end{align}
+
+\subsection{Sampling Update}
+\begin{equation}
+    \vx_{s+1} = \text{Bernoulli}\left(\text{clip}\left(\vx_s + \Delta\alpha_s \cdot D_\vtheta(\vx_s, \alpha_s), 0, 1\right)\right)
+\end{equation}
+
+\subsection{Fitness Normalization}
+\begin{equation}
+    \tilde{f} = \frac{f - f_{\min}}{f_{\max} - f_{\min} + \epsilon}
+\end{equation}
+
+\subsection{Hamming Distance (for DbD-CD)}
+\begin{equation}
+    d_H(\vx, \vy) = \sum_{i=1}^{n} \mathbbm{1}[x_i \neq y_i]
+\end{equation}
+
+%==============================================================================
+\section{Conclusion}
+%==============================================================================
+
+The Discrete Diffusion-by-Deblending EDA provides a powerful framework for binary optimization by:
+
+\begin{enumerate}
+    \item Leveraging probabilistic blending to create smooth interpolations between distributions
+    \item Training a neural network to learn the velocity field for transforming source to target distributions
+    \item Using Gumbel-Softmax for differentiable discrete sampling
+    \item Supporting multiple loss functions for different optimization scenarios
+    \item Enabling fitness-guided generation to bias toward high-quality solutions
+    \item Providing variant-specific behaviors (exploration via CS, exploitation via CD)
+\end{enumerate}
+
+The \texttt{num\_alpha\_samples} parameter ($K$) plays a crucial role in determining the quality of the learned velocity field by controlling the density of training examples along the interpolation path. Higher values of $K$ lead to better approximation of the transformation but at increased computational cost.
+
+The algorithm is particularly suited for problems where:
+\begin{itemize}
+    \item Variable interactions are complex and difficult to model explicitly
+    \item The fitness landscape has multiple local optima
+    \item A balance between exploration and exploitation is critical
+    \item The transformation between current and selected populations encodes useful fitness-improving patterns
+\end{itemize}
+
+\end{document}
