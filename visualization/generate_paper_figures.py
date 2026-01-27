@@ -152,7 +152,7 @@ def generate_time_comparison_figures():
     
     # Define algorithm mapping for renaming
     algorithm_mapping = {
-        'dbs_cs': 'DbD-EDA',
+        'dbd_cs': 'DbD-EDA',
         'dendiff_gumbel': 'Diff-EDA',
         'C-VAE': 'C-VAE-EDA',
         'EBNA': 'EBNA',
