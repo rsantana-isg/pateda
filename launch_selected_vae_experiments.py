@@ -6,9 +6,11 @@ if __name__ == '__main__':
     # Fixed parameters
     n_gen = 250
     trunc = 0.5
+    alpha = 0.95
     
     # Objective functions to test
-    obj_functions = ['OneMax', 'KDeceptive3', 'Deceptive3', 'HIFF', 'KDeceptive5', 'FC5']
+    #obj_functions = ['OneMax', 'KDeceptive3', 'Deceptive3', 'HIFF', 'KDeceptive5', 'FC5']
+    obj_functions = ['OneMax', 'KDeceptive3', 'Deceptive3', 'HIFF', 'KDeceptive5']
     
     # VAE variants - all 12 variants (original + enhanced)
     #variants = ['VAE', 'E-VAE', 'C-VAE', 'Desc-VAE', 'Reg-VAE', 'Mom-VAE', 
@@ -39,7 +41,8 @@ if __name__ == '__main__':
     epochs_options = [50]
 
     # MI Layer options
-    mi_layer_options = [0,1]
+    #mi_layer_options = [0,1]
+    mi_layer_options = [0]
 
     # Seeds
     for seed in np.arange(1, 21):
@@ -61,7 +64,7 @@ if __name__ == '__main__':
                                     for epochs in epochs_options:
                                         for mi_layer in mi_layer_options:
                                             # Build command with positional arguments
-                                            cmd = f"sbatch slurm_vae.sh examples/discrete_VAE_EDA.py {seed} {obj_func} {n} {p_size} {n_gen} {trunc} {variant} {activation_enc} {activation_dec} {beta_start} {beta_end} {latent_dim} {epochs} {mi_layer}"
+                                            cmd = f"sbatch slurm_vae.sh examples/discrete_VAE_EDA.py {seed} {obj_func} {n} {p_size} {n_gen} {trunc} {variant} {activation_enc} {activation_dec} {beta_start} {beta_end} {latent_dim} {epochs} {mi_layer} {alpha}"
 
                                           
 

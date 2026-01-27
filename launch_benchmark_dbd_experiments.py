@@ -6,7 +6,7 @@ import numpy as np
 n_gen = 250
 trunc = 0.1
 
-problem = 'UBQP'
+problem = 'Ising'
 
 if __name__ == '__main__':
     # Objective functions to test
@@ -19,13 +19,13 @@ if __name__ == '__main__':
     elif  problem == 'UBQP':
         instance_names = ['bqp100']
    
-    dbd_variants = ['dbd_cs', 'dbd_cd', 'dbd_cs_t', 'dbd_cd_t']
-  
+    #dbd_variants = ['dbd_cs', 'dbd_cd', 'dbd_cs_t', 'dbd_cd_t']
+    dbd_variants = ['dbd_cs', 'dbd_cd']
 
     # Activation functions (all in the specified set)
     #activations = ['leaky_relu', 'relu', 'tanh']
-    activations = ['elu', 'relu', 'tanh']
-    
+    #activations = ['elu', 'relu', 'tanh']
+    activations = ['relu']
 
     # Loss functions
     loss_functions = ['mse', 'weighted_mse', 'ranking', 'huber']
@@ -56,7 +56,7 @@ if __name__ == '__main__':
 
     
     # Seeds to test
-    seeds = np.arange(11, 21)  # 30 different seeds
+    seeds = np.arange(1, 11)  # 30 different seeds
 
     
     n = 100

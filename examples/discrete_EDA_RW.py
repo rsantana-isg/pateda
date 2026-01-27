@@ -324,7 +324,8 @@ def load_ising_instance(instance_name: str):
                 # Read interaction values
                 for j in range(n_neighbors):
                     inter[i, j] = float(line[1 + n_neighbors + j])
-    
+
+
     # Known optimal values for specific instances
     optimal_fitness = UNKNOWN_OPTIMAL
     if instance_name.replace('.txt', '') == 'SG_100_1':
@@ -334,8 +335,8 @@ def load_ising_instance(instance_name: str):
     elif instance_name.replace('.txt', '') == 'SG_100_3':
         optimal_fitness = 136
     elif instance_name.replace('.txt', '') == 'SG_100_4':
-        optimal_fitness = 130
-    
+        optimal_fitness = 130                        
+   
     return n_vars, lattice, inter, optimal_fitness
 
 

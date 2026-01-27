@@ -19,12 +19,15 @@ if __name__ == '__main__':
     
     # Combine all problem instances
     problem_configs = []
-    for instance in sat_instances:
-        problem_configs.append(('SAT', instance))
-    for instance in ising_instances:
-        problem_configs.append(('Ising', instance))
-    for instance in ubqp_instances:
-        problem_configs.append(('UBQP', instance))
+    if problem=='SAT':
+        for instance in sat_instances:
+            problem_configs.append(('SAT', instance))
+    elif  problem == 'Ising':        
+        for instance in ising_instances:
+            problem_configs.append(('Ising', instance))
+    elif  problem == 'UBQP':         
+        for instance in ubqp_instances:
+            problem_configs.append(('UBQP', instance))
     
     # VAE variants to explore (matching launch_selected_vae_experiments.py)
     # TODO: Implement C-VAE support in discrete_EDA_RW.py to enable full variant exploration
@@ -44,7 +47,7 @@ if __name__ == '__main__':
     epochs_options = [50]
     
     #mi_layer_options = [0, 1]
-    mi_layer_options = [1]
+    mi_layer_options = [0]
     
     # Alpha (mutation parameter) - testing both baseline (no mutation) and mutation-enabled
     # 0.0 = no mutation, 0.95 = frequency balance mutation for better exploration

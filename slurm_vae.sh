@@ -32,10 +32,10 @@
 # Arguments:
 # $1: script, $2: seed, $3: obj_func, $4: n, $5: pop_size, $6: n_gen, $7: trunc
 # $8: vae_variant, $9: activation_enc, $10: activation_dec, $11: beta_start
-# $12: beta_end, $13: latent_dim, $14: epochs $15: mi_layer
+# $12: beta_end, $13: latent_dim, $14: epochs $15: mi_layer $16: alpha
 
-echo "bnd -exec python3 $1 $2 $3 $4 $5 $6 $7 $8 $9 ${10} ${11} ${12} ${13} ${14} ${15} > results_discrete_vae_$3_$4_$5_$6_$7_$2_$8_$9_${10}_${11}_${12}_${13}_${14}.dat"
-bnd -exec python3 $1 $2 $3 $4 $5 $6 $7 $8 $9 ${10} ${11} ${12} ${13} ${14} ${15} > results_discrete_vae_$3_$4_$5_$6_$7_$2_$8_$9_${10}_${11}_${12}_${13}_${14}.dat
+echo "bnd -exec python3 $1 $2 $3 $4 $5 $6 $7 $8 $9 ${10} ${11} ${12} ${13} ${14} ${15} ${16} > results_discrete_vae_$3_$4_$5_$6_$7_$2_$8_$9_${10}_${11}_${12}_${13}_${14}_${15}_${16}.dat"
+      bnd -exec python3 $1 $2 $3 $4 $5 $6 $7 $8 $9 ${10} ${11} ${12} ${13} ${14} ${15} ${16} > results_discrete_vae_$3_$4_$5_$6_$7_$2_$8_$9_${10}_${11}_${12}_${13}_${14}_${15}_${16}.dat
 
 
-# sbatch slurm_vae.sh examples/discrete_VAE_EDA.py 111 OneMax 30 150 250 0.5 VAE relu relu 0.0 1.0 0 30 1
+# sbatch slurm_vae.sh examples/discrete_VAE_EDA.py 111 OneMax 30 150 250 0.5 VAE relu relu 0.0 1.0 0 30 1 

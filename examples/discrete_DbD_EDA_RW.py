@@ -331,13 +331,13 @@ def load_ising_instance(instance_name: str):
     # Known optimal values for specific instances
     optimal_fitness = UNKNOWN_OPTIMAL
     if instance_name.replace('.txt', '') == 'SG_100_1':
-        optimal_fitness = 130
+        optimal_fitness = 132
     elif instance_name.replace('.txt', '') == 'SG_100_2':
-        optimal_fitness = 136
+        optimal_fitness = 142
     elif instance_name.replace('.txt', '') == 'SG_100_3':
-        optimal_fitness = 136
+        optimal_fitness = 142
     elif instance_name.replace('.txt', '') == 'SG_100_4':
-        optimal_fitness = 130
+        optimal_fitness = 138
     
     return n_vars, lattice, inter, optimal_fitness
 
