@@ -73,6 +73,21 @@ python3 visualization/generate_all_figures.py
 
 This will generate all figures for both additive and combinatorial problems in one run.
 
+### `generate_paper_figures.py`
+**NEW**: Specialized script for generating specific figures for paper illustration. Creates individual heatmaps and time comparison figures with enhanced readability.
+
+**Usage:**
+```bash
+python3 visualization/generate_paper_figures.py
+```
+
+**Generates:**
+- Individual heatmaps for Deceptive3, SAT, Ising, and UBQP (DbD-EDA and Diff-EDA)
+- Time comparison figures with selected algorithms only
+- All figures with larger fonts and clearer annotations for publication
+
+See [PAPER_FIGURES_README.md](PAPER_FIGURES_README.md) for detailed documentation.
+
 ## Requirements
 
 All required packages are specified in `requirements.txt`:
