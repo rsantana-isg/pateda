@@ -16,8 +16,13 @@ from pathlib import Path
 def run_script(script_path):
     """Run a Python script using subprocess."""
     result = subprocess.run([sys.executable, script_path], 
-                          capture_output=False, 
+                          capture_output=True, 
                           text=True)
+    # Print output for visibility
+    if result.stdout:
+        print(result.stdout)
+    if result.stderr:
+        print(result.stderr, file=sys.stderr)
     if result.returncode != 0:
         raise RuntimeError(f"Script {script_path} failed with exit code {result.returncode}")
 
