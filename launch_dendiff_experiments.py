@@ -49,6 +49,7 @@ import numpy as np
 n_gen = 250
 trunc = 0.5
 n_sampling_steps = 20
+alpha = 0.95
 
 if __name__ == '__main__':
     # Objective functions to test
@@ -109,6 +110,6 @@ if __name__ == '__main__':
                                 f"{seed} {obj_func} {n} {p_size} {n_gen} {trunc} "
                                 f"{variant} {sampling_strategy} {activation} {loss} "
                                 f"{n_timesteps} {n_sampling_steps} {fitness_guided} "
-                                f"{temperature} {beta_start} {beta_end}"
+                                f"{temperature} {beta_start} {beta_end} {alpha}"
                             )
                             print(cmd)
