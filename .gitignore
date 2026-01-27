@@ -49,3 +49,7 @@ docs/_build/
 # OS
 .DS_Store
 Thumbs.db
+
+# Generated figures (can be regenerated from scripts)
+figures/
+
