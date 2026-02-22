@@ -17,7 +17,16 @@ from pateda.learning.mixture_trees import LearnMixtureTrees
 from pateda.learning.tree import LearnTreeModel
 from pateda.learning.mnfda import LearnMNFDA
 from pateda.learning.mnfdag import LearnMNFDAG
+from pateda.learning.mnfda_r import LearnMNFDAR
+from pateda.learning.mnfdag_r import LearnMNFDAGR
+from pateda.learning.tree_r import LearnTreeModelR
 from pateda.learning.moa import LearnMOA
+from pateda.learning.interaction_learning import (
+    find_matrix_interactions_SAT,
+    find_matrix_interactions_ising,
+    find_matrix_interactions_nk,
+    find_matrix_interactions_additive_decomposable,
+)
 from pateda.learning.affinity import (
     LearnAffinityFactorization,
     LearnAffinityFactorizationElim,
@@ -96,6 +105,13 @@ __all__ = [
     "LearnTreeModel",
     "LearnMNFDA",
     "LearnMNFDAG",
+    "LearnMNFDAR",
+    "LearnMNFDAGR",
+    "LearnTreeModelR",
+    "find_matrix_interactions_SAT",
+    "find_matrix_interactions_ising",
+    "find_matrix_interactions_nk",
+    "find_matrix_interactions_additive_decomposable",
     "LearnMOA",
     "LearnAffinityFactorization",
     "LearnAffinityFactorizationElim",
