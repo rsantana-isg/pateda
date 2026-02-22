@@ -39,9 +39,11 @@ References
 
 import sys
 import os
+from pathlib import Path
 
 # Allow running directly from any directory
-sys.path.insert(0, os.path.dirname(os.path.dirname(os.path.abspath(__file__))))
+sys.path.insert(0, str(Path(__file__).parent.parent.parent))
+#sys.path.insert(0, os.path.dirname(os.path.dirname(os.path.abspath(__file__))))
 
 import numpy as np
 from typing import Dict, List, Optional, Tuple
@@ -72,12 +74,12 @@ SAT_CONFIGS = [
 N_INSTANCES = 5
 
 # Number of independent EDA runs per instance
-N_RUNS = 10
+N_RUNS = 1
 
 # EDA parameters
 POP_SIZE = 200
-N_SELECTED = 100          # truncation selection keeps top 50 %
-MAX_GENERATIONS = 100
+N_SELECTED = 20          # truncation selection keeps top 20 %
+MAX_GENERATIONS = 50
 N_ELITE = 5               # elitist replacement: keep best 5 individuals
 RANDOM_SEED_BASE = 1000   # seeds are RANDOM_SEED_BASE + instance_idx * 100 + run_idx
 
