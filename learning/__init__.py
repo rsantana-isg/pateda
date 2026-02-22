@@ -26,6 +26,7 @@ from pateda.learning.interaction_learning import (
     find_matrix_interactions_ising,
     find_matrix_interactions_nk,
     find_matrix_interactions_additive_decomposable,
+    find_matrix_interactions_RNA_design,
 )
 from pateda.learning.affinity import (
     LearnAffinityFactorization,
@@ -112,6 +113,7 @@ __all__ = [
     "find_matrix_interactions_ising",
     "find_matrix_interactions_nk",
     "find_matrix_interactions_additive_decomposable",
+    "find_matrix_interactions_RNA_design",
     "LearnMOA",
     "LearnAffinityFactorization",
     "LearnAffinityFactorizationElim",
