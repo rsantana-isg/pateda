@@ -433,13 +433,13 @@ def learn_discrete_backdrive(
                         break
 
             # Print progress
-            if (epoch + 1) % 20 == 0:
-                print(f"Epoch {epoch+1}/{epochs}: "
-                      f"Train Loss={avg_train_loss:.4f}, Val Loss={val_loss:.4f}")
-        else:
-            # Print progress (no validation)
-            if (epoch + 1) % 20 == 0:
-                print(f"Epoch {epoch+1}/{epochs}: Train Loss={avg_train_loss:.4f}")
+            #if (epoch + 1) % 20 == 0:
+            #    print(f"Epoch {epoch+1}/{epochs}: "
+            #          f"Train Loss={avg_train_loss:.4f}, Val Loss={val_loss:.4f}")
+        #else:
+        #    # Print progress (no validation)
+        #    if (epoch + 1) % 20 == 0:
+        #        print(f"Epoch {epoch+1}/{epochs}: Train Loss={avg_train_loss:.4f}")
 
     # Return model
     model = {

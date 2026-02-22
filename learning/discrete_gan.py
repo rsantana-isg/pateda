@@ -578,8 +578,8 @@ def learn_binary_gan(
         if (epoch + 1) % 50 == 0:
             avg_loss_d = epoch_loss_d / n_batches
             avg_loss_g = epoch_loss_g / n_batches
-            print(f"Epoch {epoch+1}/{epochs}: "
-                  f"D_loss={avg_loss_d:.4f}, G_loss={avg_loss_g:.4f}")
+            #print(f"Epoch {epoch+1}/{epochs}: "
+            #      f"D_loss={avg_loss_d:.4f}, G_loss={avg_loss_g:.4f}")
 
     # Return model with all configuration
     model = {
@@ -758,8 +758,8 @@ def learn_categorical_gan(
         if (epoch + 1) % 50 == 0:
             avg_loss_d = epoch_loss_d / n_batches
             avg_loss_g = epoch_loss_g / n_batches
-            print(f"Epoch {epoch+1}/{epochs}: "
-                  f"D_loss={avg_loss_d:.4f}, G_loss={avg_loss_g:.4f}, Temp={current_temp:.4f}")
+            #print(f"Epoch {epoch+1}/{epochs}: "
+            #      f"D_loss={avg_loss_d:.4f}, G_loss={avg_loss_g:.4f}, Temp={current_temp:.4f}")
 
     # Return model with all configuration
     model = {
@@ -1024,8 +1024,8 @@ def learn_binary_gan_wgan_gp(
         if (epoch + 1) % 50 == 0:
             avg_loss_d = epoch_loss_d / n_batches
             avg_loss_g = epoch_loss_g / n_batches
-            print(f"Epoch {epoch+1}/{epochs}: "
-                  f"D_loss={avg_loss_d:.4f}, G_loss={avg_loss_g:.4f}")
+            #print(f"Epoch {epoch+1}/{epochs}: "
+            #      f"D_loss={avg_loss_d:.4f}, G_loss={avg_loss_g:.4f}")
 
     # Return model
     model = {
@@ -1264,8 +1264,8 @@ def learn_binary_gan_cond_fit(
         if (epoch + 1) % 50 == 0:
             avg_loss_d = epoch_loss_d / n_batches
             avg_loss_g = epoch_loss_g / n_batches
-            print(f"Epoch {epoch+1}/{epochs}: "
-                  f"D_loss={avg_loss_d:.4f}, G_loss={avg_loss_g:.4f}")
+            #print(f"Epoch {epoch+1}/{epochs}: "
+            #      f"D_loss={avg_loss_d:.4f}, G_loss={avg_loss_g:.4f}")
 
     # Store fitness statistics for sampling
     model = {
@@ -1524,8 +1524,8 @@ def learn_binary_gan_aux(
             avg_loss_d = epoch_loss_d / n_batches
             avg_loss_g = epoch_loss_g / n_batches
             avg_loss_fitness = epoch_loss_fitness / n_batches
-            print(f"Epoch {epoch+1}/{epochs}: "
-                  f"D_loss={avg_loss_d:.4f}, G_loss={avg_loss_g:.4f}, Fitness_loss={avg_loss_fitness:.4f}")
+            #print(f"Epoch {epoch+1}/{epochs}: "
+            #      f"D_loss={avg_loss_d:.4f}, G_loss={avg_loss_g:.4f}, Fitness_loss={avg_loss_fitness:.4f}")
 
     # Return model
     model = {
@@ -1741,8 +1741,8 @@ def learn_binary_gan_repulsion(
             avg_loss_d = epoch_loss_d / n_batches
             avg_loss_g = epoch_loss_g / n_batches
             avg_loss_diversity = epoch_loss_diversity / n_batches
-            print(f"Epoch {epoch+1}/{epochs}: "
-                  f"D_loss={avg_loss_d:.4f}, G_loss={avg_loss_g:.4f}, Diversity={avg_loss_diversity:.4f}")
+            #print(f"Epoch {epoch+1}/{epochs}: "
+            #      f"D_loss={avg_loss_d:.4f}, G_loss={avg_loss_g:.4f}, Diversity={avg_loss_diversity:.4f}")
 
     # Return model
     model = {
@@ -1918,8 +1918,8 @@ def learn_binary_gan_weighted_d(
         if (epoch + 1) % 50 == 0:
             avg_loss_d = epoch_loss_d / n_batches
             avg_loss_g = epoch_loss_g / n_batches
-            print(f"Epoch {epoch+1}/{epochs}: "
-                  f"D_loss={avg_loss_d:.4f}, G_loss={avg_loss_g:.4f}")
+            #print(f"Epoch {epoch+1}/{epochs}: "
+            #      f"D_loss={avg_loss_d:.4f}, G_loss={avg_loss_g:.4f}")
 
     # Return model
     model = {
@@ -2123,8 +2123,8 @@ def learn_binary_gan_statistic_match(
             avg_loss_d = epoch_loss_d / n_batches
             avg_loss_g = epoch_loss_g / n_batches
             avg_loss_stat = epoch_loss_stat / n_batches
-            print(f"Epoch {epoch+1}/{epochs}: "
-                  f"D_loss={avg_loss_d:.4f}, G_loss={avg_loss_g:.4f}, Stat_loss={avg_loss_stat:.4f}")
+            #print(f"Epoch {epoch+1}/{epochs}: "
+            #      f"D_loss={avg_loss_d:.4f}, G_loss={avg_loss_g:.4f}, Stat_loss={avg_loss_stat:.4f}")
 
     # Store population statistics
     pop_mean = np.mean(population, axis=0)
@@ -2436,8 +2436,8 @@ def learn_binary_gan_hybrid_vae(
         if (epoch + 1) % 50 == 0:
             avg_loss_d = epoch_loss_d / n_batches
             avg_loss_ge = epoch_loss_ge / n_batches
-            print(f"Epoch {epoch+1}/{epochs}: "
-                  f"D_loss={avg_loss_d:.4f}, GE_loss={avg_loss_ge:.4f}")
+            #print(f"Epoch {epoch+1}/{epochs}: "
+            #      f"D_loss={avg_loss_d:.4f}, GE_loss={avg_loss_ge:.4f}")
 
     # Return model
     model = {

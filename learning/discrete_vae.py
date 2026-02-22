@@ -1094,11 +1094,11 @@ def learn_binary_vae(
             avg_kl = epoch_kl_loss / n_batches
             if use_extended:
                 avg_fit = epoch_fit_loss / n_batches
-                print(f"Epoch {epoch+1}/{epochs}: Loss={avg_loss:.4f}, "
-                      f"Recon={avg_recon:.4f}, KL={avg_kl:.4f}, Fit={avg_fit:.4f}, Beta={beta:.4f}")
-            else:
-                print(f"Epoch {epoch+1}/{epochs}: Loss={avg_loss:.4f}, "
-                      f"Recon={avg_recon:.4f}, KL={avg_kl:.4f}, Beta={beta:.4f}")
+            #    print(f"Epoch {epoch+1}/{epochs}: Loss={avg_loss:.4f}, "
+            #          f"Recon={avg_recon:.4f}, KL={avg_kl:.4f}, Fit={avg_fit:.4f}, Beta={beta:.4f}")
+            #else:
+            #    print(f"Epoch {epoch+1}/{epochs}: Loss={avg_loss:.4f}, "
+            #          f"Recon={avg_recon:.4f}, KL={avg_kl:.4f}, Beta={beta:.4f}")
 
     # Return model
     model = {
@@ -1233,8 +1233,8 @@ def learn_categorical_vae(
             avg_loss = epoch_loss / n_batches
             avg_recon = epoch_recon_loss / n_batches
             avg_kl = epoch_kl_loss / n_batches
-            print(f"Epoch {epoch+1}/{epochs}: Loss={avg_loss:.4f}, "
-                  f"Recon={avg_recon:.4f}, KL={avg_kl:.4f}, Temp={current_temp:.4f}")
+            #print(f"Epoch {epoch+1}/{epochs}: Loss={avg_loss:.4f}, "
+            #      f"Recon={avg_recon:.4f}, KL={avg_kl:.4f}, Temp={current_temp:.4f}")
 
     # Return model
     model = {
@@ -1412,8 +1412,8 @@ def learn_binary_cvae(
             avg_loss = epoch_loss / n_batches
             avg_recon = epoch_recon_loss / n_batches
             avg_kl = epoch_kl_loss / n_batches
-            print(f"Epoch {epoch+1}/{epochs}: Loss={avg_loss:.4f}, "
-                  f"Recon={avg_recon:.4f}, KL={avg_kl:.4f}, Beta={beta:.4f}")
+            #print(f"Epoch {epoch+1}/{epochs}: Loss={avg_loss:.4f}, "
+            #      f"Recon={avg_recon:.4f}, KL={avg_kl:.4f}, Beta={beta:.4f}")
 
     # Return model
     model = {
@@ -1586,8 +1586,8 @@ def learn_binary_descvae(
             avg_loss = epoch_loss / n_batches
             avg_recon = epoch_recon_loss / n_batches
             avg_kl = epoch_kl_loss / n_batches
-            print(f"Epoch {epoch+1}/{epochs}: Loss={avg_loss:.4f}, "
-                  f"Recon={avg_recon:.4f}, KL={avg_kl:.4f}, Beta={beta:.4f}")
+            #print(f"Epoch {epoch+1}/{epochs}: Loss={avg_loss:.4f}, "
+            #      f"Recon={avg_recon:.4f}, KL={avg_kl:.4f}, Beta={beta:.4f}")
 
     # Return model
     model = {
@@ -1782,8 +1782,8 @@ def learn_binary_regvae(
             avg_recon = epoch_recon_loss / n_batches
             avg_kl = epoch_kl_loss / n_batches
             avg_fit = epoch_fit_loss / n_batches
-            print(f"Epoch {epoch+1}/{epochs}: Loss={avg_loss:.4f}, "
-                  f"Recon={avg_recon:.4f}, KL={avg_kl:.4f}, Fit={avg_fit:.4f}, Beta={beta:.4f}")
+            #print(f"Epoch {epoch+1}/{epochs}: Loss={avg_loss:.4f}, "
+            #      f"Recon={avg_recon:.4f}, KL={avg_kl:.4f}, Fit={avg_fit:.4f}, Beta={beta:.4f}")
 
     # Return model
     model = {
@@ -1953,8 +1953,8 @@ def learn_binary_momvae(
             avg_recon = epoch_recon_loss / n_batches
             avg_kl = epoch_kl_loss / n_batches
             avg_moment = epoch_moment_loss / n_batches
-            print(f"Epoch {epoch+1}/{epochs}: Loss={avg_loss:.4f}, "
-                  f"Recon={avg_recon:.4f}, KL={avg_kl:.4f}, Moment={avg_moment:.4f}, Beta={beta:.4f}")
+            #print(f"Epoch {epoch+1}/{epochs}: Loss={avg_loss:.4f}, "
+            #      f"Recon={avg_recon:.4f}, KL={avg_kl:.4f}, Moment={avg_moment:.4f}, Beta={beta:.4f}")
 
     # Return model
     model = {
