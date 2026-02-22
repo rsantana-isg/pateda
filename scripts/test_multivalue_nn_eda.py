@@ -46,6 +46,10 @@ from pateda.sampling.fda import SampleFDA
 from pateda.selection import TruncationSelection
 from pateda.stop_conditions import MaxGenerations
 from pateda.seeding import RandomInit
+from pateda.mutation import (
+    FrequencyBalanceMultivalueMutation,
+    frequency_balance_multivalue_mutation,
+)
 
 # ── Neural network learning / sampling functions ──────────────────────────────
 from pateda.learning.discrete_vae import learn_categorical_vae
@@ -104,18 +108,21 @@ def make_fitness(fn, cardinality):
 # UMDA baseline – uses the standard EDA framework
 # ---------------------------------------------------------------------------
 
-def run_umda(bench_name, n_vars, cardinality, pop_size, max_gen, seed=None):
+def run_umda(bench_name, n_vars, cardinality, pop_size, max_gen, seed=None,
+             alpha=0.0):
     """Run one UMDA experiment; returns (best_fitness, n_generations, runtime)."""
     bench = BENCHMARKS[bench_name]
     fitness_func = make_fitness(bench["fn"], cardinality)
     card_array = np.full(n_vars, cardinality)
 
+    mutation = FrequencyBalanceMultivalueMutation(alpha=alpha) if alpha > 0 else None
     components = EDAComponents(
         seeding=RandomInit(),
         learning=LearnUMDA(alpha=0.01),
         sampling=SampleFDA(n_samples=pop_size),
         selection=TruncationSelection(ratio=0.5),
         stop_condition=MaxGenerations(max_gen=max_gen),
+        mutation=mutation,
     )
     eda = EDA(
         pop_size=pop_size,
@@ -197,7 +204,7 @@ NN_EDA_CONFIGS = {
 
 
 def run_nn_eda(eda_name, bench_name, n_vars, cardinality, pop_size,
-               max_gen, seed=None):
+               max_gen, seed=None, alpha=0.0):
     """
     Run one neural-network EDA experiment.
 
@@ -245,6 +252,13 @@ def run_nn_eda(eda_name, bench_name, n_vars, cardinality, pop_size,
 
         new_pop = np.asarray(new_pop, dtype=int)
 
+        # Apply multi-value frequency balance mutation if alpha > 0
+        if alpha > 0:
+            mutation_params = {'alpha': alpha}
+            new_pop = frequency_balance_multivalue_mutation(
+                n_vars, card_array, new_pop, mutation_params
+            )
+
         # Evaluate
         new_fitness = np.array([fn(new_pop[i], cardinality) for i in range(pop_size)],
                                 dtype=float)
@@ -266,7 +280,7 @@ def run_nn_eda(eda_name, bench_name, n_vars, cardinality, pop_size,
 # ---------------------------------------------------------------------------
 
 def run_experiment(eda_name, bench_name, cardinality, n_vars, pop_size,
-                   max_gen, seed=None, verbose=True):
+                   max_gen, seed=None, verbose=True, alpha=0.0):
     """
     Run one EDA on one benchmark.  Returns a result dict.
     """
@@ -276,10 +290,12 @@ def run_experiment(eda_name, bench_name, cardinality, n_vars, pop_size,
     try:
         if eda_name == "umda":
             best, gen_found, runtime = run_umda(
-                bench_name, n_vars, cardinality, pop_size, max_gen, seed)
+                bench_name, n_vars, cardinality, pop_size, max_gen, seed,
+                alpha=alpha)
         else:
             best, gen_found, runtime = run_nn_eda(
-                eda_name, bench_name, n_vars, cardinality, pop_size, max_gen, seed)
+                eda_name, bench_name, n_vars, cardinality, pop_size, max_gen,
+                seed, alpha=alpha)
     except Exception as exc:
         if verbose:
             print(f"  ERROR: {exc}")
@@ -315,6 +331,7 @@ def run_experiment(eda_name, bench_name, cardinality, n_vars, pop_size,
 def run_quick_test():
     """
     Fast smoke test: one run per algorithm × benchmark with small problem size.
+    Also tests multi-value frequency balance mutation (alpha=0.95).
     """
     print("=" * 70)
     print("Quick smoke test – neural network multi-value EDAs  (c=3)")
@@ -329,24 +346,30 @@ def run_quick_test():
     eda_names = ["umda"] + list(NN_EDA_CONFIGS.keys())
     bench_names = list(BENCHMARKS.keys())
 
-    for eda_name in eda_names:
-        for bench_name in bench_names:
-            label = f"  {eda_name:12s}  {bench_name:20s}  c={CARDINALITY}"
-            try:
-                result = run_experiment(
-                    eda_name, bench_name, CARDINALITY, quick_n_vars,
-                    pop_size, max_gen, seed=seed, verbose=False,
-                )
-                if "error" in result:
-                    print(f"{label}  *** ERROR: {result['error']}")
+    # Test without mutation and with mutation (alpha=0.95)
+    mutation_configs = [(0.0, "no mutation"), (0.95, "alpha=0.95")]
+
+    for alpha, mut_label in mutation_configs:
+        print(f"\n--- Mutation: {mut_label} ---")
+        for eda_name in eda_names:
+            for bench_name in bench_names:
+                label = f"  {eda_name:12s}  {bench_name:20s}  c={CARDINALITY}"
+                try:
+                    result = run_experiment(
+                        eda_name, bench_name, CARDINALITY, quick_n_vars,
+                        pop_size, max_gen, seed=seed, verbose=False,
+                        alpha=alpha,
+                    )
+                    if "error" in result:
+                        print(f"{label}  *** ERROR: {result['error']}")
+                        n_errors += 1
+                    else:
+                        opt_str = f"{result['optimal']:.1f}"
+                        print(f"{label}  best={result['best_fitness']:.2f}  "
+                              f"optimal={opt_str}  gen={result['generation_found']}")
+                except Exception as exc:
+                    print(f"{label}  *** ERROR: {exc}")
                     n_errors += 1
-                else:
-                    opt_str = f"{result['optimal']:.1f}"
-                    print(f"{label}  best={result['best_fitness']:.2f}  "
-                          f"optimal={opt_str}  gen={result['generation_found']}")
-            except Exception as exc:
-                print(f"{label}  *** ERROR: {exc}")
-                n_errors += 1
 
     print()
     if n_errors == 0:
@@ -360,11 +383,27 @@ def run_quick_test():
 # Full benchmark
 # ---------------------------------------------------------------------------
 
-def run_full_benchmark(n_runs=5, pop_size=200, max_gen=100, verbose=True):
+def run_full_benchmark(n_runs=5, pop_size=200, max_gen=100, verbose=True,
+                       alpha=0.0):
     """
     Run a full multi-run benchmark comparing neural-network EDAs with UMDA.
 
     Results are printed as mean best fitness ± std and success rate.
+
+    Parameters
+    ----------
+    n_runs : int
+        Number of independent runs per configuration.
+    pop_size : int
+        Population size.
+    max_gen : int
+        Maximum generations.
+    verbose : bool
+        Print progress.
+    alpha : float
+        Maximum allowed frequency threshold for multi-value mutation
+        (default 0.0, no mutation). If alpha > 0, applies
+        FrequencyBalanceMultivalueMutation after each sampling step.
     """
     cardinality = CARDINALITY
     n_vars = N_VARS
@@ -382,6 +421,7 @@ def run_full_benchmark(n_runs=5, pop_size=200, max_gen=100, verbose=True):
     print(f"Runs       : {n_runs}")
     print(f"Pop size   : {pop_size}")
     print(f"Max gen    : {max_gen}")
+    print(f"Alpha (mut): {alpha}")
     print()
 
     all_results = []
@@ -403,6 +443,7 @@ def run_full_benchmark(n_runs=5, pop_size=200, max_gen=100, verbose=True):
                 result = run_experiment(
                     eda_name, bench_name, cardinality, n_vars,
                     pop_size, max_gen, seed=seed, verbose=verbose,
+                    alpha=alpha,
                 )
                 all_results.append(result)
 
@@ -460,6 +501,11 @@ def main():
         "--max-gen", type=int, default=100,
         help="Maximum generations (default: 100).",
     )
+    parser.add_argument(
+        "--alpha", type=float, default=0.0,
+        help="Max frequency threshold for multi-value mutation (default: 0.0, "
+             "no mutation). If > 0, applies FrequencyBalanceMultivalueMutation.",
+    )
     args = parser.parse_args()
 
     # Suppress PyTorch / numpy noise that is not relevant to correctness
@@ -474,6 +520,7 @@ def main():
             n_runs=args.n_runs,
             pop_size=args.pop_size,
             max_gen=args.max_gen,
+            alpha=args.alpha,
         )
 
 
