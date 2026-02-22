@@ -287,11 +287,14 @@ class LearnTreeModel(LearningMethod):
                     biv_probs = biv_prob[child_idx][parent_idx]
                     aux_biv_prob = biv_probs.reshape(card_parent, card_child)
 
-                # Compute conditional probability P(child | parent)
-                parent_probs = np.tile(univ_prob[parent_idx].reshape(-1, 1), (1, card_child))
-
-                # Apply Laplace smoothing to bivariate
+                # Apply Laplace smoothing to bivariate and parent marginals to ensure
+                # non-zero probability for configurations not present in the population.
+                # This prior avoids divide-by-zero when a parent value never appears.
                 lap_biv_prob = (aux_biv_prob * n_samples + 1) / (n_samples + card_child * card_parent)
+                lap_parent_probs = (univ_prob[parent_idx] * n_samples + 1) / (n_samples + card_parent)
+
+                # Compute conditional probability P(child | parent) using smoothed probs
+                parent_probs = np.tile(lap_parent_probs.reshape(-1, 1), (1, card_child))
                 cond_biv_prob = lap_biv_prob / parent_probs
 
                 # Normalize to ensure valid probability distribution
@@ -299,10 +302,7 @@ class LearnTreeModel(LearningMethod):
                     cond_biv_prob.sum(axis=1, keepdims=True), (1, card_child)
                 )
 
-                # Alternative: use MLE (no smoothing)
-                cond_biv_prob_mle = aux_biv_prob / parent_probs
-
-                tables.append(cond_biv_prob_mle)
+                tables.append(cond_biv_prob)
 
         return tables
 
