@@ -29,6 +29,12 @@ find_matrix_interactions_additive_decomposable(subfunction_vars, n_vars)
     Interactions from an additively decomposable function: two variables
     interact if they appear in the same subfunction.
 
+find_matrix_interactions_RNA_design(RNA_structure)
+    Interactions from an RNA secondary structure in Dot-Bracket Notation:
+    two variables interact if they are adjacent in the sequence (X_i and
+    X_{i+1}) or if they represent a Watson-Crick base pair encoded by a
+    matching pair of parentheses in the structure string.
+
 References
 ----------
 - Santana, R., Mendiburu, A., and Lozano, J.A. (2012). "Structural transfer
@@ -276,5 +282,103 @@ def find_matrix_interactions_additive_decomposable(
                 if 0 <= i < n_vars and 0 <= j < n_vars and i != j:
                     interaction_matrix[i, j] = 1
                     interaction_matrix[j, i] = 1
+
+    return interaction_matrix
+
+
+def find_matrix_interactions_RNA_design(RNA_structure: str) -> np.ndarray:
+    """
+    Compute a binary interaction matrix from an RNA secondary structure.
+
+    Two types of interactions are encoded:
+
+    1. **Sequence adjacency**: variables X_i and X_{i+1} always interact
+       because consecutive nucleotides in the RNA backbone are covalently
+       bonded and their identities jointly determine local folding stability.
+
+    2. **Base-pair interactions**: variables X_i and X_j interact if they
+       are paired in the secondary structure, i.e., position i carries '('
+       and position j carries the matching ')' in the Dot-Bracket string.
+       These represent Watson-Crick (or wobble) hydrogen-bond interactions.
+
+    Positions carrying '.' (unpaired bases) do not contribute base-pair
+    interactions but still interact with their sequence neighbours.
+
+    The Dot-Bracket format uses a standard stack-based matching rule:
+    each '(' is paired with the closest unmatched ')' to its right.
+    Pseudoknots (crossing pairs) are not supported by the standard notation
+    and are not handled here.
+
+    The returned matrix R is binary and symmetric:
+        R[i, j] = 1  if |i - j| == 1  (adjacent in sequence)
+        R[i, j] = 1  if positions i and j are a base pair  (matched parens)
+        R[i, j] = 0  otherwise
+        R[i, i] = 0  (diagonal is always zero)
+
+    Parameters
+    ----------
+    RNA_structure : str
+        Dot-Bracket Notation string of length n (the number of nucleotide
+        positions / variables). Valid characters are '(', ')', and '.'.
+
+    Returns
+    -------
+    np.ndarray
+        Binary symmetric interaction matrix of shape (n, n) where n is
+        ``len(RNA_structure)``.
+
+    Raises
+    ------
+    ValueError
+        If the Dot-Bracket string contains unmatched parentheses.
+
+    Examples
+    --------
+    >>> R = find_matrix_interactions_RNA_design("((....))")
+    >>> # Sequence adjacency: (0,1), (1,2), (2,3), (3,4), (4,5), (5,6), (6,7)
+    >>> # Base pairs:          (0,7), (1,6)
+    >>> R[0, 7], R[1, 6]   # base pairs
+    (1, 1)
+    >>> R[0, 1], R[6, 7]   # sequence neighbours
+    (1, 1)
+    >>> R[0, 5]             # no interaction
+    0
+    >>> import numpy as np
+    >>> np.array_equal(R, R.T)   # symmetric
+    True
+    >>> np.all(np.diag(R) == 0)  # diagonal is zero
+    True
+    """
+    n = len(RNA_structure)
+    interaction_matrix = np.zeros((n, n), dtype=int)
+
+    # ── 1. Sequence adjacency: X_i and X_{i+1} always interact ───────────────
+    for i in range(n - 1):
+        interaction_matrix[i, i + 1] = 1
+        interaction_matrix[i + 1, i] = 1
+
+    # ── 2. Base-pair interactions from Dot-Bracket notation ──────────────────
+    # Use a stack to match opening '(' with closing ')'.
+    stack: List[int] = []
+    for i, symbol in enumerate(RNA_structure):
+        if symbol == '(':
+            stack.append(i)
+        elif symbol == ')':
+            if not stack:
+                raise ValueError(
+                    f"Unmatched ')' at position {i} in RNA structure: "
+                    f"'{RNA_structure}'"
+                )
+            j = stack.pop()   # j is the matching '(' position
+            # X_j and X_i are a base pair → they interact
+            interaction_matrix[j, i] = 1
+            interaction_matrix[i, j] = 1
+        # '.' leaves no additional interaction beyond sequence adjacency
+
+    if stack:
+        raise ValueError(
+            f"Unmatched '(' at position(s) {stack} in RNA structure: "
+            f"'{RNA_structure}'"
+        )
 
     return interaction_matrix
