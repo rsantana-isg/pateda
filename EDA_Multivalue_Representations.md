@@ -1,7 +1,7 @@
 # EDA Multi-value Representations Analysis
 
 This document analyzes the support for **non-binary discrete representations** (cardinality > 2)
-in the EDA implementations of this repository. Algorithms are categorised as having full support,
+in the EDA implementations of this repository. Algorithms are categorized as having full support,
 partial support, or binary-only support, and the required extensions are described for those that
 lack full support.
 

@@ -34,6 +34,10 @@ from pathlib import Path
 
 # Allow running as a standalone script: add the project root (parent of the
 # 'pateda' package directory) to sys.path.
+# Directory layout: <project_root>/pateda/scripts/test_multivalue_eda.py
+#   parent              = <project_root>/pateda/scripts/
+#   parent.parent       = <project_root>/pateda/   ← the 'pateda' package itself
+#   parent.parent.parent = <project_root>/         ← needed so 'import pateda' resolves
 sys.path.insert(0, str(Path(__file__).parent.parent.parent))
 
 from pateda import EDA, EDAComponents

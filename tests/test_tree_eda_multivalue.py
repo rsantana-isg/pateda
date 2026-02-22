@@ -101,17 +101,19 @@ class TestTreeEDANonZeroPrior:
         learner = LearnTreeModel(alpha=0.0, mi_threshold=1e-4)
         model = learner.learn(0, n_vars, cardinality, population, np.zeros(n_samples))
 
-        # The root node table corresponds to clique where n_parents == 0
+        # Find root nodes (n_parents == 0) and verify all missing values have non-zero prob.
+        # The tree root is chosen dynamically, so we check every root node table.
         cliques = model.structure
+        found_root = False
         for j in range(n_vars):
             if cliques[j, 0] == 0:
-                # Root node: marginal probability
-                child_idx = int(cliques[j, 2])
-                if child_idx == 0:  # Var 0 never took value 3
-                    table = model.parameters[j]
-                    assert table[3] > 0, (
-                        "Missing value should have non-zero probability due to Laplace prior"
-                    )
+                found_root = True
+                table = model.parameters[j]
+                # Value 3 never appeared for any variable; the Laplace prior must give > 0
+                assert table[3] > 0, (
+                    "Missing value should have non-zero probability due to Laplace prior"
+                )
+        assert found_root, "Expected at least one root node in tree structure"
 
     def test_missing_parent_value_has_nonzero_conditional_probability(self):
         """
