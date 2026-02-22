@@ -47,6 +47,7 @@ from pateda.sampling.fda import SampleFDA
 from pateda.selection import TruncationSelection
 from pateda.stop_conditions import MaxGenerations
 from pateda.seeding import RandomInit
+from pateda.mutation import FrequencyBalanceMultivalueMutation
 
 from pateda.functions.discrete.integer_functions import (
     integer_onemax,
@@ -135,7 +136,7 @@ def make_fitness(fn, cardinality):
 # ---------------------------------------------------------------------------
 
 def run_experiment(eda_name, bench_name, cardinality, pop_size, max_gen,
-                   seed=None, verbose=True):
+                   seed=None, verbose=True, alpha=0.0):
     """
     Run one EDA on one benchmark function.
 
@@ -153,12 +154,14 @@ def run_experiment(eda_name, bench_name, cardinality, pop_size, max_gen,
     card_array = np.full(n_vars, cardinality)
 
     eda_cfg = EDA_CONFIGS[eda_name]
+    mutation = FrequencyBalanceMultivalueMutation(alpha=alpha) if alpha > 0 else None
     components = EDAComponents(
         seeding=RandomInit(),
         learning=eda_cfg["learning"](),
         sampling=SampleFDA(n_samples=pop_size),
         selection=TruncationSelection(ratio=0.5),
         stop_condition=MaxGenerations(max_gen=max_gen),
+        mutation=mutation,
     )
 
     eda = EDA(
@@ -208,6 +211,7 @@ def run_quick_test():
     Fast smoke test: one run per algorithm × benchmark × cardinality.
     Uses small problem sizes for speed. Verifies that no RuntimeWarning
     (divide-by-zero, etc.) is raised.
+    Also tests multi-value frequency balance mutation (alpha=0.95).
     """
     print("=" * 70)
     print("Quick smoke test – non-binary EDA implementations")
@@ -224,49 +228,57 @@ def run_quick_test():
     quick_benchmarks_list = list(QUICK_BENCHMARKS.keys())
     quick_eda_list = ["umda", "tree_eda"]  # Skip slow MNFDA for quick test
 
+    # Test without mutation and with mutation (alpha=0.95)
+    mutation_configs = [(0.0, "no mutation"), (0.95, "alpha=0.95")]
+
     for card in cardinalities:
         print(f"\nCardinality = {card}")
         for eda_name in quick_eda_list:
             for bench_name in quick_benchmarks_list:
-                label = f"  {eda_name:12s}  {bench_name:30s}  c={card}"
-                try:
-                    bench = BENCHMARKS[bench_name]
-                    fn = bench["fn"]
-                    optimal = (bench["optimal"](QUICK_N_VARS, card)
-                               if bench["optimal"] is not None else None)
-                    fitness_func = make_fitness(fn, card)
-                    card_array = np.full(QUICK_N_VARS, card)
+                for alpha, mut_label in mutation_configs:
+                    label = (f"  {eda_name:12s}  {bench_name:30s}  "
+                             f"c={card}  mut={mut_label}")
+                    try:
+                        bench = BENCHMARKS[bench_name]
+                        fn = bench["fn"]
+                        optimal = (bench["optimal"](QUICK_N_VARS, card)
+                                   if bench["optimal"] is not None else None)
+                        fitness_func = make_fitness(fn, card)
+                        card_array = np.full(QUICK_N_VARS, card)
 
-                    eda_cfg = EDA_CONFIGS[eda_name]
-                    components = EDAComponents(
-                        seeding=RandomInit(),
-                        learning=eda_cfg["learning"](),
-                        sampling=SampleFDA(n_samples=pop_size),
-                        selection=TruncationSelection(ratio=0.5),
-                        stop_condition=MaxGenerations(max_gen=max_gen),
-                    )
-                    eda = EDA(
-                        pop_size=pop_size,
-                        n_vars=QUICK_N_VARS,
-                        fitness_func=fitness_func,
-                        cardinality=card_array,
-                        components=components,
-                        random_seed=seed,
-                    )
-                    with warnings.catch_warnings():
-                        warnings.filterwarnings("error")
-                        stats, _ = eda.run(verbose=False)
+                        mutation = (FrequencyBalanceMultivalueMutation(alpha=alpha)
+                                    if alpha > 0 else None)
+                        eda_cfg = EDA_CONFIGS[eda_name]
+                        components = EDAComponents(
+                            seeding=RandomInit(),
+                            learning=eda_cfg["learning"](),
+                            sampling=SampleFDA(n_samples=pop_size),
+                            selection=TruncationSelection(ratio=0.5),
+                            stop_condition=MaxGenerations(max_gen=max_gen),
+                            mutation=mutation,
+                        )
+                        eda = EDA(
+                            pop_size=pop_size,
+                            n_vars=QUICK_N_VARS,
+                            fitness_func=fitness_func,
+                            cardinality=card_array,
+                            components=components,
+                            random_seed=seed,
+                        )
+                        with warnings.catch_warnings():
+                            warnings.filterwarnings("error")
+                            stats, _ = eda.run(verbose=False)
 
-                    best = float(stats.best_fitness_overall)
-                    opt_str = f"{optimal:.1f}" if optimal is not None else "N/A"
-                    print(f"{label}  best={best:.2f}  optimal={opt_str}  "
-                          f"gen={stats.generation_found}")
-                except RuntimeWarning as e:
-                    print(f"{label}  *** RuntimeWarning: {e}")
-                    n_errors += 1
-                except Exception as e:
-                    print(f"{label}  *** ERROR: {e}")
-                    n_errors += 1
+                        best = float(stats.best_fitness_overall)
+                        opt_str = f"{optimal:.1f}" if optimal is not None else "N/A"
+                        print(f"{label}  best={best:.2f}  optimal={opt_str}  "
+                              f"gen={stats.generation_found}")
+                    except RuntimeWarning as e:
+                        print(f"{label}  *** RuntimeWarning: {e}")
+                        n_errors += 1
+                    except Exception as e:
+                        print(f"{label}  *** ERROR: {e}")
+                        n_errors += 1
 
     print()
     if n_errors == 0:
@@ -281,7 +293,7 @@ def run_quick_test():
 # ---------------------------------------------------------------------------
 
 def run_full_benchmark(n_runs=5, cardinalities=None, pop_size=200,
-                       max_gen=100, verbose=True):
+                       max_gen=100, verbose=True, alpha=0.0):
     """
     Run a comprehensive multi-value EDA benchmark.
 
@@ -297,6 +309,10 @@ def run_full_benchmark(n_runs=5, cardinalities=None, pop_size=200,
         Maximum generations.
     verbose : bool
         Print progress.
+    alpha : float
+        Maximum allowed frequency threshold for multi-value mutation
+        (default 0.0, no mutation). If alpha > 0, applies
+        FrequencyBalanceMultivalueMutation after each sampling step.
     """
     if cardinalities is None:
         cardinalities = [3, 4, 5]
@@ -310,6 +326,7 @@ def run_full_benchmark(n_runs=5, cardinalities=None, pop_size=200,
     print(f"Runs          : {n_runs}")
     print(f"Pop size      : {pop_size}")
     print(f"Max gen       : {max_gen}")
+    print(f"Alpha (mut)   : {alpha}")
     print()
 
     all_results = []
@@ -331,7 +348,7 @@ def run_full_benchmark(n_runs=5, cardinalities=None, pop_size=200,
                     try:
                         r = run_experiment(eda_name, bench_name, card,
                                            pop_size, max_gen, seed=seed,
-                                           verbose=verbose)
+                                           verbose=verbose, alpha=alpha)
                         all_results.append(r)
                         successes.append(r["success"])
                         best_list.append(r["best_fitness"])
@@ -399,6 +416,11 @@ def main():
         "--max-gen", type=int, default=100,
         help="Maximum generations (default: 100)."
     )
+    parser.add_argument(
+        "--alpha", type=float, default=0.0,
+        help="Max frequency threshold for multi-value mutation (default: 0.0, "
+             "no mutation). If > 0, applies FrequencyBalanceMultivalueMutation.",
+    )
     args = parser.parse_args()
 
     if args.quick:
@@ -410,6 +432,7 @@ def main():
             cardinalities=args.cardinalities,
             pop_size=args.pop_size,
             max_gen=args.max_gen,
+            alpha=args.alpha,
         )
 
 
