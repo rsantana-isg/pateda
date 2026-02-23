@@ -1,0 +1,931 @@
+\documentclass[11pt,a4paper]{article}
+
+\usepackage{amsmath,amssymb,amsthm}
+\usepackage{algorithm}
+\usepackage{algpseudocode}
+\usepackage{graphicx}
+\usepackage{hyperref}
+\usepackage{booktabs}
+\usepackage{xcolor}
+\usepackage{geometry}
+\geometry{margin=2.5cm}
+
+\newtheorem{definition}{Definition}
+
+\title{\textbf{Methodology of the \texttt{rna\_design} Project:\\
+  EDA-Based RNA Inverse Folding with Structural Priors}}
+\author{Roberto Santana\\
+  Intelligent Systems Group, University of the Basque Country (UPV/EHU)\\
+  \texttt{roberto.santana@ehu.eus}}
+\date{}
+
+\begin{document}
+\maketitle
+\tableofcontents
+\bigskip
+
+% ─────────────────────────────────────────────────────────────────────────────
+\section{Problem Definition}
+\label{sec:problem}
+% ─────────────────────────────────────────────────────────────────────────────
+
+Ribonucleic acid (RNA) molecules are single-stranded polymers composed of
+four nucleotide bases: adenine (A), cytosine (C), guanine (G), and uracil
+(U). Unlike DNA, RNA folds back on itself to form intricate secondary and
+tertiary structures that are directly responsible for its biological
+function. The secondary structure — the set of intramolecular base pairs
+that form through Watson--Crick (A–U, G–C) and wobble (G–U) hydrogen bonds
+— plays a central role in RNA catalysis, gene regulation, viral replication,
+and protein translation~\cite{tinoco1999rna}.
+
+The canonical secondary structure of an RNA sequence of length $n$ can be
+described compactly in \emph{Dot-Bracket Notation} (DBN): a string $s$ of
+length $n$ over the alphabet $\{$\texttt{(}, \texttt{)}, \texttt{.}$\}$, where
+\texttt{(} and \texttt{)} mark the left and right sides of a Watson--Crick pair,
+respectively, and \texttt{.} denotes an unpaired position. For example:
+\begin{center}
+  \texttt{Sequence:    A\;C\;G\;U\;A\;C\;G\;U}\\
+  \texttt{Structure:   (\;(\;.\;.\;.\;.\;)\;)}
+\end{center}
+indicates that positions 1 and 8 form one base pair and positions 2 and 7
+form another, while positions 3–6 are unpaired.
+
+\subsection{RNA Inverse Folding}
+
+Standard RNA \emph{forward} folding takes a nucleotide sequence as input and
+predicts its minimum free-energy (MFE) secondary structure using
+thermodynamic models~\cite{zuker1989mfold, hofacker1994fast}. The
+\emph{inverse} problem — also called \textbf{RNA design} or
+\textbf{RNA inverse folding} — is the reverse: given a target secondary
+structure $s^*$, find one or more nucleotide sequences $\mathbf{x}$ such
+that the MFE structure predicted for $\mathbf{x}$ is $s^*$ (or as close to
+it as possible).
+
+\begin{definition}[RNA Inverse Folding]
+Let $s^* \in \{\texttt{(},\texttt{)},\texttt{.}\}^n$ be a target secondary
+structure of length $n$. The RNA inverse folding problem is to find a
+sequence $\mathbf{x} \in \{\mathrm{A,C,G,U}\}^n$ such that
+\[
+  \mathcal{F}(\mathbf{x}) = s^*,
+\]
+where $\mathcal{F}(\mathbf{x})$ denotes the MFE secondary structure
+predicted for sequence $\mathbf{x}$ by a thermodynamic folding algorithm.
+\end{definition}
+
+RNA inverse folding is computationally hard in the general case. The solution
+space is $4^n$, and the fitness landscape is highly rugged and deceptive: many
+sequences may fold into very similar structures, while small single-nucleotide
+changes can drastically alter the predicted structure. The problem is
+therefore well-suited to population-based metaheuristics that can exploit
+structural regularities.
+
+\subsection{Relevance}
+
+The ability to design RNA sequences with prescribed structures has broad
+practical importance:
+\begin{itemize}
+  \item \textbf{Synthetic biology}: engineering functional RNA molecules such
+    as ribozymes, riboswitches, aptamers, and siRNA for therapeutic
+    applications~\cite{wachsmuth2013riboswitch};
+  \item \textbf{Vaccine development}: mRNA sequences must fold into stable
+    structures to ensure efficient translation and immunogenicity;
+  \item \textbf{Structural biology}: generating synthetic sequences for
+    experimental validation of predicted structures;
+  \item \textbf{Citizen science}: the EteRNA project demonstrates that human
+    puzzle solvers and algorithms can jointly advance our understanding of
+    RNA folding~\cite{lee2014eterna}.
+\end{itemize}
+
+% ─────────────────────────────────────────────────────────────────────────────
+\section{Problem Representation and Objective Functions}
+\label{sec:representation}
+% ─────────────────────────────────────────────────────────────────────────────
+
+\subsection{Solution Representation}
+
+Each candidate solution is a discrete vector
+$\mathbf{x} = (x_1, x_2, \ldots, x_n) \in \{0,1,2,3\}^n$,
+where each component $x_i$ encodes the nucleotide at position $i$ of the
+RNA sequence using the mapping
+\[
+  0 \leftrightarrow \mathrm{A}, \quad
+  1 \leftrightarrow \mathrm{C}, \quad
+  2 \leftrightarrow \mathrm{G}, \quad
+  3 \leftrightarrow \mathrm{U}.
+\]
+The variable $x_i$ has cardinality 4 for all $i$. The EDA population is an
+$N \times n$ integer matrix, and all probabilistic models operate over this
+quaternary alphabet.
+
+\subsection{Objective Functions}
+
+The \texttt{rna\_design} project implements three complementary scalar
+objective functions. Each measures a distinct aspect of how well a designed
+sequence $\mathbf{x}$ achieves the target structure $s^*$. All three are
+formulated as \emph{maximisation} objectives by negating their natural
+cost.
+
+% ---- Objective 1 -----------------------------------------------------------
+\subsubsection{Objective 1: Negative Base-Pair Distance}
+\label{sec:obj1}
+
+Let $s(\mathbf{x}) = \mathcal{F}(\mathbf{x})$ be the MFE secondary structure
+predicted for sequence $\mathbf{x}$ by the Vienna RNA package~\cite{lorenz2011viennarna}. The
+\emph{base-pair distance} between $s(\mathbf{x})$ and the target $s^*$ is
+\[
+  d_{\mathrm{BP}}(\mathbf{x},\, s^*) \;=\;
+    \bigl|\mathcal{B}(s(\mathbf{x})) \,\triangle\, \mathcal{B}(s^*)\bigr|,
+\]
+where $\mathcal{B}(s)$ is the set of base pairs encoded by structure $s$ and
+$\triangle$ denotes the symmetric difference. Intuitively,
+$d_{\mathrm{BP}}$ counts the number of base pairs that are present in one
+structure but absent in the other.
+
+The \textbf{negative base-pair distance} is used as the first objective:
+\[
+  f_1(\mathbf{x}) = -\,d_{\mathrm{BP}}(\mathbf{x},\, s^*).
+\]
+A solution for which $f_1(\mathbf{x}) = 0$ has solved the design problem
+exactly: the predicted MFE structure matches the target perfectly.
+
+\paragraph{Benefits.} $f_1$ is the most direct measure of design quality and
+corresponds to the standard success criterion used in benchmarks such as
+Eterna100~\cite{lee2014eterna}. It is efficient to compute since it requires
+only one call to an MFE folding routine.
+
+\paragraph{Limitations.} The MFE structure is a single point prediction and
+does not account for the thermodynamic ensemble of structures that the
+sequence samples at physiological temperature. A sequence can achieve
+$f_1(\mathbf{x}) = 0$ while still spending significant probability on
+alternative, non-target folds.
+
+% ---- Objective 2 -----------------------------------------------------------
+\subsubsection{Objective 2: Probability of the Target Structure}
+\label{sec:obj2}
+
+Given a sequence $\mathbf{x}$, the Boltzmann partition function $Z(\mathbf{x})$ sums
+the Boltzmann weights of all possible secondary structures:
+\[
+  Z(\mathbf{x}) = \sum_{s} \exp\!\left(-\frac{\Delta G(s, \mathbf{x})}{RT}\right),
+\]
+where $\Delta G(s, \mathbf{x})$ is the free energy of structure $s$ folded
+from sequence $\mathbf{x}$, $R$ is the gas constant, and $T$ is the absolute
+temperature. The probability of the target structure $s^*$ under the
+Boltzmann ensemble is
+\[
+  p(s^* \mid \mathbf{x}) = \frac{\exp\!\left(-\Delta G(s^*, \mathbf{x})\,/\,RT\right)}{Z(\mathbf{x})}.
+\]
+The second objective is the log-probability of the target:
+\[
+  f_2(\mathbf{x}) = \log p(s^* \mid \mathbf{x})
+               = -\frac{\Delta G(s^*, \mathbf{x})}{RT} - \log Z(\mathbf{x}).
+\]
+Maximising $f_2$ pushes the sequence toward assigning high Boltzmann weight to
+the target structure relative to all competing folds.
+
+\paragraph{Benefits.} $f_2$ is a principled thermodynamic measure that
+accounts for the full ensemble, not just the MFE structure. Sequences with
+high $f_2$ are more likely to adopt the target structure under realistic
+folding conditions.
+
+\paragraph{Limitations.} Computing the partition function $Z(\mathbf{x})$ via
+the McCaskill algorithm~\cite{mccaskill1990equilibrium} has time complexity
+$O(n^3)$ and is thus considerably more expensive than MFE folding. For long
+sequences or large populations this cost may be prohibitive.
+
+% ---- Objective 3 -----------------------------------------------------------
+\subsubsection{Objective 3: Negative Ensemble Defect}
+\label{sec:obj3}
+
+The \emph{ensemble defect}~\cite{zadeh2011nupack} quantifies the expected
+number of incorrectly paired nucleotides when a structure is drawn at random
+from the Boltzmann ensemble:
+\[
+  D(\mathbf{x},\, s^*) = n \;-\;
+    \sum_{i=1}^{n}\sum_{j=0}^{n} \mathbb{1}[s^*_{ij}]\, p_{ij}(\mathbf{x}),
+\]
+where $p_{ij}(\mathbf{x})$ is the base-pair probability between positions $i$
+and $j$ (with $j=0$ denoting the unpaired state), and $\mathbb{1}[s^*_{ij}]$
+is 1 if positions $i$ and $j$ are paired (or both unpaired) in $s^*$. The
+\emph{normalised ensemble defect} divides by $n$:
+\[
+  \tilde{D}(\mathbf{x},\, s^*) = \frac{D(\mathbf{x},\, s^*)}{n} \in [0,1].
+\]
+The third objective is the negative normalised ensemble defect:
+\[
+  f_3(\mathbf{x}) = -\,\tilde{D}(\mathbf{x},\, s^*).
+\]
+A value of $f_3(\mathbf{x}) = 0$ means that, on average, every nucleotide
+adopts its target pairing state across the Boltzmann ensemble.
+
+\paragraph{Benefits.} The ensemble defect is a position-level metric:
+it not only penalises wrong base pairs globally but identifies which
+specific positions are least likely to occupy their target pairing state.
+It is therefore a more sensitive guide for the search than $f_1$, especially
+in the early phases of optimisation.
+
+\paragraph{Limitations.} Like $f_2$, computing $\tilde{D}$ requires the full
+base-pair probability matrix, incurring $O(n^3)$ cost. Furthermore, $f_3$
+can be zero for sequences that nonetheless have $f_1 < 0$ (i.e., the average
+is correct but the most probable single structure differs from $s^*$).
+
+% ─────────────────────────────────────────────────────────────────────────────
+\section{Description of the EDA Approaches}
+\label{sec:edas}
+% ─────────────────────────────────────────────────────────────────────────────
+
+Estimation of Distribution Algorithms (EDAs)~\cite{larranaga2002eda,
+pelikan2002eda} replace the crossover and mutation operators of classical
+evolutionary algorithms with an explicit probabilistic model of the selected
+population. The generic EDA loop is shown in Algorithm~\ref{alg:eda}.
+
+\begin{algorithm}[h]
+\caption{Generic EDA}
+\label{alg:eda}
+\begin{algorithmic}[1]
+\State $t \leftarrow 0$. Initialise population $D_0$ with $N$ random solutions.
+\Repeat
+  \State Evaluate $D_t$ using the fitness function.
+  \State Select $D_t^S \subseteq D_t$ of $K \leq N$ promising solutions.
+  \State Learn probabilistic model $\hat{p}_t(\mathbf{x})$ from $D_t^S$.
+  \State Sample $D_{t+1}$ from $\hat{p}_t(\mathbf{x})$.
+  \State $t \leftarrow t + 1$.
+\Until{stopping criterion is met}
+\end{algorithmic}
+\end{algorithm}
+
+The \texttt{rna\_design} project uses four EDA variants that differ in the
+class of probabilistic model learned in step~5. All implementations reside
+in the \texttt{pateda} library (module \texttt{pateda.learning}).
+
+\subsection{UMDA — Univariate Marginal Distribution Algorithm}
+
+UMDA~\cite{muhlenbein1997umda} assumes complete statistical independence
+among the $n$ variables. The model factorises as a product of univariate
+marginals:
+\[
+  \hat{p}_t(\mathbf{x}) = \prod_{i=1}^{n} p_t(x_i),
+\]
+where each $p_t(x_i)$ is estimated by frequency counting over the selected
+population $D_t^S$:
+\[
+  p_t(x_i = v) = \frac{|\{s \in D_t^S : s_i = v\}|}{|D_t^S|},
+  \quad v \in \{0,1,2,3\}.
+\]
+Laplace smoothing with parameter $\alpha \geq 0$ prevents zero probabilities:
+\[
+  \hat{p}_t(x_i = v) = \frac{\text{count}(x_i = v) + \alpha}{|D_t^S| + 4\alpha}.
+\]
+Sampling from the UMDA model is $O(nN)$; learning is $O(nK)$. The model
+contains $4n$ free parameters (four probabilities per position), making it
+by far the lightest of the four variants.
+
+\paragraph{Strengths and limitations.} UMDA is computationally cheap and
+robust to small population sizes. However, the independence assumption is
+strongly violated in RNA design: base pairs by definition couple two
+positions, and the nucleotide at a paired position is severely constrained
+by the complementarity rules (A–U, G–C, G–U). Ignoring these dependencies
+slows convergence and often yields suboptimal solutions.
+
+\subsection{Tree-EDA}
+
+Tree-EDA~\cite{baluja1997dependency, santana2008protein} relaxes the
+independence assumption by allowing each variable to depend on \emph{at
+most one} other variable (its parent), forming a directed forest. The
+distribution factorises as
+\[
+  \hat{p}_t(\mathbf{x})
+  = p_t(x_\mathrm{root}) \prod_{i \neq \mathrm{root}} p_t(x_i \mid x_{\pi(i)}),
+\]
+where $\pi(i)$ is the unique parent of node $i$ in the tree.
+
+\subsubsection*{Structure Learning (Chow--Liu algorithm)}
+
+\begin{enumerate}
+  \item Compute the pairwise mutual information for all $\binom{n}{2}$ pairs:
+    \[
+      I(X_i;\, X_j) = \sum_{v,w} p(x_i{=}v,\, x_j{=}w)
+        \log \frac{p(x_i{=}v,\, x_j{=}w)}{p(x_i{=}v)\,p(x_j{=}w)}.
+    \]
+  \item Construct the complete weighted graph $\mathcal{G}$ on $n$ nodes
+    with edge weight $I(X_i; X_j)$.
+  \item Find the \emph{maximum weight spanning tree} (MWST) of $\mathcal{G}$
+    using Prim's algorithm. This is the tree structure that best approximates
+    the joint distribution in KL-divergence~\cite{chow1968tree}.
+  \item Root the tree at the node involved in the highest-weight edge; orient
+    all edges away from the root.
+\end{enumerate}
+
+\subsubsection*{Parameter learning}
+
+For the root: $p_t(x_r)$ is estimated from univariate counts. For each
+non-root node $i$: $p_t(x_i \mid x_{\pi(i)})$ is estimated from bivariate
+counts over $D_t^S$.
+
+\paragraph{Complexity.} Learning the MWST requires computing $O(n^2)$
+pairwise mutual information values and running Prim's algorithm in
+$O(n^2)$ time. Sampling is $O(nN)$ via probabilistic logic sampling (PLS).
+
+\paragraph{Strengths and limitations.} Tree-EDA can capture pairwise
+dependencies — exactly the dependencies induced by base pairs — making it
+substantially more powerful than UMDA for RNA design. Its main limitation
+is that the MWST must connect \emph{all} $n$ nodes: if only $m \ll
+\binom{n}{2}$ pairs truly interact, the algorithm still wastes time
+computing mutual information for the remaining $\binom{n}{2} - m$ pairs.
+Furthermore, tree edges are limited to one parent per node, so higher-order
+interactions in stacked base pairs or pseudoknot-like structures cannot be
+fully captured.
+
+\subsection{Tree-EDA\textsubscript{r} — Restricted Tree EDA}
+
+Tree-EDA\textsubscript{r}~\cite{santana2012transfer} is a variant of
+Tree-EDA that incorporates prior knowledge about which pairs of variables
+\emph{can} interact. This knowledge is encoded in a binary symmetric
+\emph{interaction matrix} $R \in \{0,1\}^{n \times n}$, where $R_{ij} = 1$
+means that variables $X_i$ and $X_j$ are structurally related and their
+mutual information should be considered for the spanning tree.
+
+\subsubsection*{Modified Structure Learning}
+
+Step~1 of the Chow--Liu algorithm is restricted so that mutual information
+is computed \emph{only} for interacting pairs:
+\[
+  \tilde{I}(X_i;\, X_j) =
+  \begin{cases}
+    I(X_i;\, X_j) & \text{if } R_{ij} = 1,\\
+    0              & \text{if } R_{ij} = 0.
+  \end{cases}
+\]
+The MWST is then computed on the sparse graph induced by $R$. Non-interacting
+pairs have weight 0 and therefore cannot appear as tree edges.
+
+The implementation in \texttt{pateda/learning/tree\_r.py} (class
+\texttt{LearnTreeModelR}) accepts \texttt{interaction\_matrix} at
+construction time and replaces the full mutual information loop with a loop
+over interacting pairs only:
+
+\begin{center}
+\begin{minipage}{0.85\textwidth}
+\begin{verbatim}
+for i in range(n_vars - 1):
+    for j in range(i + 1, n_vars):
+        if interaction_matrix[i, j] == 0:
+            continue          # skip non-interacting pair
+        mi = compute_MI(i, j, ...)
+        mi_matrix[i, j] = mi / (card_i * card_j)
+        mi_matrix[j, i] = mi_matrix[i, j]
+\end{verbatim}
+\end{minipage}
+\end{center}
+
+\paragraph{Strengths.} When $m = \sum_{i<j} R_{ij} \ll \binom{n}{2}$,
+Tree-EDA\textsubscript{r} computes only $m$ mutual information values instead
+of $\binom{n}{2}$, yielding a speedup proportional to $\binom{n}{2}/m$.
+More importantly, restricting the MWST to structurally relevant edges
+prevents the algorithm from fitting spurious statistical dependencies that
+arise in finite populations, which can mislead the search.
+
+\paragraph{Limitations.} The quality of Tree-EDA\textsubscript{r} depends
+entirely on the quality of the interaction matrix $R$. If $R$ omits true
+interactions, the spanning tree will be forced to ignore them. The method is
+therefore most effective when the problem structure is well-characterised a
+priori — which is precisely the case in RNA design, where base pairing is
+known from the target structure.
+
+\subsection{MK-EDA1 — First-Order Markov Chain EDA}
+
+MK-EDA1 is the first-order ($k=1$) instance of the $k$-order Markov Chain
+EDA~\cite{santana2008protein} implemented in
+\texttt{pateda/learning/markov.py} (\texttt{LearnMarkovChain(k=1)}). The
+probabilistic model factorises as
+\[
+  \hat{p}_t(\mathbf{x})
+  = p_t(x_1,\, x_2)
+    \prod_{i=3}^{n} p_t(x_i \mid x_{i-1}),
+\]
+where the joint distribution over the first two variables and all pairwise
+conditional distributions are estimated from $D_t^S$.
+
+\subsubsection*{Structure}
+
+The model forms a fixed \emph{chain} over the natural left-to-right ordering
+of the sequence. The clique structure is:
+\[
+  \{x_1, x_2\},\quad \{x_2, x_3\},\quad \ldots,\quad \{x_{n-1}, x_n\}.
+\]
+Each clique $\{x_{i-1}, x_i\}$ has one overlapping variable ($x_{i-1}$,
+already instantiated) and one new variable ($x_i$). Sampling proceeds
+left-to-right by ancestral sampling: draw $x_1, x_2$ jointly, then draw
+each $x_i$ conditioned on the already-sampled $x_{i-1}$.
+
+\subsubsection*{Parameter learning}
+
+\begin{itemize}
+  \item \textbf{Initial clique} $\{x_1, x_2\}$: joint counts over
+    $4 \times 4 = 16$ configurations, normalised.
+  \item \textbf{Transition cliques} $\{x_{i-1}, x_i\}$ for $i \geq 3$:
+    conditional probability tables $p_t(x_i = w \mid x_{i-1} = v)$ estimated
+    from frequency counts, with Laplace smoothing $\alpha = 0.1$.
+\end{itemize}
+
+\paragraph{Strengths.} MK-EDA1 captures \emph{consecutive} pairwise
+dependencies and is natural for RNA sequences, where positions adjacent in
+the chain often co-vary to maintain local secondary structure elements such
+as hairpin loops and bulges. The number of cliques is $n-1$, giving linear
+$O(n)$ learning and sampling complexity.
+
+\paragraph{Limitations.} MK-EDA1 is blind to \emph{long-range} base-pair
+interactions, which are ubiquitous in RNA secondary structure. A stem formed
+by base pairs $(i, j)$ with $|i - j| \gg 1$ is entirely invisible to the
+chain model. Furthermore, the chain ordering imposes a fixed dependency
+direction, so MK-EDA1 cannot selectively emphasise known interacting pairs
+the way Tree-EDA\textsubscript{r} does.
+
+\subsection{Summary of Differences}
+
+Table~\ref{tab:edas} contrasts the four EDA variants across the dimensions
+most relevant to RNA design.
+
+\begin{table}[h]
+\centering
+\caption{Comparison of EDA variants used in \texttt{rna\_design}.}
+\label{tab:edas}
+\begin{tabular}{lcccc}
+\toprule
+\textbf{Property} & \textbf{UMDA} & \textbf{Tree-EDA}
+  & \textbf{Tree-EDA\textsubscript{r}} & \textbf{MK-EDA1} \\
+\midrule
+Model family           & Univariate    & Tree (BN)  & Tree (BN)     & Markov chain \\
+Max. dependency order  & 0             & 1          & 1             & 1            \\
+Dependency structure   & None          & Learned    & Learned+Prior & Fixed chain  \\
+Long-range pairs       & \texttimes    & \checkmark & \checkmark    & \texttimes   \\
+Uses prior $R$         & \texttimes    & \texttimes & \checkmark    & \texttimes   \\
+MI pairs computed      & 0             & $n(n-1)/2$ & $\leq n(n-1)/2$ & $n-1$      \\
+Learning complexity    & $O(nK)$       & $O(n^2 K)$ & $O(m K)$      & $O(nK)$     \\
+Parameters             & $4n$          & $O(16n)$   & $O(16n)$      & $O(16n)$    \\
+\bottomrule
+\end{tabular}
+\end{table}
+\noindent Here $K$ is the size of the selected population and
+$m = \sum_{i<j} R_{ij}$ is the number of interacting pairs in the
+interaction matrix (with $m \leq n(n-1)/2$).
+
+% ─────────────────────────────────────────────────────────────────────────────
+\section{Using Problem Interactions to Bias the Search}
+\label{sec:interactions}
+% ─────────────────────────────────────────────────────────────────────────────
+
+\subsection{Motivation}
+
+The RNA design problem belongs to the class of \emph{gray-box optimisation}
+problems~\cite{santana2017graybox}: the target structure is known a priori
+and encodes, in explicit form, the structural relationships among the
+variables. Specifically, a base pair $(i, j)$ in $s^*$ tells us unambiguously
+that nucleotides at positions $i$ and $j$ are strongly coupled: the identity
+of $x_i$ severely constrains the set of admissible values for $x_j$
+(complementarity rules). Moreover, consecutive positions share stacking
+interactions and backbone geometry constraints. Both types of information
+are available before the EDA runs a single generation.
+
+Tree-EDA\textsubscript{r} is designed to exploit this gray-box information:
+instead of discovering interactions from scratch via mutual information, it
+\emph{restricts} the set of candidate edges in the MWST to those variable
+pairs that are structurally related according to the target structure.
+
+\subsection{The \texttt{find\_matrix\_interactions\_RNA\_design} Function}
+
+The function \texttt{find\_matrix\_interactions\_RNA\_design(RNA\_structure)},
+implemented in \texttt{external/pateda/learning/interaction\_learning.py},
+constructs the binary interaction matrix $R$ directly from the Dot-Bracket
+string $s^*$ of length $n$. It encodes two complementary types of structural
+interaction.
+
+\subsubsection*{Type 1 — Sequence Adjacency}
+
+Consecutive nucleotides in the RNA backbone are covalently bonded.
+Their identities jointly influence local folding stability through
+base-stacking interactions, which account for a significant fraction of
+the total free energy of RNA secondary structures~\cite{mathews2004thermodynamics}. Accordingly,
+\[
+  R_{i,\,i+1} = R_{i+1,\,i} = 1 \quad \forall\, i \in \{1, \ldots, n-1\}.
+\]
+This produces the $n-1$ edges of a path graph on the $n$ positions.
+
+\subsubsection*{Type 2 — Base-Pair Interactions}
+
+A base pair $(i, j)$ in $s^*$ (with $i < j$) is identified by a matched
+\texttt{(}\,/\,\texttt{)} in the Dot-Bracket string. The function uses
+a stack-based parser to recover all such pairs:
+\begin{center}
+\begin{minipage}{0.85\textwidth}
+\begin{verbatim}
+stack = []
+for position i, symbol in enumerate(RNA_structure):
+    if symbol == '(':
+        stack.append(i)
+    elif symbol == ')':
+        j = stack.pop()       # j is the matching '(' position
+        R[j, i] = R[i, j] = 1
+\end{verbatim}
+\end{minipage}
+\end{center}
+For each matched pair $(j, i)$ discovered this way, the matrix is set
+symmetrically:
+\[
+  R_{i,j} = R_{j,i} = 1.
+\]
+Unpaired positions (\texttt{.}) contribute no base-pair edges; they are
+covered only by sequence-adjacency edges with their two immediate neighbours.
+
+\subsubsection*{Properties of $R$}
+
+Let $B$ denote the number of base pairs encoded by $s^*$. The matrix $R$
+satisfies:
+\begin{itemize}
+  \item \textbf{Binary}: $R_{ij} \in \{0,1\}$ for all $i, j$.
+  \item \textbf{Symmetric}: $R_{ij} = R_{ji}$.
+  \item \textbf{Zero diagonal}: $R_{ii} = 0$.
+  \item \textbf{Interaction count}: exactly $m = (n-1) + B$ edges are set
+    to 1 in the upper triangle of $R$, minus any overlap where a base pair
+    happens to link adjacent positions (which is rare but possible in
+    degenerate cases).
+\end{itemize}
+
+For a typical RNA secondary structure, $B \approx n/2$ (roughly half the
+positions are paired), giving $m \approx 3n/2$. Compared to the $\binom{n}{2}
+\approx n^2/2$ pairs that Tree-EDA would test, this represents a speedup of
+order $n/3$ in the mutual-information computation step — highly significant
+for long sequences.
+
+\subsection{Passing $R$ to Tree-EDA\textsubscript{r}}
+
+The typical usage pattern in \texttt{rna\_design} is:
+\begin{center}
+\begin{minipage}{0.85\textwidth}
+\begin{verbatim}
+from pateda.learning.interaction_learning import \
+    find_matrix_interactions_RNA_design
+from pateda.learning.tree_r import LearnTreeModelR
+
+R = find_matrix_interactions_RNA_design(target_structure)
+learner = LearnTreeModelR(interaction_matrix=R, alpha=0.0)
+\end{verbatim}
+\end{minipage}
+\end{center}
+At each generation, \texttt{LearnTreeModelR.learn()} computes mutual
+information only for the $m$ pairs with $R_{ij}=1$, then runs Prim's
+MWST algorithm on the resulting sparse graph. The resulting tree is
+guaranteed to contain only edges that correspond to either backbone
+adjacency or Watson--Crick base pairing in the target — the two
+dominant sources of epistasis in RNA sequences.
+
+% ─────────────────────────────────────────────────────────────────────────────
+\section{Description of the Eterna100 Database}
+\label{sec:eterna}
+% ─────────────────────────────────────────────────────────────────────────────
+
+\subsection{Overview}
+
+The \textbf{Eterna100}~\cite{lee2014eterna, anderson2016eterna} is a widely
+adopted benchmark suite for RNA design algorithms. It consists of
+\textbf{100 RNA secondary structure puzzles} curated from the EteRNA
+citizen-science game~\cite{das2010eterna}, in which human players design
+RNA sequences to fold into prescribed target structures. The benchmark was
+introduced specifically to evaluate computational design algorithms under
+conditions that reflect real-world difficulty.
+
+\subsection{Construction and Curation}
+
+The 100 puzzles were selected from the EteRNA game database to cover a broad
+range of structural complexity. Selection criteria included:
+\begin{itemize}
+  \item \textbf{Difficulty}: puzzles solved by fewer human players are harder
+    and thus more discriminating for algorithmic comparison.
+  \item \textbf{Diversity}: puzzles span a wide range of sequence lengths
+    (from approximately 14 to over 400 nucleotides) and structural motifs
+    (hairpin loops, internal loops, bulges, multi-loops, and pseudoknot-free
+    structures of varying nesting depth).
+  \item \textbf{Validity}: all target structures are thermodynamically
+    realisable under the Turner energy model used by Vienna RNA.
+\end{itemize}
+
+\subsection{Evaluation Protocol}
+
+The standard Eterna100 evaluation protocol, as used in \texttt{rna\_design},
+is as follows:
+\begin{itemize}
+  \item An algorithm is given the target structure $s^*_k$ for puzzle
+    $k \in \{1, \ldots, 100\}$ and a computational budget (typically
+    measured in number of objective function evaluations or wall-clock time).
+  \item The algorithm returns a candidate sequence $\hat{\mathbf{x}}_k$.
+  \item The sequence is folded with the Vienna RNA package
+    (\texttt{RNAfold}); if the predicted MFE structure equals $s^*_k$
+    (i.e., base-pair distance $= 0$), the puzzle is counted as
+    \emph{solved}.
+  \item The primary performance metric is the \textbf{solve rate}: the
+    number of puzzles solved out of 100.
+\end{itemize}
+Secondary metrics include the average base-pair distance for unsolved
+puzzles and the average number of evaluations required to find a solution.
+
+\subsection{Structural Characteristics}
+
+Table~\ref{tab:eterna} summarises the main structural statistics of the
+Eterna100 benchmark as reported in~\cite{lee2014eterna, andronescu2016eterna}.
+
+\begin{table}[h]
+\centering
+\caption{Structural statistics of the Eterna100 benchmark.}
+\label{tab:eterna}
+\begin{tabular}{lcc}
+\toprule
+\textbf{Property} & \textbf{Min} & \textbf{Max} \\
+\midrule
+Sequence length $n$          & 14   & 400+  \\
+Number of base pairs $B$     & 4    & 160+  \\
+Nesting depth                & 1    & 8+    \\
+Number of multi-loops        & 0    & 10+   \\
+Solve rate (top human)       & ---  & 100\% \\
+\bottomrule
+\end{tabular}
+\end{table}
+
+\subsection{Relevance to EDA Benchmarking}
+
+The Eterna100 benchmark is particularly well-suited to evaluating EDA
+approaches because:
+\begin{enumerate}
+  \item \textbf{Problem diversity}: the 100 puzzles span a continuum from
+    trivial (short hairpins) to very hard (long multi-loop structures),
+    enabling fine-grained analysis of algorithm scaling.
+  \item \textbf{Known interactions}: the target structure provides an
+    explicit interaction matrix $R$ via
+    \texttt{find\_matrix\_interactions\_RNA\_design}, enabling a controlled
+    comparison between unrestricted and restricted EDAs.
+  \item \textbf{Standard baseline}: solve rates from many alternative
+    algorithms (RNAINVERSE, INFO-RNA, antaRNA, MCTS-RNA, deep-learning
+    methods) are available in the literature, permitting direct comparison.
+\end{enumerate}
+
+% ─────────────────────────────────────────────────────────────────────────────
+\section{Related Approaches}
+\label{sec:related}
+% ─────────────────────────────────────────────────────────────────────────────
+
+The \texttt{other\_rna\_implementations/} directory collects reference
+implementations of established RNA design algorithms. These implementations
+serve two roles in \texttt{rna\_design}: (i) they provide the
+thermodynamic objective function computations (base-pair distance, ensemble
+defect, partition function) that are wrapped into the objective functions
+$f_1$, $f_2$, $f_3$ described in Section~\ref{sec:representation}, and (ii)
+they constitute the baseline algorithms against which EDA performance is
+compared.
+
+\subsection{RNAINVERSE (Vienna RNA)}
+
+\textbf{RNAINVERSE}~\cite{hofacker1994fast, lorenz2011viennarna} is the
+classical RNA design tool distributed as part of the Vienna RNA package. It
+is a stochastic local-search algorithm that uses a mutation-and-acceptance
+loop over the space of sequences:
+\begin{enumerate}
+  \item Initialise $\mathbf{x}$ randomly, respecting Watson--Crick
+    complementarity at base-paired positions.
+  \item Repeat: mutate a randomly chosen position; accept the mutant if
+    it reduces the Hamming distance between the predicted MFE structure
+    and $s^*$.
+\end{enumerate}
+\textbf{Commonalities with \texttt{rna\_design}}: RNAINVERSE uses the same
+Vienna RNA thermodynamic model for MFE prediction; \texttt{rna\_design}
+wraps the \texttt{RNAfold} and \texttt{RNAdistance} utilities from the
+same package to compute $f_1$, $f_2$, and $f_3$.
+
+\textbf{Differences}: RNAINVERSE is a single-solution local-search method with
+no population and no probabilistic model. It cannot exploit global
+statistical patterns in the search history, is prone to local optima, and
+typically requires multiple restarts to solve hard puzzles. In contrast, the
+EDAs in \texttt{rna\_design} maintain a population and build an explicit
+model of the promising sequence regions, enabling a more global and
+information-guided search.
+
+\subsection{INFO-RNA}
+
+\textbf{INFO-RNA}~\cite{busch2006informa} extends the local-search idea by
+incorporating a preprocessing step that initialises the sequence using
+a dynamic programming (DP) procedure. The DP computes, for each position,
+the most probable nucleotide given its structural context in $s^*$:
+paired positions are initialised with the most frequent base-pair type
+in a reference dataset; unpaired positions with the most frequent unpaired
+nucleotide.
+
+\textbf{Commonalities with \texttt{rna\_design}}: INFO-RNA's initialisation
+heuristic is conceptually related to the interaction-aware seeding that
+\texttt{rna\_design} can apply when using $R$ from
+\texttt{find\_matrix\_interactions\_RNA\_design}: both methods exploit
+the known pairing structure of $s^*$ to bias the initial sequence.
+
+\textbf{Differences}: INFO-RNA combines DP initialisation with a local
+stochastic search that is still single-solution and restart-dependent. The
+EDAs in \texttt{rna\_design} build a full probabilistic model over all $n$
+positions simultaneously and use population-level statistics to escape local
+optima.
+
+\subsection{antaRNA}
+
+\textbf{antaRNA}~\cite{doelker2015antarna} (ant colony optimisation for RNA
+design) models the sequence-design problem as a graph traversal and uses
+simulated-annealing-based ant colony optimization. Ants deposit pheromones
+on nucleotide choices that produce structures closer to the target. Additional
+constraints such as GC content and sequence motifs can be incorporated as
+soft constraints.
+
+\textbf{Commonalities with \texttt{rna\_design}}: antaRNA uses a population
+of agents (ants) and maintains marginal statistics over nucleotide choices,
+resembling the univariate model of UMDA. Like Tree-EDA\textsubscript{r},
+antaRNA can incorporate a priori information about the structure to prune the
+search space.
+
+\textbf{Differences}: the pheromone update rule in antaRNA is position-wise
+(analogous to UMDA) and does not model pairwise or higher-order dependencies.
+The EDAs in \texttt{rna\_design} go further by capturing pairwise
+co-evolution between base-paired positions, which antaRNA approximates only
+implicitly through the constraint that paired positions must be
+complementary.
+
+\subsection{MCTS-RNA}
+
+\textbf{MCTS-RNA}~\cite{yang2017mcts} applies Monte Carlo Tree Search to RNA
+design. Sequence positions are filled left-to-right; at each step, MCTS
+simulates random completions of the partial sequence, estimates the value
+of each nucleotide choice, and selects the most promising option.
+
+\textbf{Commonalities with \texttt{rna\_design}}: MCTS-RNA's sequential
+position-by-position construction order is similar to the left-to-right
+ancestral sampling in MK-EDA1. Both methods condition nucleotide choices on
+previously assigned positions and use rollout or model information to guide
+the decision.
+
+\textbf{Differences}: MCTS-RNA is a tree-search method (not a population-based
+EDA) and its rollout policy does not maintain a generative probability model
+over the full sequence. The EDAs in \texttt{rna\_design} learn and re-use an
+explicit generative model at every generation, enabling the progressive
+sharpening of marginal and conditional distributions as the search advances.
+
+\subsection{Relationship Summary}
+
+Table~\ref{tab:related} places the related methods and the four EDA variants
+in a common framework.
+
+\begin{table}[h]
+\centering
+\caption{Comparison of \texttt{rna\_design} EDA variants and related algorithms.}
+\label{tab:related}
+\begin{tabular}{lccccc}
+\toprule
+\textbf{Algorithm} & \textbf{Population} & \textbf{Model} & \textbf{Pairwise deps.}
+  & \textbf{Structural prior} & \textbf{Source} \\
+\midrule
+RNAINVERSE   & \texttimes & None               & \texttimes & Implicit & Vienna RNA \\
+INFO-RNA      & \texttimes & DP init            & \texttimes & \checkmark & other\_rna \\
+antaRNA       & \checkmark & Pheromone (univ.)  & \texttimes & Soft       & other\_rna \\
+MCTS-RNA      & \texttimes & Rollout            & Partial    & \texttimes & other\_rna \\
+\midrule
+UMDA          & \checkmark & Univariate         & \texttimes & \texttimes & pateda \\
+MK-EDA1       & \checkmark & Markov chain       & Adjacent   & \texttimes & pateda \\
+Tree-EDA      & \checkmark & Tree (BN)          & \checkmark & \texttimes & pateda \\
+Tree-EDA\textsubscript{r} & \checkmark & Tree (BN) & \checkmark & \checkmark & pateda \\
+\bottomrule
+\end{tabular}
+\end{table}
+
+The key differentiator of Tree-EDA\textsubscript{r} within this landscape is
+the combination of a population-based search, a pairwise probabilistic model,
+and explicit incorporation of the structural prior $R$ derived from the target
+structure. This combination aligns it most closely with the gray-box
+optimisation paradigm~\cite{santana2017graybox}: it does not treat the
+objective function as a black box but instead uses available structural
+knowledge to focus the model-learning step on the interactions that matter
+most for RNA design.
+
+% ─────────────────────────────────────────────────────────────────────────────
+\bibliographystyle{plain}
+\begin{thebibliography}{99}
+
+\bibitem{tinoco1999rna}
+I. Tinoco and C. Bustamante,
+``How RNA folds,''
+\emph{Journal of Molecular Biology}, 293(2):271--281, 1999.
+
+\bibitem{zuker1989mfold}
+M. Zuker and P. Stiegler,
+``Optimal computer folding of large RNA sequences using thermodynamics and auxiliary information,''
+\emph{Nucleic Acids Research}, 9(1):133--148, 1981.
+
+\bibitem{hofacker1994fast}
+I.~L. Hofacker, W. Fontana, P.~F. Stadler, L.~S. Bonhoeffer, M. Tacker, and P. Schuster,
+``Fast folding and comparison of RNA secondary structures,''
+\emph{Monatshefte f\"ur Chemie}, 125(2):167--188, 1994.
+
+\bibitem{lorenz2011viennarna}
+R. Lorenz, S.~H. Bernhart, C.~H. Zu Siederdissen, H. Tafer, C. Flamm, P.~F. Stadler, and I.~L. Hofacker,
+``{ViennaRNA} package 2.0,''
+\emph{Algorithms for Molecular Biology}, 6(1):26, 2011.
+
+\bibitem{mccaskill1990equilibrium}
+J.~S. McCaskill,
+``The equilibrium partition function and base pair binding probabilities for RNA secondary structure,''
+\emph{Biopolymers}, 29(6-7):1105--1119, 1990.
+
+\bibitem{zadeh2011nupack}
+J.~N. Zadeh, C.~D. Steenberg, J.~S. Bois, B.~R. Wolfe, M.~B. Pierce, A.~R. Khan, R.~M. Dirks, and N.~A. Pierce,
+``{NUPACK}: Analysis and design of nucleic acid systems,''
+\emph{Journal of Computational Chemistry}, 32(1):170--173, 2011.
+
+\bibitem{wachsmuth2013riboswitch}
+M. Wachsmuth, S. Findeiss, N. Weissheimer, P.~F. Stadler, and M. M\"orl,
+``De novo design of a synthetic riboswitch that regulates transcription termination,''
+\emph{Nucleic Acids Research}, 41(4):2541--2551, 2013.
+
+\bibitem{lee2014eterna}
+J. Lee, H. Kladwang, M. Lee, D. Cantu, M. Azizyan, H. Kim, A. Limpaecher, S. Gatta, S. Testa, A. Treuille, and R. Das,
+``RNA design rules from a massive open laboratory,''
+\emph{Proceedings of the National Academy of Sciences}, 111(6):2122--2127, 2014.
+
+\bibitem{anderson2016eterna}
+E. Anderson and R. Das,
+``{Eterna100} benchmark for RNA inverse folding,''
+available at \texttt{https://github.com/eternagame/Eterna100-benchmarking}, 2016.
+
+\bibitem{andronescu2016eterna}
+M. Andronescu, A. Condon, H.~H. Hoos, D.~H. Mathews, and K.~P. Murphy,
+``Efficient parameter estimation for RNA secondary structure prediction,''
+\emph{Bioinformatics}, 23(13):i19--i28, 2007.
+
+\bibitem{mathews2004thermodynamics}
+D.~H. Mathews and D.~H. Turner,
+``Prediction of RNA secondary structure by free energy minimization,''
+\emph{Current Opinion in Structural Biology}, 16(3):270--278, 2006.
+
+\bibitem{larranaga2002eda}
+P. Larra\~naga and J.~A. Lozano (Eds.),
+\emph{Estimation of Distribution Algorithms: A New Tool for Evolutionary Computation}.
+Kluwer Academic Publishers, 2002.
+
+\bibitem{pelikan2002eda}
+M. Pelikan, D.~E. Goldberg, and F.~G. Lobo,
+``A survey of optimization by building and using probabilistic models,''
+\emph{Computational Optimization and Applications}, 21(1):5--20, 2002.
+
+\bibitem{muhlenbein1997umda}
+H. M\"uhlenbein and G. Paa\ss,
+``From recombination of genes to the estimation of distributions~I: Binary parameters,''
+in \emph{Parallel Problem Solving from Nature (PPSN-IV)}, LNCS 1411, pp.~178--187, 1996.
+
+\bibitem{baluja1997dependency}
+S. Baluja and S. Davies,
+``Using optimal dependency-trees for combinatorial optimization: Learning the structure of the search space,''
+in \emph{Proceedings of ICML-1997}, pp.~30--38, 1997.
+
+\bibitem{chow1968tree}
+C. Chow and C. Liu,
+``Approximating discrete probability distributions with dependence trees,''
+\emph{IEEE Transactions on Information Theory}, 14(3):462--467, 1968.
+
+\bibitem{santana2008protein}
+R. Santana, P. Larra\~naga, and J.~A. Lozano,
+``Protein folding in simplified models with estimation of distribution algorithms,''
+\emph{IEEE Transactions on Evolutionary Computation}, 12(4):418--438, 2008.
+
+\bibitem{santana2012transfer}
+R. Santana, A. Mendiburu, and J.~A. Lozano,
+``Structural transfer using EDAs: An application to multi-marker tagging SNP selection,''
+in \emph{Proceedings of the 2012 IEEE Congress on Evolutionary Computation (CEC-2012)},
+pp.~3484--3491, Brisbane, Australia, 2012.
+
+\bibitem{santana2017graybox}
+R. Santana,
+``Gray-box optimization and factorized distribution algorithms: where two worlds collide,''
+\emph{arXiv preprint arXiv:1707.03093}, 2017.
+
+\bibitem{busch2006informa}
+A. Busch and R. Backofen,
+``{INFO-RNA} --- a fast approach to inverse RNA folding,''
+\emph{Bioinformatics}, 22(15):1823--1831, 2006.
+
+\bibitem{doelker2015antarna}
+R. D\"oelker, M. Mann, and R. Backofen,
+``{antaRNA}: Ant colony-based RNA sequence design,''
+\emph{Bioinformatics}, 31(19):3114--3121, 2015.
+
+\bibitem{yang2017mcts}
+X. Yang, K. Yoshizoe, A. Taneda, and K. Tsuda,
+``{RNA} inverse folding using Monte Carlo tree search,''
+\emph{BMC Bioinformatics}, 18(1):468, 2017.
+
+\bibitem{das2010eterna}
+R. Das, J. Karanicolas, and D. Baker,
+``Atomic accuracy in predicting and designing noncanonical RNA structure,''
+\emph{Nature Methods}, 7(4):291--294, 2010.
+
+\end{thebibliography}
+
+\end{document}
