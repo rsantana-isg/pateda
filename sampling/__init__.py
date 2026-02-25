@@ -1,6 +1,7 @@
 """Sampling methods"""
 
 from pateda.sampling.fda import SampleFDA
+from pateda.sampling.partial import SamplePartialFDA
 from pateda.sampling.cumda import SampleCUMDA, SampleCUMDARange
 from pateda.sampling.cfda import (
     SampleCFDA,
@@ -75,6 +76,7 @@ except ImportError:
 
 __all__ = [
     "SampleFDA",
+    "SamplePartialFDA",
     "SampleCUMDA",
     "SampleCUMDARange",
     "SampleCFDA",
