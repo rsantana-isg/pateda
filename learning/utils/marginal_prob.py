@@ -15,7 +15,7 @@ from pateda.learning.utils.conversions import (
 
 
 def find_marginal_prob(
-    population: np.ndarray, n_vars: int, cardinality: np.ndarray
+    population: np.ndarray, n_vars: int, cardinality: np.ndarray, alpha: float = 0.0
 ) -> Tuple[List[np.ndarray], List[np.ndarray]]:
     """
     Calculate univariate and bivariate marginal probabilities from population
@@ -26,6 +26,10 @@ def find_marginal_prob(
         population: Population data (n_samples, n_vars)
         n_vars: Number of variables
         cardinality: Cardinality of each variable
+        alpha: Laplace smoothing pseudo-count added to bivariate counts before
+               normalisation (default: 0.0, i.e. no smoothing).  A value such
+               as 0.5 prevents zero-probability entries in the joint table when
+               some configurations are absent from the selected set.
 
     Returns:
         Tuple of (univariate_probs, bivariate_probs)
@@ -61,8 +65,9 @@ def find_marginal_prob(
                 for sample in population:
                     counts[sample[i], sample[j]] += 1
 
-                # Convert to probabilities and flatten
-                probs = (counts / n_samples).flatten()
+                # Apply Laplace smoothing and normalise
+                counts += alpha
+                probs = (counts / counts.sum()).flatten()
                 biv_row.append(probs)
 
         biv_prob.append(biv_row)

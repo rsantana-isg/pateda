@@ -103,6 +103,12 @@ class LearnTreeModelR(LearningMethod):
         """
         mi_matrix = np.zeros((n_vars, n_vars))
 
+        # Pre-compute univariate entropies once for all variables
+        entropies = np.array([
+            -sum(p * np.log(p) for p in univ_prob[i] if p > 0)
+            for i in range(n_vars)
+        ])
+
         for i in range(n_vars - 1):
             for j in range(i + 1, n_vars):
                 # Skip pairs that do not interact
@@ -124,10 +130,11 @@ class LearnTreeModelR(LearningMethod):
                         if p_ij > 0 and p_i > 0 and p_j > 0:
                             mi += p_ij * np.log(p_ij / (p_i * p_j))
 
-                # Normalize by cardinalities
-                mi /= (card_i * card_j)
-                mi_matrix[i, j] = mi
-                mi_matrix[j, i] = mi
+                # Compute normalized mutual information (symmetric uncertainty)
+                denom = entropies[i] + entropies[j]
+                nmi = max(0.0, min(1.0, 2.0 * mi / denom)) if denom > 0 else 0.0
+                mi_matrix[i, j] = nmi
+                mi_matrix[j, i] = nmi
 
         return mi_matrix
 
@@ -241,10 +248,14 @@ class LearnTreeModelR(LearningMethod):
 
                 if parent_idx < child_idx:
                     biv_probs = biv_prob[parent_idx][child_idx]
-                    aux_biv_prob = biv_probs.reshape(card_child, card_parent).T
+                    # biv_prob[i][j] is stored row-major with i as the row variable.
+                    # Here i=parent_idx, so reshape directly to (card_parent, card_child).
+                    aux_biv_prob = biv_probs.reshape(card_parent, card_child)
                 else:
                     biv_probs = biv_prob[child_idx][parent_idx]
-                    aux_biv_prob = biv_probs.reshape(card_parent, card_child)
+                    # biv_prob[child][parent] has child as row variable;
+                    # transpose to get (card_parent, card_child).
+                    aux_biv_prob = biv_probs.reshape(card_child, card_parent).T
 
                 lap_biv_prob = (aux_biv_prob * n_samples + 1) / (n_samples + card_child * card_parent)
                 lap_parent_probs = (univ_prob[parent_idx] * n_samples + 1) / (n_samples + card_parent)
@@ -299,7 +310,7 @@ class LearnTreeModelR(LearningMethod):
         alpha = params.get("alpha", self.alpha)
 
         # Learn univariate and bivariate marginal probabilities
-        univ_prob, biv_prob = find_marginal_prob(population, n_vars, cardinality)
+        univ_prob, biv_prob = find_marginal_prob(population, n_vars, cardinality, alpha=alpha)
 
         # Compute restricted mutual information matrix
         mi_matrix = self._compute_restricted_mi_matrix(
