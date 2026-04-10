@@ -213,7 +213,7 @@ def gather_results(obj_func: str) -> dict:
 # Statistical tests
 # ---------------------------------------------------------------------------
 
-def kruskal_wallis(groups: dict) -> tuple:
+def run_kruskal_wallis(groups: dict) -> tuple:
     """
     Run Kruskal-Wallis H-test on the provided groups.
 
@@ -348,20 +348,16 @@ def save_csv(results_rows: list, path: str = 'statistical_comparison_results.csv
 def main():
     all_rows = []
 
-    missing_data_warned = set()
+    # Track which objectives are missing data per algorithm for a consolidated warning
+    missing_objectives: dict = {alg: [] for alg in ALGORITHMS}
 
     for obj_func in OBJ_FUNCTIONS:
         data = gather_results(obj_func)
 
-        # Warn once per algorithm if data is completely missing
+        # Collect missing-data information for each algorithm
         for alg, vals in data.items():
-            if len(vals) == 0 and alg not in missing_data_warned:
-                print(
-                    f"[WARNING] No data found for algorithm '{alg}' "
-                    f"(objective: {obj_func}). Check folder paths.",
-                    file=sys.stderr
-                )
-                missing_data_warned.add(alg)
+            if len(vals) == 0:
+                missing_objectives[alg].append(obj_func)
 
         # Run tests only if at least 2 algorithms have data
         groups_with_data = {k: v for k, v in data.items() if len(v) > 0}
@@ -369,7 +365,7 @@ def main():
             print(f"\n[SKIP] {obj_func}: fewer than 2 algorithms have data.")
             continue
 
-        kw_stat, kw_p = kruskal_wallis(groups_with_data)
+        kw_stat, kw_p = run_kruskal_wallis(groups_with_data)
         posthoc = posthoc_mannwhitney_bonferroni(groups_with_data)
 
         print_summary(obj_func, data, kw_stat, kw_p, posthoc)
@@ -387,6 +383,15 @@ def main():
                 'kruskal_H': kw_stat,
                 'kruskal_p': kw_p,
             })
+
+    # Emit a single consolidated warning per algorithm listing all affected objectives
+    for alg, objs in missing_objectives.items():
+        if objs:
+            print(
+                f"[WARNING] No data found for algorithm '{alg}' "
+                f"on objective(s): {', '.join(objs)}. Check folder paths.",
+                file=sys.stderr,
+            )
 
     save_csv(all_rows)
 
