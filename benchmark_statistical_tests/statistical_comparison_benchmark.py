@@ -101,17 +101,10 @@ def trim_num(value: float) -> str:
     return format(value, ".12g")
 
 
-def alpha_str_for_eda_and_diff(value: str) -> str:
+def format_alpha(value: str, zero_repr: str) -> str:
     x = to_float(value, 0.0)
     if abs(x) < 1e-12:
-        return "0"
-    return trim_num(x)
-
-
-def alpha_str_for_vae(value: str) -> str:
-    x = to_float(value, 0.0)
-    if abs(x) < 1e-12:
-        return "0.0"
+        return zero_repr
     return trim_num(x)
 
 
@@ -138,12 +131,13 @@ def extract_dendiff(problem_name: str, instance: str, cfg: Dict[str, str], folde
     variant = cfg["variant"]
     sampling = DENDIFF_SAMPLING.get(variant)
     if sampling is None:
+        print(f"[WARNING] Unknown Diff-EDA variant '{variant}' for instance '{instance}'.", file=sys.stderr)
         return []
 
     activation = cfg["activation"]
     loss = cfg["loss"]
     fg = int_str(cfg.get("fitness_guided", "0"))
-    alpha = alpha_str_for_eda_and_diff(cfg.get("alpha", "0"))
+    alpha = format_alpha(cfg.get("alpha", "0"), "0")
 
     values: List[float] = []
     for seed in range(1, N_SEEDS + 1):
@@ -164,7 +158,7 @@ def extract_dbd(problem_name: str, instance: str, cfg: Dict[str, str], folder: s
     loss = cfg["loss"]
     k = int_str(cfg.get("k", "0"))
     fg = int_str(cfg.get("fitness_guided", "0"))
-    alpha = alpha_str_for_eda_and_diff(cfg.get("alpha", "0"))
+    alpha = format_alpha(cfg.get("alpha", "0"), "0")
 
     values: List[float] = []
     for seed in range(1, N_SEEDS + 1):
@@ -180,7 +174,7 @@ def extract_dbd(problem_name: str, instance: str, cfg: Dict[str, str], folder: s
 
 def extract_eda(problem_name: str, instance: str, cfg: Dict[str, str], folder: str) -> List[float]:
     alg = cfg["alg"]
-    alpha = alpha_str_for_eda_and_diff(cfg.get("alpha", "0"))
+    alpha = format_alpha(cfg.get("alpha", "0"), "0")
 
     values: List[float] = []
     for seed in range(1, N_SEEDS + 1):
@@ -197,7 +191,8 @@ def extract_vae(problem_name: str, instance: str, cfg: Dict[str, str], folder: s
     variant = cfg["variant"]
     act_enc = cfg["act_enc"]
     act_dec = cfg["act_dec"]
-    alpha = alpha_str_for_vae(cfg.get("alpha", "0.0"))
+    # VAE benchmark filenames were generated with alpha list [0.0, 0.95], so zero must be "0.0".
+    alpha = format_alpha(cfg.get("alpha", "0.0"), "0.0")
 
     values: List[float] = []
     for seed in range(1, N_SEEDS + 1):
@@ -231,9 +226,13 @@ def posthoc_mannwhitney_bonferroni(groups: Dict[str, List[float]]) -> Dict[Tuple
         try:
             u_stat, p_raw = mannwhitneyu(x, y, alternative="two-sided")
         except ValueError:
+            print(
+                f"[WARNING] Mann-Whitney U failed for pair ({a}, {b}); writing NaN results.",
+                file=sys.stderr,
+            )
             u_stat, p_raw = float("nan"), float("nan")
 
-        p_adj = min(p_raw * n_comp, 1.0) if not np.isnan(p_raw) else float("nan")
+        p_adj = min(p_raw * n_comp, 1.0) if np.isfinite(p_raw) else float("nan")
         results[(a, b)] = {"U": float(u_stat), "p_raw": float(p_raw), "p_adj": float(p_adj)}
 
     return results
