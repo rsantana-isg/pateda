@@ -1,0 +1,73 @@
+[build-system]
+requires = ["setuptools>=68"]
+build-backend = "setuptools.build_meta"
+
+[project]
+name = "pateda-nn"
+version = "0.1.0"
+description = "Neural Network EDA implementations for pateda — VAE, GAN, Diffusion, Backdrive, DBD, RBM"
+readme = "README.md"
+license = { file = "LICENSE" }
+authors = [
+    { name = "Roberto Santana", email = "roberto.santana@ehu.eus" },
+]
+keywords = [
+    "estimation of distribution algorithms", "EDA", "deep learning",
+    "variational autoencoder", "VAE", "GAN", "diffusion models",
+    "neural networks", "evolutionary computation", "optimization",
+]
+classifiers = [
+    "Development Status :: 3 - Alpha",
+    "Intended Audience :: Science/Research",
+    "Topic :: Scientific/Engineering :: Artificial Intelligence",
+    "License :: OSI Approved :: MIT License",
+    "Programming Language :: Python :: 3",
+    "Programming Language :: Python :: 3.9",
+    "Programming Language :: Python :: 3.10",
+    "Programming Language :: Python :: 3.11",
+    "Programming Language :: Python :: 3.12",
+]
+requires-python = ">=3.9"
+dependencies = [
+    "pateda>=0.1.0",
+    "torch>=2.0",
+    "numpy>=1.21",
+    "scipy>=1.7",
+]
+
+[project.optional-dependencies]
+tensorflow = ["tensorflow>=2.10"]   # required only for pateda_nn.legacy
+dev = [
+    "pytest>=7",
+    "pytest-cov>=3",
+    "black>=22",
+    "mypy>=0.950",
+    "ruff>=0.1",
+]
+docs = [
+    "sphinx>=7",
+    "sphinx-rtd-theme>=1",
+    "myst-parser>=2",
+]
+all = ["pateda-nn[tensorflow,dev,docs]"]
+
+[project.urls]
+Homepage = "https://github.com/rsantana-isg/pateda"
+Repository = "https://github.com/rsantana-isg/pateda"
+Issues = "https://github.com/rsantana-isg/pateda/issues"
+
+[tool.setuptools.packages.find]
+where = ["src"]
+
+[tool.pytest.ini_options]
+testpaths = ["tests"]
+addopts = "-v"
+
+[tool.ruff]
+line-length = 99
+target-version = "py39"
+
+[tool.mypy]
+python_version = "3.11"
+warn_return_any = true
+ignore_missing_imports = true
