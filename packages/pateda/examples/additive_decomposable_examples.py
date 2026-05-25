@@ -43,7 +43,9 @@ def build_learning_method(eda_type):
         return LearnUMDA(alpha=1.0)
     if eda_type == "tree":
         return LearnTreeModel(alpha=1.0)
-    raise ValueError(f"Unsupported EDA type: {eda_type}")
+    raise ValueError(
+        f"Unsupported EDA type: {eda_type}. Valid options are: 'umda', 'tree'."
+    )
 
 
 def run_eda_on_function(objective, n_vars, cardinality, pop_size=1000,
@@ -108,7 +110,16 @@ def run_eda_on_function(objective, n_vars, cardinality, pop_size=1000,
 
 
 def run_eda_suite(eda_types, **kwargs):
-    """Run one benchmark configuration for each selected EDA."""
+    """
+    Run one benchmark configuration for each selected EDA.
+
+    Args:
+        eda_types: List of EDA type strings ("umda" and/or "tree").
+        **kwargs: Parameters forwarded to run_eda_on_function.
+
+    Returns:
+        Dictionary mapping EDA type strings to corresponding run statistics.
+    """
     results = {}
     for eda_type in eda_types:
         results[eda_type] = run_eda_on_function(eda_type=eda_type, **kwargs)
@@ -316,7 +327,13 @@ def compare_k_values(eda_types, seed):
 
 
 def print_eda_final_comparison(all_stats, eda_types):
-    """Print final UMDA vs Tree-EDA comparison."""
+    """
+    Print final UMDA vs Tree-EDA comparison.
+
+    Args:
+        all_stats: Mapping from benchmark key to per-EDA run statistics.
+        eda_types: EDA type list used in the current execution.
+    """
     if len(eda_types) < 2:
         print("\nOnly one EDA selected; skipping cross-EDA comparison table.")
         return
