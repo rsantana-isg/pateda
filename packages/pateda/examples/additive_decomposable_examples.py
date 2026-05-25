@@ -14,9 +14,10 @@ Functions tested:
 
 # Add parent directory to path for running examples without installation
 
+import argparse
 import numpy as np
 from pateda.core.eda import EDA, EDAComponents
-from pateda.learning import LearnUMDA
+from pateda.learning import LearnUMDA, LearnTreeModel
 from pateda.sampling import SampleFDA
 from pateda.selection import TruncationSelection
 from pateda.replacement import ElitistReplacement
@@ -30,8 +31,26 @@ from pateda.functions.discrete.additive_decomposable import (
 )
 
 
+EDA_NAME_MAP = {
+    "umda": "UMDA",
+    "tree": "Tree-EDA",
+}
+
+
+def build_learning_method(eda_type):
+    """Build learning component for requested EDA type."""
+    if eda_type == "umda":
+        return LearnUMDA(alpha=1.0)
+    if eda_type == "tree":
+        return LearnTreeModel(alpha=1.0)
+    raise ValueError(
+        f"Unsupported EDA type: {eda_type}. Valid options are: 'umda', 'tree'."
+    )
+
+
 def run_eda_on_function(objective, n_vars, cardinality, pop_size=1000,
-                        max_gen=100, function_name="Function"):
+                        max_gen=100, function_name="Function",
+                        eda_type="umda", seed=42):
     """
     Helper function to run EDA on a given objective function
 
@@ -42,6 +61,8 @@ def run_eda_on_function(objective, n_vars, cardinality, pop_size=1000,
         pop_size: Population size
         max_gen: Maximum generations
         function_name: Name of the function for display
+        eda_type: EDA learning model to use ("umda" or "tree")
+        seed: Random seed used in EDA
 
     Returns:
         statistics: Dictionary with optimization statistics
@@ -50,7 +71,7 @@ def run_eda_on_function(objective, n_vars, cardinality, pop_size=1000,
     components = EDAComponents(
         seeding=RandomInit(),
         selection=TruncationSelection(ratio=0.5),
-        learning=LearnUMDA(alpha=1.0),  # Laplace smoothing
+        learning=build_learning_method(eda_type),
         sampling=SampleFDA(n_samples=pop_size),
         replacement=ElitistReplacement(),
         stop_condition=MaxGenerations(max_gen),
@@ -63,20 +84,21 @@ def run_eda_on_function(objective, n_vars, cardinality, pop_size=1000,
         cardinality=cardinality,
         fitness_func=objective,
         components=components,
-        random_seed=42,
+        random_seed=seed,
     )
 
     # Run optimization
-    print(f"\nRunning EDA on {function_name}...")
+    print(f"\nRunning {EDA_NAME_MAP[eda_type]} on {function_name}...")
     print(f"Population size: {pop_size}")
     print(f"Number of variables: {n_vars}")
     print(f"Maximum generations: {max_gen}")
+    print(f"Seed: {seed}")
 
     stats, cache = eda.run(verbose=True)
 
     # Print results
     print("=" * 60)
-    print(f"Results for {function_name}")
+    print(f"Results for {function_name} ({EDA_NAME_MAP[eda_type]})")
     print("=" * 60)
     print(f"Generations run: {len(stats.best_fitness)}")
     print(f"Best fitness: {stats.best_fitness_overall:.4f}")
@@ -87,7 +109,24 @@ def run_eda_on_function(objective, n_vars, cardinality, pop_size=1000,
     return stats
 
 
-def example_k_deceptive():
+def run_eda_suite(eda_types, **kwargs):
+    """
+    Run one benchmark configuration for each selected EDA.
+
+    Args:
+        eda_types: List of EDA type strings ("umda" and/or "tree").
+        **kwargs: Parameters forwarded to run_eda_on_function.
+
+    Returns:
+        Dictionary mapping EDA type strings to corresponding run statistics.
+    """
+    results = {}
+    for eda_type in eda_types:
+        results[eda_type] = run_eda_on_function(eda_type=eda_type, **kwargs)
+    return results
+
+
+def example_k_deceptive(eda_types, seed):
     """Test K-Deceptive function with k=3"""
     print("\n" + "=" * 70)
     print("Example 1: K-Deceptive (k=3)")
@@ -97,27 +136,30 @@ def example_k_deceptive():
     cardinality = 2 * np.ones(n_vars, dtype=int)
     objective = create_k_deceptive_function(k=3)
 
-    print(f"\nFunction: K-Deceptive with k=3")
-    print(f"Optimal solution: All 1s")
+    print("\nFunction: K-Deceptive with k=3")
+    print("Optimal solution: All 1s")
     print(f"Optimal fitness: {n_vars}")
 
-    stats = run_eda_on_function(
+    stats_by_eda = run_eda_suite(
+        eda_types=eda_types,
         objective=objective,
         n_vars=n_vars,
         cardinality=cardinality,
         pop_size=1000,
         max_gen=50,
-        function_name="K-Deceptive (k=3)"
+        function_name="K-Deceptive (k=3)",
+        seed=seed,
     )
 
     # Check if optimal was found
-    is_optimal = stats.best_fitness[-1] >= n_vars
-    print(f"Optimal solution found: {is_optimal}")
+    for eda_type, stats in stats_by_eda.items():
+        is_optimal = stats.best_fitness[-1] >= n_vars
+        print(f"Optimal solution found ({EDA_NAME_MAP[eda_type]}): {is_optimal}")
 
-    return stats
+    return stats_by_eda
 
 
-def example_decep3():
+def example_decep3(eda_types, seed):
     """Test Deceptive-3 with overlap"""
     print("\n" + "=" * 70)
     print("Example 2: Deceptive-3 (with overlap)")
@@ -127,22 +169,24 @@ def example_decep3():
     cardinality = 2 * np.ones(n_vars, dtype=int)
     objective = create_decep3_function(overlap=True)
 
-    print(f"\nFunction: Deceptive-3 with overlapping partitions")
-    print(f"This function uses overlapping 3-variable subfunctions")
+    print("\nFunction: Deceptive-3 with overlapping partitions")
+    print("This function uses overlapping 3-variable subfunctions")
 
-    stats = run_eda_on_function(
+    stats_by_eda = run_eda_suite(
+        eda_types=eda_types,
         objective=objective,
         n_vars=n_vars,
         cardinality=cardinality,
         pop_size=1000,
         max_gen=75,
-        function_name="Deceptive-3 (overlap)"
+        function_name="Deceptive-3 (overlap)",
+        seed=seed,
     )
 
-    return stats
+    return stats_by_eda
 
 
-def example_hiff():
+def example_hiff(eda_types, seed):
     """Test HIFF (Hierarchical If and only If)"""
     print("\n" + "=" * 70)
     print("Example 3: HIFF (Hierarchical If and only If)")
@@ -152,30 +196,32 @@ def example_hiff():
     cardinality = 2 * np.ones(n_vars, dtype=int)
     objective = create_hiff_function()
 
-    print(f"\nFunction: HIFF")
-    print(f"This is a hierarchical function that rewards building blocks")
-    print(f"at multiple scales. Problem size must be a power of 2.")
-    print(f"Optimal solutions: All 0s or all 1s (uniform)")
+    print("\nFunction: HIFF")
+    print("This is a hierarchical function that rewards building blocks")
+    print("at multiple scales. Problem size must be a power of 2.")
+    print("Optimal solutions: All 0s or all 1s (uniform)")
 
-    stats = run_eda_on_function(
+    stats_by_eda = run_eda_suite(
+        eda_types=eda_types,
         objective=objective,
         n_vars=n_vars,
         cardinality=cardinality,
         pop_size=2000,
         max_gen=100,
-        function_name="HIFF"
+        function_name="HIFF",
+        seed=seed,
     )
 
-    # Check if solution is uniform
-    best_sol = stats.best_individual
-    is_uniform = (np.all(best_sol == 0) or np.all(best_sol == 1))
-    print(f"Solution is uniform (optimal): {is_uniform}")
-    print(f"Sum of best solution: {np.sum(best_sol)}")
+    for eda_type, stats in stats_by_eda.items():
+        best_sol = stats.best_individual
+        is_uniform = np.all(best_sol == 0) or np.all(best_sol == 1)
+        print(f"Solution is uniform ({EDA_NAME_MAP[eda_type]}): {is_uniform}")
+        print(f"Sum of best solution ({EDA_NAME_MAP[eda_type]}): {np.sum(best_sol)}")
 
-    return stats
+    return stats_by_eda
 
 
-def example_polytree3():
+def example_polytree3(eda_types, seed):
     """Test First Polytree-3 (Ochoa)"""
     print("\n" + "=" * 70)
     print("Example 4: First Polytree-3 (Ochoa)")
@@ -185,22 +231,24 @@ def example_polytree3():
     cardinality = 2 * np.ones(n_vars, dtype=int)
     objective = create_polytree3_function(overlap=False)
 
-    print(f"\nFunction: Ochoa's First Polytree-3")
-    print(f"This function uses a lookup table for 3-variable subfunctions")
+    print("\nFunction: Ochoa's First Polytree-3")
+    print("This function uses a lookup table for 3-variable subfunctions")
 
-    stats = run_eda_on_function(
+    stats_by_eda = run_eda_suite(
+        eda_types=eda_types,
         objective=objective,
         n_vars=n_vars,
         cardinality=cardinality,
         pop_size=1000,
         max_gen=75,
-        function_name="Polytree-3"
+        function_name="Polytree-3",
+        seed=seed,
     )
 
-    return stats
+    return stats_by_eda
 
 
-def example_polytree3_overlap():
+def example_polytree3_overlap(eda_types, seed):
     """Test First Polytree-3 with overlap"""
     print("\n" + "=" * 70)
     print("Example 5: First Polytree-3 with Overlap (Ochoa)")
@@ -210,22 +258,24 @@ def example_polytree3_overlap():
     cardinality = 2 * np.ones(n_vars, dtype=int)
     objective = create_polytree3_function(overlap=True)
 
-    print(f"\nFunction: Ochoa's First Polytree-3 with overlapping partitions")
-    print(f"Overlapping partitions make the problem more challenging")
+    print("\nFunction: Ochoa's First Polytree-3 with overlapping partitions")
+    print("Overlapping partitions make the problem more challenging")
 
-    stats = run_eda_on_function(
+    stats_by_eda = run_eda_suite(
+        eda_types=eda_types,
         objective=objective,
         n_vars=n_vars,
         cardinality=cardinality,
         pop_size=1500,
         max_gen=100,
-        function_name="Polytree-3 (overlap)"
+        function_name="Polytree-3 (overlap)",
+        seed=seed,
     )
 
-    return stats
+    return stats_by_eda
 
 
-def compare_k_values():
+def compare_k_values(eda_types, seed):
     """Compare K-Deceptive with different k values"""
     print("\n" + "=" * 70)
     print("Example 6: Comparing K-Deceptive with different k values")
@@ -235,7 +285,7 @@ def compare_k_values():
     cardinality = 2 * np.ones(n_vars, dtype=int)
     k_values = [3, 5]
 
-    results = {}
+    results = {eda_type: {} for eda_type in eda_types}
 
     for k in k_values:
         print(f"\n{'=' * 60}")
@@ -244,51 +294,122 @@ def compare_k_values():
 
         objective = create_k_deceptive_function(k=k)
 
-        stats = run_eda_on_function(
-            objective=objective,
-            n_vars=n_vars,
-            cardinality=cardinality,
-            pop_size=1000,
-            max_gen=75,
-            function_name=f"K-Deceptive (k={k})"
-        )
+        for eda_type in eda_types:
+            stats = run_eda_on_function(
+                objective=objective,
+                n_vars=n_vars,
+                cardinality=cardinality,
+                pop_size=1000,
+                max_gen=75,
+                function_name=f"K-Deceptive (k={k})",
+                eda_type=eda_type,
+                seed=seed,
+            )
 
-        results[f"k={k}"] = {
-            "best_fitness": stats.best_fitness[-1],
-            "mean_fitness": stats.mean_fitness[-1],
-            "generations": len(stats.best_fitness)
-        }
+            results[eda_type][f"k={k}"] = {
+                "best_fitness": stats.best_fitness[-1],
+                "mean_fitness": stats.mean_fitness[-1],
+                "generations": len(stats.best_fitness)
+            }
 
     # Print comparison
     print("\n" + "=" * 70)
     print("Comparison Results")
     print("=" * 70)
-    for k_label, res in results.items():
-        print(f"{k_label:15s} | Best: {res['best_fitness']:8.3f} | "
-              f"Mean: {res['mean_fitness']:8.3f} | "
-              f"Gens: {res['generations']:3d}")
+    for eda_type in eda_types:
+        print(f"\n{EDA_NAME_MAP[eda_type]}:")
+        for k_label, res in results[eda_type].items():
+            print(f"{k_label:15s} | Best: {res['best_fitness']:8.3f} | "
+                  f"Mean: {res['mean_fitness']:8.3f} | "
+                  f"Gens: {res['generations']:3d}")
 
     return results
 
 
+def print_eda_final_comparison(all_stats, eda_types):
+    """
+    Print final UMDA vs Tree-EDA comparison.
+
+    Args:
+        all_stats: Mapping from benchmark key to per-EDA run statistics.
+        eda_types: EDA type list used in the current execution.
+    """
+    if len(eda_types) < 2:
+        print("\nOnly one EDA selected; skipping cross-EDA comparison table.")
+        return
+
+    print("\n" + "=" * 70)
+    print("FINAL EDA COMPARISON (UMDA vs Tree-EDA)")
+    print("=" * 70)
+    print(f"{'Function':30s} {'UMDA':>12s} {'Tree-EDA':>12s} {'Winner':>12s}")
+    print("-" * 70)
+
+    for key, label in [
+        ("k_deceptive", "K-Deceptive (k=3)"),
+        ("decep3", "Deceptive-3"),
+        ("hiff", "HIFF"),
+        ("polytree3", "Polytree-3"),
+        ("polytree3_overlap", "Polytree-3 overlap"),
+    ]:
+        function_stats = all_stats.get(key, {})
+        if "umda" not in function_stats or "tree" not in function_stats:
+            continue
+        umda_best = function_stats["umda"].best_fitness_overall
+        tree_best = function_stats["tree"].best_fitness_overall
+        if umda_best > tree_best:
+            winner = "UMDA"
+        elif tree_best > umda_best:
+            winner = "Tree-EDA"
+        else:
+            winner = "Tie"
+        print(f"{label:30s} {umda_best:12.4f} {tree_best:12.4f} {winner:>12s}")
+
+
+def parse_args():
+    """Parse CLI arguments."""
+    parser = argparse.ArgumentParser(
+        description="Run additive decomposable benchmark examples with configurable EDA.",
+    )
+    parser.add_argument(
+        "--seed",
+        type=int,
+        default=42,
+        help="Random seed for reproducible runs (default: 42).",
+    )
+    parser.add_argument(
+        "--eda-type",
+        type=str,
+        choices=["umda", "tree", "both"],
+        default="both",
+        help="EDA to run: umda, tree, or both (default: both).",
+    )
+    return parser.parse_args()
+
+
 def main():
-    """Run all examples"""
+    """Run all examples."""
+    args = parse_args()
+    eda_types = ["umda", "tree"] if args.eda_type == "both" else [args.eda_type]
+
     print("\n" + "=" * 70)
     print("ADDITIVE DECOMPOSABLE BENCHMARK FUNCTIONS - EXAMPLES")
     print("=" * 70)
     print("\nThese examples demonstrate the newly ported additively")
     print("decomposable benchmark functions from the C++ EDA implementation.")
     print()
+    print(f"Selected EDA(s): {', '.join(EDA_NAME_MAP[e] for e in eda_types)}")
+    print(f"Seed: {args.seed}")
+    print()
 
     # Run examples
     all_stats = {}
 
-    all_stats['k_deceptive'] = example_k_deceptive()
-    all_stats['decep3'] = example_decep3()
-    all_stats['hiff'] = example_hiff()
-    all_stats['polytree3'] = example_polytree3()
-    all_stats['polytree3_overlap'] = example_polytree3_overlap()
-    all_stats['k_comparison'] = compare_k_values()
+    all_stats['k_deceptive'] = example_k_deceptive(eda_types, args.seed)
+    all_stats['decep3'] = example_decep3(eda_types, args.seed)
+    all_stats['hiff'] = example_hiff(eda_types, args.seed)
+    all_stats['polytree3'] = example_polytree3(eda_types, args.seed)
+    all_stats['polytree3_overlap'] = example_polytree3_overlap(eda_types, args.seed)
+    all_stats['k_comparison'] = compare_k_values(eda_types, args.seed)
 
     # Final summary
     print("\n" + "=" * 70)
@@ -303,9 +424,8 @@ def main():
     print("  - Cuban functions (fc2, fc3, fc4, fc5)")
     print("\nSee pateda/functions/discrete/additive_decomposable.py for details")
     print("=" * 70)
+    print_eda_final_comparison(all_stats, eda_types)
 
 
 if __name__ == "__main__":
-    # Set random seed for reproducibility
-    np.random.seed(42)
     main()

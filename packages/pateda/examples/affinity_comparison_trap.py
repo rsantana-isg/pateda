@@ -34,7 +34,6 @@ def run_eda_variant(learning_method, method_name):
 
     # EDA parameters
     pop_size = 500
-    selection_size = 250
     max_generations = 50
 
     def fitness_func(x):
@@ -89,7 +88,7 @@ def run_eda_variant(learning_method, method_name):
             n_new = int(cliques[i, 1])
             clique_sizes.append(n_overlap + n_new)
 
-        print(f"\n  Model structure:")
+        print("\n  Model structure:")
         print(f"    Number of cliques: {n_cliques}")
         print(f"    Clique size range: {min(clique_sizes)}-{max(clique_sizes)}")
         print(f"    Average clique size: {np.mean(clique_sizes):.2f}")
@@ -111,9 +110,11 @@ def main():
     # Strategy 1: Standard recursive factorization
     learning1 = LearnAffinityFactorization(
         max_clique_size=5,
-        preference=None,
+        # Avoid preference=0 on near-uniform MI matrices, which can collapse into huge cliques.
+        preference=-1e-3,
         damping=0.5,
-        recursive=True,
+        # Non-recursive mode safely chunks oversize clusters at max_clique_size.
+        recursive=False,
         alpha=0.1,
     )
     result1 = run_eda_variant(learning1, "Standard Affinity Factorization")
@@ -124,7 +125,8 @@ def main():
     # Strategy 2: Elimination-based factorization
     learning2 = LearnAffinityFactorizationElim(
         max_clique_size=5,
-        preference=None,
+        # Keep preference slightly negative to reduce pathological all-in-one clustering.
+        preference=-1e-3,
         damping=0.9,
         alpha=0.1,
     )
