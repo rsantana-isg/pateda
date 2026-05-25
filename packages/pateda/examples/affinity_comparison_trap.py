@@ -111,9 +111,9 @@ def main():
     # Strategy 1: Standard recursive factorization
     learning1 = LearnAffinityFactorization(
         max_clique_size=5,
-        preference=None,
+        preference=-1e-3,
         damping=0.5,
-        recursive=True,
+        recursive=False,
         alpha=0.1,
     )
     result1 = run_eda_variant(learning1, "Standard Affinity Factorization")
@@ -124,7 +124,7 @@ def main():
     # Strategy 2: Elimination-based factorization
     learning2 = LearnAffinityFactorizationElim(
         max_clique_size=5,
-        preference=None,
+        preference=-1e-3,
         damping=0.9,
         alpha=0.1,
     )
