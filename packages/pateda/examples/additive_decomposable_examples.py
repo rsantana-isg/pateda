@@ -334,8 +334,11 @@ def print_eda_final_comparison(all_stats, eda_types):
         ("polytree3", "Polytree-3"),
         ("polytree3_overlap", "Polytree-3 overlap"),
     ]:
-        umda_best = all_stats[key]["umda"].best_fitness_overall
-        tree_best = all_stats[key]["tree"].best_fitness_overall
+        function_stats = all_stats.get(key, {})
+        if "umda" not in function_stats or "tree" not in function_stats:
+            continue
+        umda_best = function_stats["umda"].best_fitness_overall
+        tree_best = function_stats["tree"].best_fitness_overall
         if umda_best > tree_best:
             winner = "UMDA"
         elif tree_best > umda_best:
@@ -381,7 +384,6 @@ def main():
     print(f"Seed: {args.seed}")
     print()
 
-    np.random.seed(args.seed)
     # Run examples
     all_stats = {}
 
