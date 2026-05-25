@@ -17,6 +17,10 @@ from pateda.sampling.map_sampling import (
     SampleTemplateMAP,
     SampleHybridMAP,
 )
+from pateda.sampling.kmap_sampling import (
+    SampleInsertKMAP,
+    SampleTemplateKMAP,
+)
 from pateda.sampling.basic_gaussian import (
     sample_gaussian_univariate,
     sample_gaussian_full,
@@ -50,6 +54,7 @@ __all__ = [
     "SampleBayesianNetwork", "SampleMarkovChain", "SampleMarkovChainForward",
     "SampleMixtureTrees", "SampleMixtureTreesDirect", "SampleGibbs",
     "SampleInsertMAP", "SampleTemplateMAP", "SampleHybridMAP",
+    "SampleInsertKMAP", "SampleTemplateKMAP",
     "sample_gaussian_univariate", "sample_gaussian_full",
     "sample_gaussian_with_diversity_trigger",
     "SampleGaussianUnivariate", "SampleGaussianFull",

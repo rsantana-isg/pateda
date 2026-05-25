@@ -27,6 +27,30 @@ import numpy as np
 from pateda.core.components import SamplingMethod
 from pateda.core.models import Model, MarkovNetworkModel, FactorizedModel
 from pateda.inference.map_inference import MAPInference, MAPMethod
+from pateda.sampling.fda import SampleFDA
+
+
+def _extract_cliques_and_tables(model: Model):
+    """Extract (cliques, tables) where each clique is a variable-index array.
+
+    FactorizedModel rows have layout [n_overlap, n_new, overlap_vars..., new_vars...].
+    We strip the header fields and return only the variable index arrays.
+    MarkovNetworkModel stores cliques directly as variable-index lists.
+    """
+    if isinstance(model, MarkovNetworkModel):
+        return list(model.structure), list(model.parameters)
+
+    if isinstance(model, FactorizedModel):
+        cliques = []
+        structure = model.structure
+        for i in range(len(structure)):
+            n_overlap = int(structure[i, 0])
+            n_new = int(structure[i, 1])
+            vars_i = structure[i, 2:2 + n_overlap + n_new].astype(int)
+            cliques.append(vars_i)
+        return cliques, list(model.parameters)
+
+    raise ValueError(f"Unsupported model type: {type(model)}")
 
 
 class SampleInsertMAP(SamplingMethod):
@@ -139,65 +163,62 @@ class SampleInsertMAP(SamplingMethod):
         n_samples: int,
         rng: np.random.Generator,
     ) -> np.ndarray:
-        """
-        Probabilistic Logic Sampling (PLS) for factorized models
+        """Probabilistic Logic Sampling (PLS) for factorized and Markov models.
 
-        Samples by forward sampling through ordered cliques.
-        """
-        population = np.zeros((n_samples, n_vars), dtype=int)
+        For FactorizedModel, delegates to SampleFDA which correctly parses the
+        MATEDA-style clique structure (rows have format
+        [n_overlap, n_new, overlap_vars..., new_vars...]).
 
-        # Get cliques and tables from model
-        if isinstance(model, MarkovNetworkModel):
-            cliques = model.structure  # List of cliques
-            tables = model.parameters  # List of probability tables
-        elif isinstance(model, FactorizedModel):
-            # Convert factorized structure to cliques
-            cliques = [model.structure[i] for i in range(len(model.structure))]
-            tables = model.parameters
-        else:
+        For MarkovNetworkModel, uses a simple clique-based forward sampler
+        where each clique is a plain list of variable indices.
+        """
+        if isinstance(model, FactorizedModel):
+            sampler = SampleFDA(n_samples=n_samples)
+            return sampler.sample(
+                n_vars=n_vars,
+                model=model,
+                cardinality=cardinality,
+                rng=rng,
+            )
+
+        if not isinstance(model, MarkovNetworkModel):
             raise ValueError(f"Unsupported model type: {type(model)}")
 
-        # Order cliques for sampling (topological-like order)
+        # MarkovNetworkModel: cliques are plain variable-index lists
+        population = np.zeros((n_samples, n_vars), dtype=int)
+        cliques = model.structure
+        tables = model.parameters
+
         ordered_cliques, ordered_tables = self._order_cliques(
-            cliques, tables, n_vars
+            list(cliques), list(tables), n_vars
         )
 
-        # Sample each individual
         for i in range(n_samples):
             sampled = np.full(n_vars, -1, dtype=int)
 
             for clique, table in zip(ordered_cliques, ordered_tables):
-                # Determine which variables are already sampled
                 overlap = [v for v in clique if sampled[v] >= 0]
                 new_vars = [v for v in clique if sampled[v] < 0]
 
                 if not new_vars:
                     continue
 
-                # Get probability distribution for new variables
                 if overlap:
-                    # Conditional sampling
                     prob_dist = self._get_conditional_distribution(
                         clique, table, sampled, cardinality
                     )
                 else:
-                    # Marginal sampling
                     prob_dist = table.ravel()
 
-                # Sample configuration for new variables
                 if len(prob_dist) > 0 and np.sum(prob_dist) > 0:
                     prob_dist = prob_dist / np.sum(prob_dist)
                     idx = rng.choice(len(prob_dist), p=prob_dist)
-
-                    # Convert index to configuration
                     config = self._index_to_config(
                         idx, [cardinality[v] for v in new_vars]
                     )
-
                     for j, v in enumerate(new_vars):
                         sampled[v] = config[j]
 
-            # Fill any remaining unsampled variables randomly
             for v in range(n_vars):
                 if sampled[v] < 0:
                     sampled[v] = rng.integers(0, cardinality[v])
@@ -263,24 +284,14 @@ class SampleInsertMAP(SamplingMethod):
         return config
 
     def _compute_map(self, model: Model, cardinality: np.ndarray) -> np.ndarray:
-        """Compute MAP configuration using inference"""
-        if isinstance(model, MarkovNetworkModel):
-            cliques = model.structure
-            tables = model.parameters
-        elif isinstance(model, FactorizedModel):
-            cliques = [model.structure[i] for i in range(len(model.structure))]
-            tables = model.parameters
-        else:
-            raise ValueError(f"Unsupported model type: {type(model)}")
-
-        # Use MAPInference to compute MAP
+        """Compute MAP configuration using inference."""
+        cliques, tables = _extract_cliques_and_tables(model)
         inference = MAPInference(
             cliques=cliques,
             tables=tables,
             cardinalities=cardinality,
-            method=self.map_method
+            method=self.map_method,
         )
-
         result = inference.compute_map()
         return result.configuration
 
@@ -288,25 +299,16 @@ class SampleInsertMAP(SamplingMethod):
         self,
         model: Model,
         cardinality: np.ndarray,
-        k: int
+        k: int,
     ) -> List[np.ndarray]:
-        """Compute k-MAP configurations"""
-        if isinstance(model, MarkovNetworkModel):
-            cliques = model.structure
-            tables = model.parameters
-        elif isinstance(model, FactorizedModel):
-            cliques = [model.structure[i] for i in range(len(model.structure))]
-            tables = model.parameters
-        else:
-            raise ValueError(f"Unsupported model type: {type(model)}")
-
+        """Compute k-MAP configurations."""
+        cliques, tables = _extract_cliques_and_tables(model)
         inference = MAPInference(
             cliques=cliques,
             tables=tables,
             cardinalities=cardinality,
-            method=self.map_method
+            method=self.map_method,
         )
-
         result = inference.compute_k_map(k)
         return [result.configurations[i] for i in range(len(result.configurations))]
 
@@ -387,15 +389,8 @@ class SampleTemplateMAP(SamplingMethod):
         # Step 2: Generate population using MAP as template
         population = np.zeros((n_samples, n_vars), dtype=int)
 
-        # Get cliques and tables
-        if isinstance(model, MarkovNetworkModel):
-            cliques = model.structure
-            tables = model.parameters
-        elif isinstance(model, FactorizedModel):
-            cliques = [model.structure[i] for i in range(len(model.structure))]
-            tables = model.parameters
-        else:
-            raise ValueError(f"Unsupported model type: {type(model)}")
+        # Get cliques (variable-index arrays only) and tables
+        cliques, tables = _extract_cliques_and_tables(model)
 
         # Sample each individual
         for i in range(n_samples):
@@ -476,23 +471,14 @@ class SampleTemplateMAP(SamplingMethod):
             return rng.integers(0, cardinality[var])
 
     def _compute_map(self, model: Model, cardinality: np.ndarray) -> np.ndarray:
-        """Compute MAP configuration"""
-        if isinstance(model, MarkovNetworkModel):
-            cliques = model.structure
-            tables = model.parameters
-        elif isinstance(model, FactorizedModel):
-            cliques = [model.structure[i] for i in range(len(model.structure))]
-            tables = model.parameters
-        else:
-            raise ValueError(f"Unsupported model type: {type(model)}")
-
+        """Compute MAP configuration."""
+        cliques, tables = _extract_cliques_and_tables(model)
         inference = MAPInference(
             cliques=cliques,
             tables=tables,
             cardinalities=cardinality,
-            method=self.map_method
+            method=self.map_method,
         )
-
         result = inference.compute_map()
         return result.configuration
 

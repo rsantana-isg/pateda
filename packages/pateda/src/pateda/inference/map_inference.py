@@ -138,11 +138,13 @@ class MAPInference:
         if not PGMPY_AVAILABLE:
             return
 
-        # Create Markov network
+        # Collect all variables appearing in any clique
+        all_vars = set()
         edges = []
         for clique in self.cliques:
+            for v in clique:
+                all_vars.add(int(v))
             if len(clique) > 1:
-                # Add all edges within clique
                 for i in range(len(clique)):
                     for j in range(i + 1, len(clique)):
                         edge = (int(clique[i]), int(clique[j]))
@@ -150,6 +152,10 @@ class MAPInference:
                             edges.append(edge)
 
         self._pgmpy_model = MarkovNetwork(edges)
+        # Add isolated variables (appear only in single-node cliques, e.g., tree root)
+        for v in all_vars:
+            if v not in self._pgmpy_model.nodes():
+                self._pgmpy_model.add_node(v)
 
         # Create factors from clique tables
         factors = []

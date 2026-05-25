@@ -275,14 +275,15 @@ def run_bayesian_tree_ising_mpe():
     print(f"Optimal fitness:    {optimal_value:.4f}")
     print(f"Success: {abs(stats.best_fitness_overall - optimal_value) <= 0.1}")
     print()
+    total_generations = len(stats.best_fitness) - 1
     print(f"Generation found: {stats.generation_found}")
-    print(f"Total generations: {stats.generation}")
+    print(f"Total generations: {total_generations}")
     print()
 
-    if stats.generation < max_generations:
-        print(f"✓ Optimal solution found in {stats.generation_found} generations!")
+    if total_generations < max_generations:
+        print(f"Optimal solution found in {stats.generation_found} generations!")
     else:
-        print(f"✗ Reached max generations ({max_generations})")
+        print(f"Reached max generations ({max_generations})")
 
     print()
     print(f"Best solution: {stats.best_individual}")
@@ -334,7 +335,7 @@ def run_comparison_with_without_mpe():
             fitness_func=fitness_func,
             cardinality=np.full(n_vars, 2),
             components=components,
-        random_seed=42,
+            random_seed=42,
         )
 
         stats, _ = eda.run(verbose=False)
@@ -364,7 +365,7 @@ def run_comparison_with_without_mpe():
             fitness_func=fitness_func,
             cardinality=np.full(n_vars, 2),
             components=components,
-        random_seed=42,
+            random_seed=42,
         )
 
         stats, _ = eda.run(verbose=False)

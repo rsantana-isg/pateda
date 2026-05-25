@@ -6,6 +6,7 @@ This module provides inference capabilities for:
 - k-MAP (k most probable configurations)
 - Belief propagation
 - Junction tree inference
+- KMPC (K Most Probable Configurations) via Nilsson's partition scheme
 """
 
 from pateda.inference.map_inference import (
@@ -15,9 +16,25 @@ from pateda.inference.map_inference import (
     MAPInference
 )
 
+from pateda.inference.kmpc import (
+    KMPCResult,
+    KMPCUnivariate,
+    KMPCTree,
+    KMPCJunctionTree,
+    KMPCBayesianNetwork,
+    compute_kmpc,
+)
+
 __all__ = [
     'compute_map',
     'compute_k_map',
     'compute_map_decimation',
-    'MAPInference'
+    'MAPInference',
+    # KMPC
+    'KMPCResult',
+    'KMPCUnivariate',
+    'KMPCTree',
+    'KMPCJunctionTree',
+    'KMPCBayesianNetwork',
+    'compute_kmpc',
 ]
