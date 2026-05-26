@@ -16,9 +16,11 @@ References:
   Computation (pp. 157-173). Springer.
 """
 
+import warnings
 import numpy as np
 from typing import Dict, Any, List, Optional
 from sklearn.cluster import AffinityPropagation
+from sklearn.exceptions import ConvergenceWarning
 from sklearn.linear_model import Lasso, ElasticNet, Lars, LassoLars
 
 
@@ -127,28 +129,49 @@ def _cluster_variables_affinity_propagation(
     # We negate because AP maximizes similarities
     similarity = -similarity
 
-    # Set diagonal to preference (self-similarity)
+    # Set diagonal to preference (self-similarity).
+    # When the off-diagonal similarities are all zero (no learned dependencies)
+    # taking the median over an empty slice is undefined, so fall back to the
+    # global median which will simply be 0 in that case.
     if preference is None:
-        preference = np.median(similarity[similarity != 0])
+        nonzero = similarity[similarity != 0]
+        if nonzero.size > 0:
+            preference = float(np.median(nonzero))
+        else:
+            preference = 0.0
 
     np.fill_diagonal(similarity, preference)
 
-    # Apply affinity propagation
+    # Apply affinity propagation.  Suppress the sklearn ConvergenceWarning:
+    # AffinityPropagation is allowed to return degenerate clusters when it
+    # does not converge, and the surrounding code already handles that case.
     try:
-        ap = AffinityPropagation(
-            damping=damping,
-            max_iter=max_iter,
-            preference=preference,
-            affinity='precomputed',
-            random_state=42
-        )
-        labels = ap.fit_predict(similarity)
+        with warnings.catch_warnings():
+            # Suppress two benign sklearn warnings:
+            # - ConvergenceWarning when AP does not converge in max_iter steps
+            # - UserWarning("All samples have mutually equal similarities")
+            #   raised when the off-diagonal similarities are all zero.
+            warnings.simplefilter('ignore', category=ConvergenceWarning)
+            warnings.filterwarnings(
+                'ignore',
+                category=UserWarning,
+                module=r'sklearn\.cluster\._affinity_propagation',
+            )
+            ap = AffinityPropagation(
+                damping=damping,
+                max_iter=max_iter,
+                preference=preference,
+                affinity='precomputed',
+                random_state=42
+            )
+            labels = ap.fit_predict(similarity)
 
         # Group variables by cluster labels
-        n_clusters = len(set(labels))
-        cliques = [[] for _ in range(n_clusters)]
+        unique_labels = sorted(set(labels))
+        label_to_clique = {lbl: idx for idx, lbl in enumerate(unique_labels)}
+        cliques = [[] for _ in unique_labels]
         for var_idx, cluster_idx in enumerate(labels):
-            cliques[cluster_idx].append(var_idx)
+            cliques[label_to_clique[cluster_idx]].append(var_idx)
 
     except Exception:
         # If AP fails, fall back to treating each variable independently

@@ -313,26 +313,34 @@ class GMRFEDA:
 
 
 # ---------------------------------------------------------------------------
-# VineEDA — self-contained run loop (pyvinecopulib optional dependency)
+# Vine copula EDAs — self-contained run loop (pyvinecopulib optional dependency)
 # ---------------------------------------------------------------------------
 
-class VineEDA:
+# Copula families recognized by ``CVineEDA`` / ``RVineEDA``.  These mirror the
+# index-based encoding used by ``enhanced_edas/copula_models.py``.
+_VINE_COPULA_FAMILIES = (
+    'gaussian', 'gumbel', 'frank', 'joe', 'indep',
+    'clayton', 'bb1', 'bb6', 'bb7', 'bb8', 'tll',
+)
+
+
+def _require_pyvinecopulib():
+    """Raise an informative ImportError when pyvinecopulib is missing."""
+    try:
+        import pyvinecopulib  # noqa: F401
+    except ImportError:
+        raise ImportError(
+            "Vine copula EDAs require pyvinecopulib. "
+            "Install it with: pip install pyvinecopulib"
+        )
+
+
+class _BaseVineEDA:
     """
-    Vine Copula EDA.
+    Shared run-loop machinery for vine copula EDAs.
 
-    Models variable dependencies using vine copulas, which decompose the
-    multivariate distribution into bivariate building blocks.
-
-    Requires the optional ``pyvinecopulib`` package::
-
-        pip install pyvinecopulib
-
-    Uses a self-contained run loop because the underlying API is function-based.
-
-    Parameters
-    ----------
-    n_vars, bounds, fitness_func, pop_size, n_gen, selection_ratio,
-    elitism, random_seed : see GaussianUMDA.
+    Subclasses override ``_learn_model`` to choose the structure (auto,
+    C-vine, R-vine) and family configuration.
     """
 
     def __init__(
@@ -346,13 +354,7 @@ class VineEDA:
         elitism: bool = True,
         random_seed: Optional[int] = None,
     ):
-        try:
-            import pyvinecopulib  # noqa: F401
-        except ImportError:
-            raise ImportError(
-                "VineEDA requires pyvinecopulib. "
-                "Install it with: pip install pyvinecopulib"
-            )
+        _require_pyvinecopulib()
         self.n_vars = n_vars
         self.bounds = _to_bounds(bounds, n_vars)
         self.fitness_func = fitness_func
@@ -362,11 +364,21 @@ class VineEDA:
         self.elitism = elitism
         self.rng = np.random.default_rng(random_seed)
 
+    # ------------------------------------------------------------------
+    # Hooks for subclasses
+    # ------------------------------------------------------------------
+
+    def _learn_model(self, selected: np.ndarray, sel_fit: np.ndarray):
+        raise NotImplementedError
+
+    # ------------------------------------------------------------------
+    # Internal helpers
+    # ------------------------------------------------------------------
+
     def _evaluate(self, population: np.ndarray) -> np.ndarray:
         return np.array([self.fitness_func(population[i]) for i in range(len(population))])
 
     def run(self, verbose: bool = False) -> Tuple[Statistics, Cache]:
-        from pateda.learning.vine_copula import learn_vine_copula_auto
         from pateda.sampling.vine_copula import sample_vine_copula
 
         stats = Statistics()
@@ -392,7 +404,7 @@ class VineEDA:
             selected = population[sorted_idx[:n_select]]
             sel_fit = fitness[sorted_idx[:n_select]]
 
-            model = learn_vine_copula_auto(selected, sel_fit)
+            model = self._learn_model(selected, sel_fit)
             new_pop = sample_vine_copula(model, self.pop_size, bounds=self.bounds, rng=self.rng)
             new_fit = self._evaluate(new_pop)
 
@@ -411,3 +423,170 @@ class VineEDA:
 
         stats.update(self.n_gen, population, fitness.reshape(-1, 1))
         return stats, cache
+
+
+def _copula_family_index(name: str) -> int:
+    """Map a family name to its index in COPULA_FAMILIES."""
+    name = str(name).lower()
+    if name not in _VINE_COPULA_FAMILIES:
+        raise ValueError(
+            f"Unknown copula family '{name}'. "
+            f"Choose one of: {', '.join(_VINE_COPULA_FAMILIES)}"
+        )
+    return _VINE_COPULA_FAMILIES.index(name)
+
+
+class VineEDA(_BaseVineEDA):
+    """
+    Auto-selecting vine copula EDA (R-vine + full family set).
+
+    Soto et al. (2011).  Models the joint distribution with a vine copula in
+    which both the vine structure (R-vine) and the bivariate copula family
+    of every pair are selected automatically from the data using BIC.
+
+    Requires the optional ``pyvinecopulib`` package::
+
+        pip install pyvinecopulib
+
+    Parameters
+    ----------
+    n_vars, bounds, fitness_func, pop_size, n_gen, selection_ratio,
+    elitism, random_seed : see GaussianUMDA.
+    truncation_level : int or None, default None
+        Truncate the vine after this many trees.  ``None`` lets the library
+        pick the truncation level automatically.
+    """
+
+    def __init__(
+        self,
+        n_vars: int,
+        bounds: Union[Tuple[float, float], np.ndarray],
+        fitness_func: Callable,
+        pop_size: int = 100,
+        n_gen: int = 50,
+        selection_ratio: float = 0.5,
+        elitism: bool = True,
+        truncation_level: Optional[int] = None,
+        random_seed: Optional[int] = None,
+    ):
+        super().__init__(
+            n_vars, bounds, fitness_func, pop_size, n_gen,
+            selection_ratio, elitism, random_seed,
+        )
+        self.truncation_level = truncation_level
+
+    def _learn_model(self, selected: np.ndarray, sel_fit: np.ndarray):
+        from pateda.learning.vine_copula import learn_vine_copula_auto
+        return learn_vine_copula_auto(
+            selected, sel_fit,
+            {'truncation_level': self.truncation_level},
+        )
+
+
+class CVineEDA(_BaseVineEDA):
+    """
+    Canonical vine (C-vine) EDA with a single, user-chosen copula family.
+
+    The C-vine structure has a star topology in each tree: one variable is
+    the root and every other variable depends on it (conditionally on the
+    previous trees).  All bivariate pair-copulas in the vine use the same
+    family.
+
+    Requires the optional ``pyvinecopulib`` package.
+
+    Parameters
+    ----------
+    n_vars, bounds, fitness_func, pop_size, n_gen, selection_ratio,
+    elitism, random_seed : see GaussianUMDA.
+    copula_family : str, default 'gaussian'
+        Bivariate copula family used at every pair.  One of: gaussian,
+        gumbel, frank, joe, indep, clayton, bb1, bb6, bb7, bb8, tll.
+    truncation_level : int or None, default None
+        Truncate the vine after this many trees (``None`` = no truncation).
+    """
+
+    def __init__(
+        self,
+        n_vars: int,
+        bounds: Union[Tuple[float, float], np.ndarray],
+        fitness_func: Callable,
+        pop_size: int = 100,
+        n_gen: int = 50,
+        selection_ratio: float = 0.5,
+        elitism: bool = True,
+        copula_family: str = 'gaussian',
+        truncation_level: Optional[int] = None,
+        random_seed: Optional[int] = None,
+    ):
+        super().__init__(
+            n_vars, bounds, fitness_func, pop_size, n_gen,
+            selection_ratio, elitism, random_seed,
+        )
+        self.copula_family = copula_family
+        self.copula_family_idx = _copula_family_index(copula_family)
+        self.truncation_level = truncation_level
+
+    def _learn_model(self, selected: np.ndarray, sel_fit: np.ndarray):
+        from pateda.learning.vine_copula import learn_vine_copula_cvine
+        return learn_vine_copula_cvine(
+            selected, sel_fit,
+            {
+                'copula_family': self.copula_family_idx,
+                'truncation_level': self.truncation_level,
+                'select_families': False,
+            },
+        )
+
+
+class RVineEDA(_BaseVineEDA):
+    """
+    Regular vine (R-vine) EDA with a single, user-chosen copula family.
+
+    The R-vine structure is selected automatically from the data, but every
+    bivariate pair-copula is forced to a single family.  Useful for
+    isolating the effect of the pair-copula family from the structure.
+
+    Requires the optional ``pyvinecopulib`` package.
+
+    Parameters
+    ----------
+    n_vars, bounds, fitness_func, pop_size, n_gen, selection_ratio,
+    elitism, random_seed : see GaussianUMDA.
+    copula_family : str, default 'gaussian'
+        Bivariate copula family used at every pair.  One of: gaussian,
+        gumbel, frank, joe, indep, clayton, bb1, bb6, bb7, bb8, tll.
+    truncation_level : int or None, default None
+        Truncate the vine after this many trees (``None`` = no truncation).
+    """
+
+    def __init__(
+        self,
+        n_vars: int,
+        bounds: Union[Tuple[float, float], np.ndarray],
+        fitness_func: Callable,
+        pop_size: int = 100,
+        n_gen: int = 50,
+        selection_ratio: float = 0.5,
+        elitism: bool = True,
+        copula_family: str = 'gaussian',
+        truncation_level: Optional[int] = None,
+        random_seed: Optional[int] = None,
+    ):
+        super().__init__(
+            n_vars, bounds, fitness_func, pop_size, n_gen,
+            selection_ratio, elitism, random_seed,
+        )
+        self.copula_family = copula_family
+        self.copula_family_idx = _copula_family_index(copula_family)
+        self.truncation_level = truncation_level
+
+    def _learn_model(self, selected: np.ndarray, sel_fit: np.ndarray):
+        from pateda.learning.vine_copula import learn_vine_copula_dvine
+        return learn_vine_copula_dvine(
+            selected, sel_fit,
+            {
+                'copula_family': self.copula_family_idx,
+                'truncation_level': self.truncation_level,
+                'select_families': False,
+            },
+        )

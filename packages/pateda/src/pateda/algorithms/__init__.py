@@ -43,6 +43,8 @@ from pateda.algorithms.continuous import (
     MixtureGaussianEDA,
     GMRFEDA,
     VineEDA,
+    CVineEDA,
+    RVineEDA,
 )
 
 from pateda.algorithms.permutation import (
@@ -82,6 +84,8 @@ __all__ = [
     "MixtureGaussianEDA",
     "GMRFEDA",
     "VineEDA",
+    "CVineEDA",
+    "RVineEDA",
     # Permutation
     "EHMEDA",
     "NHMEDA",

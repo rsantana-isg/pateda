@@ -550,13 +550,14 @@ stats, _ = alg.run()
 
 ---
 
-### VineEDA — Vine Copula EDA
+### VineEDA — Vine Copula EDA (auto structure + auto family)
 
 **Type:** Continuous
 
-**Description:** Soto et al. (2011). VineEDA models the joint distribution of variables using vine copulas, which decompose the multivariate distribution into bivariate building blocks (pair-copulas). Captures complex non-linear dependencies. Requires the optional `pyvinecopulib` package.
+**Description:** Soto et al. (2011). VineEDA models the joint distribution of variables using vine copulas, which decompose the multivariate distribution into bivariate building blocks (pair-copulas). The R-vine structure and the bivariate copula family of every pair are selected automatically from the data using BIC. Captures complex non-linear dependencies. Requires the optional `pyvinecopulib` package.
 
-**Key parameters:** None beyond the standard set.
+**Key parameters:**
+- `truncation_level` (int or None, default None): Maximum tree level kept in the vine; `None` lets the library choose.
 
 **Source:** `learning/vine_copula.py` (learn_vine_copula_auto), `sampling/vine_copula.py` (sample_vine_copula)
 
@@ -566,6 +567,52 @@ from pateda import VineEDA  # requires: pip install pyvinecopulib
 
 alg = VineEDA(n_vars=10, bounds=(-5, 5), fitness_func=sphere,
               pop_size=200, n_gen=100, random_seed=42)
+stats, _ = alg.run()
+```
+
+---
+
+### CVineEDA — Canonical Vine EDA (single family)
+
+**Type:** Continuous
+
+**Description:** C-vine structure (every tree has a star topology, one root depended on by all others) combined with a single user-chosen bivariate copula family. Useful when one variable acts as a global driver of dependencies. Requires `pyvinecopulib`.
+
+**Key parameters:**
+- `copula_family` (str, default 'gaussian'): one of `gaussian`, `gumbel`, `frank`, `joe`, `indep`, `clayton`, `bb1`, `bb6`, `bb7`, `bb8`, `tll`.
+- `truncation_level` (int or None, default None): Maximum tree level kept in the vine.
+
+**Source:** `learning/vine_copula.py` (learn_vine_copula_cvine)
+
+**Example:**
+```python
+from pateda import CVineEDA  # requires: pip install pyvinecopulib
+
+alg = CVineEDA(n_vars=11, bounds=(-3.14, 3.14), fitness_func=fit,
+               copula_family='clayton', pop_size=200, n_gen=80, random_seed=42)
+stats, _ = alg.run()
+```
+
+---
+
+### RVineEDA — Regular Vine EDA (single family)
+
+**Type:** Continuous
+
+**Description:** R-vine structure (auto-selected by the library) combined with a single user-chosen bivariate copula family. Mirrors the encoding `11–21` in `enhanced_edas/copula_models.py`. Lets you isolate the effect of the pair-copula family from the structure. Requires `pyvinecopulib`.
+
+**Key parameters:**
+- `copula_family` (str, default 'gaussian'): same family set as `CVineEDA`.
+- `truncation_level` (int or None, default None): Maximum tree level kept in the vine.
+
+**Source:** `learning/vine_copula.py` (learn_vine_copula_dvine)
+
+**Example:**
+```python
+from pateda import RVineEDA  # requires: pip install pyvinecopulib
+
+alg = RVineEDA(n_vars=11, bounds=(-3.14, 3.14), fitness_func=fit,
+               copula_family='gumbel', pop_size=200, n_gen=80, random_seed=42)
 stats, _ = alg.run()
 ```
 
@@ -743,7 +790,7 @@ from pateda import (UMDA, BMDA, TreeEDA, TreeEDAR, MIMIC, PBIL,
 
 # Continuous
 from pateda import (GaussianUMDA, GaussianEDA, MixtureGaussianEDA,
-                    GMRFEDA, VineEDA)
+                    GMRFEDA, VineEDA, CVineEDA, RVineEDA)
 
 # Permutation
 from pateda import (EHMEDA, NHMEDA,

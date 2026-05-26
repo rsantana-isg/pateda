@@ -199,8 +199,15 @@ class LearnMarkovChain(LearningMethod):
         if self.alpha > 0:
             cpd += self.alpha
 
-        # Normalize each row to get conditional probabilities
+        # Normalize each row to get conditional probabilities.
+        # Parent configurations unobserved in the selected population yield an
+        # all-zero row; fall back to a uniform distribution for those rows so
+        # we never divide by zero.
         row_sums = cpd.sum(axis=1, keepdims=True)
+        empty_rows = (row_sums.squeeze(-1) == 0)
+        if np.any(empty_rows):
+            cpd[empty_rows, :] = 1.0 / var_card
+            row_sums[empty_rows, 0] = 1.0
         cpd = cpd / row_sums
 
         return cpd
