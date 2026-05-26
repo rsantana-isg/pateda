@@ -99,12 +99,33 @@ def test_mallows_cayley_learning():
     assert len(model['x_probs']) == 4  # n-1 for n=5
 
     print("  ✓ Mallows Cayley learning test passed!")
-    return model
 
 
-def test_mallows_cayley_sampling(model):
+def test_mallows_cayley_sampling():
     """Test Mallows with Cayley distance sampling."""
     print("\nTesting Mallows Cayley sampling...")
+
+    # Create model inline (cannot use return value of another test as fixture)
+    pop = np.array([
+        [0, 1, 2, 3, 4],
+        [0, 2, 1, 3, 4],
+        [1, 0, 2, 3, 4],
+        [0, 1, 3, 2, 4],
+        [1, 2, 0, 3, 4],
+    ])
+    fitness = np.array([1.0, 2.0, 3.0, 4.0, 5.0])
+    learner = LearnMallowsCayley()
+    model = learner(
+        generation=0,
+        n_vars=5,
+        cardinality=np.arange(5),
+        selected_pop=pop,
+        selected_fitness=fitness,
+        initial_theta=0.1,
+        upper_theta=10.0,
+        max_iter=100,
+        consensus_method="borda",
+    )
 
     sampler = SampleMallowsCayley()
 

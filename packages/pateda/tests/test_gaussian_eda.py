@@ -9,15 +9,19 @@ This test suite covers:
 
 import pytest
 import numpy as np
-from pateda.learning.gaussian import (
+from pateda.learning.basic_gaussian import (
     learn_gaussian_univariate,
     learn_gaussian_full,
+)
+from pateda.learning.mixture_gaussian import (
     learn_mixture_gaussian_univariate,
     learn_mixture_gaussian_full,
 )
-from pateda.sampling.gaussian import (
+from pateda.sampling.basic_gaussian import (
     sample_gaussian_univariate,
     sample_gaussian_full,
+)
+from pateda.sampling.mixture_gaussian import (
     sample_mixture_gaussian_univariate,
     sample_mixture_gaussian_full,
 )

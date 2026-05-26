@@ -13,12 +13,12 @@ import numpy as np
 import torch
 
 # Import learning functions
-from pateda.learning.discrete_dendiff_ste import learn_discrete_dendiff_ste
-from pateda.learning.discrete_dendiff_hard_concrete import learn_discrete_dendiff_hard_concrete
-from pateda.learning.discrete_dendiff_deterministic import learn_discrete_dendiff_deterministic
+from pateda_nn.learning.discrete_dendiff_ste import learn_discrete_dendiff_ste
+from pateda_nn.learning.discrete_dendiff_hard_concrete import learn_discrete_dendiff_hard_concrete
+from pateda_nn.learning.discrete_dendiff_deterministic import learn_discrete_dendiff_deterministic
 
 # Import sampling functions
-from pateda.sampling.discrete_dendiff import (
+from pateda_nn.sampling.discrete_dendiff import (
     sample_discrete_dendiff_ste,
     sample_discrete_dendiff_hard_concrete,
     sample_discrete_dendiff_deterministic

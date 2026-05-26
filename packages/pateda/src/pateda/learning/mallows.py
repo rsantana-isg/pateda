@@ -545,9 +545,9 @@ class LearnGeneralizedMallowsKendall:
         psis = np.zeros(n - 1)
 
         for j in range(n - 1):
-            # Psi_j = sum_{r=0}^{n-j} exp(-r * theta_j)
+            # V_j takes values 0..n-j-1, so psi_j = sum_{r=0}^{n-j-1} exp(-r*theta_j)
             theta_j = thetas[j]
-            n_j = n - j
+            n_j = n - j - 1
             psi_j = np.sum(np.exp(-np.arange(n_j + 1) * theta_j))
             psis[j] = psi_j
 

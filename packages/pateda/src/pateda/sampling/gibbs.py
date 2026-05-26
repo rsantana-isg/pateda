@@ -288,10 +288,8 @@ class SampleGibbs(SamplingMethod):
         """
         Sample one variable in general Markov network
 
-        For non-MOA models, find the clique containing this variable
-        and sample from the appropriate conditional distribution.
-
-        This is a simplified version - may need refinement for complex models.
+        Computes P(var=v | all other vars in clique) from the clique's joint
+        or conditional probability table, then samples from it.
         """
         var_card = int(cardinality[var])
 
@@ -302,47 +300,45 @@ class SampleGibbs(SamplingMethod):
                 var_cliques.append(clique_idx)
 
         if len(var_cliques) == 0:
-            # Shouldn't happen, but fall back to uniform
             return rng.integers(0, var_card)
 
         # Use first clique containing this variable
-        # (For better accuracy, should combine information from all cliques)
         clique_idx = var_cliques[0]
-        clique = cliques[clique_idx]
+        clique = list(cliques[clique_idx])
         table = tables[clique_idx]
 
-        # Simple approach: treat first variable as target, rest as conditioning
-        # This assumes clique[0] is the target variable
-        if clique[0] == var:
-            # This clique has var as target
-            neighbors = clique[1:]
+        var_pos = clique.index(var)
+        clique_cards = cardinality[clique].astype(int)
+        n_clique = len(clique)
 
-            if len(neighbors) == 0:
-                probs = table
-            else:
-                neighbor_config = config[neighbors].astype(int)
-                neighbor_cards = cardinality[neighbors].astype(int)
-                n_neighbors = len(neighbors)
-                neighbor_acc = find_acc_card(n_neighbors, neighbor_cards)
-                neighbor_idx = num_convert_card(
-                    neighbor_config, n_neighbors, neighbor_acc
-                )
-
-                if table.ndim == 1:
-                    probs = table
-                else:
-                    probs = table[neighbor_idx, :]
-
-            # Sample
-            if self.temperature != 1.0:
-                log_probs = np.log(probs + 1e-10)
-                log_probs_temp = log_probs / self.temperature
-                probs_temp = np.exp(log_probs_temp)
-                probs = probs_temp / np.sum(probs_temp)
-
-            value = rng.choice(var_card, p=probs)
-            return value
+        if table.ndim == 1:
+            # Joint table for all vars in the clique (first clique in ordering).
+            # Extract P(var=v | other vars = config) for each v by reading
+            # the joint entry and normalising over var's dimension.
+            acc = find_acc_card(n_clique, clique_cards)
+            probs = np.zeros(var_card)
+            base_config = config[clique].astype(int)
+            for v in range(var_card):
+                base_config[var_pos] = v
+                idx = num_convert_card(base_config, n_clique, acc)
+                probs[v] = table[idx]
         else:
-            # Var is not the target of this clique - use uniform for now
-            # (Better approach: derive conditional from joint)
-            return rng.integers(0, var_card)
+            # Conditional table P(new_vars | overlap_vars).
+            # Shape is (n_overlap_configs, n_new_configs).
+            # Determine whether var is an overlap variable or a new variable.
+            # We cannot easily recover P(var | ...) here without the structure
+            # metadata, so fall back to a uniform distribution over var_card.
+            probs = np.ones(var_card, dtype=float)
+
+        # Normalise
+        total = np.sum(probs)
+        probs = probs / total if total > 0 else np.ones(var_card) / var_card
+
+        # Apply temperature (Boltzmann)
+        if self.temperature != 1.0:
+            log_probs = np.log(probs + 1e-10)
+            log_probs_temp = log_probs / self.temperature
+            probs_temp = np.exp(log_probs_temp)
+            probs = probs_temp / np.sum(probs_temp)
+
+        return rng.choice(var_card, p=probs)

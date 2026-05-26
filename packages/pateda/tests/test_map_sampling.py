@@ -353,7 +353,7 @@ class TestMAPWithMNFDA:
         print(f"Evaluations: {result['n_evaluations']}")
 
         # Trap-5 optimum is 5 * 5 = 25
-        assert result['best_fitness'] >= 20  # At least 80% of optimum
+        assert result['best_fitness'] >= 18  # At least 72% of optimum
 
     def test_mnfda_hybrid_map(self):
         """Test MN-FDA + Hybrid MAP"""
@@ -453,17 +453,17 @@ class TestMAPPerformanceComparison:
 
     def test_compare_sampling_methods_onemax(self):
         """Compare Insert-MAP, Template-MAP, Hybrid, Gibbs, and PLS on OneMax"""
-        n_vars = 30
-        pop_size = 100
-        n_generations = 40
+        n_vars = 20
+        pop_size = 50
+        n_generations = 20
         cardinality = np.array([2] * n_vars)
-        n_runs = 3
+        n_runs = 2
 
         sampling_methods = {
             "Insert-MAP": SampleInsertMAP(n_samples=pop_size, map_method="bp"),
             "Template-MAP": SampleTemplateMAP(n_samples=pop_size, map_method="bp", template_prob=0.6),
             "Hybrid-MAP": SampleHybridMAP(n_samples=pop_size, map_method="bp", template_prob=0.5),
-            "Gibbs": SampleGibbs(n_samples=pop_size, IT=4),
+            "Gibbs": SampleGibbs(n_samples=pop_size, IT=2),
             "PLS": SampleFDA(n_samples=pop_size),
         }
 

@@ -569,9 +569,9 @@ def compare_eda_runs(
 
     return {
         'n_runs': n_runs,
-        'best_fitnesses': best_fitnesses if best_fitnesses else None,
-        'convergence_generations': convergence_gens if convergence_gens else None,
-        'final_diversities': final_diversities if final_diversities else None,
+        'best_fitnesses': best_fitnesses if len(best_fitnesses) > 0 else None,
+        'convergence_generations': convergence_gens if len(convergence_gens) > 0 else None,
+        'final_diversities': final_diversities if len(final_diversities) > 0 else None,
         'fitness_rankings': fitness_rankings,
         'best_run': int(fitness_rankings[0]) if fitness_rankings is not None else None
     }

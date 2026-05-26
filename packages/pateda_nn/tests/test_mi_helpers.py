@@ -8,7 +8,7 @@ import numpy as np
 
 # Add parent directory to path
 
-from pateda.learning.discrete_dbd import (
+from pateda_nn.learning.discrete_dbd import (
     compute_mutual_information_matrix_binary,
     find_k_highest_mi_parents,
     compute_conditional_probabilities,

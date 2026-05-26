@@ -21,7 +21,10 @@ from dataclasses import dataclass
 from enum import Enum
 
 try:
-    from pgmpy.models import MarkovNetwork
+    try:
+        from pgmpy.models import DiscreteMarkovNetwork as MarkovNetwork
+    except ImportError:
+        from pgmpy.models import MarkovNetwork  # older pgmpy
     from pgmpy.inference import BeliefPropagation
     from pgmpy.factors.discrete import DiscreteFactor
     PGMPY_AVAILABLE = True

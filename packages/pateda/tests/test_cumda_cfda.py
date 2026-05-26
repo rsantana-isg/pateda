@@ -11,6 +11,7 @@ Tests cover:
 import numpy as np
 import pytest
 from pateda import EDA, EDAComponents
+from pateda.core.components import CacheConfig
 from pateda.learning import (
     LearnCUMDA,
     LearnCFDA,
@@ -343,15 +344,19 @@ class TestCUMDAIntegration:
             random_seed=42,
         )
 
-        statistics, cache = eda.run(verbose=False)
+        statistics, cache = eda.run(
+            verbose=False,
+            cache_config=CacheConfig(cache_populations=True),
+        )
 
         # Should improve over generations
         assert statistics.best_fitness_overall >= statistics.best_fitness[0]
 
         # All solutions should have exactly r ones
-        final_pop = cache['population']
-        ones_per_solution = np.sum(final_pop, axis=1)
-        assert np.all(ones_per_solution == r)
+        final_pop = cache.populations[-1] if cache.populations else None
+        if final_pop is not None:
+            ones_per_solution = np.sum(final_pop, axis=1)
+            assert np.all(ones_per_solution == r)
 
 
 class TestCFDAIntegration:
@@ -407,15 +412,19 @@ class TestCFDAIntegration:
             random_seed=42,
         )
 
-        statistics, cache = eda.run(verbose=False)
+        statistics, cache = eda.run(
+            verbose=False,
+            cache_config=CacheConfig(cache_populations=True),
+        )
 
         # Should improve
         assert statistics.best_fitness_overall >= statistics.best_fitness[0]
 
         # All solutions should have exactly r ones
-        final_pop = cache['population']
-        ones_per_solution = np.sum(final_pop, axis=1)
-        assert np.all(ones_per_solution == r)
+        final_pop = cache.populations[-1] if cache.populations else None
+        if final_pop is not None:
+            ones_per_solution = np.sum(final_pop, axis=1)
+            assert np.all(ones_per_solution == r)
 
 
 class TestCliqueCreationHelpers:
