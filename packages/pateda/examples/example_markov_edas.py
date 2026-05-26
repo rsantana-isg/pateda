@@ -77,7 +77,7 @@ def run_mnfda_example():
     # Configure components
     components = EDAComponents(
         seeding=RandomInit(),
-        selection=TruncationSelection(proportion=0.5),
+        selection=TruncationSelection(ratio=0.5),
         learning=LearnMNFDA(
             max_clique_size=3,
             threshold=0.05,
@@ -124,7 +124,7 @@ def run_mnfdag_example():
 
     components = EDAComponents(
         seeding=RandomInit(),
-        selection=TruncationSelection(proportion=0.3),
+        selection=TruncationSelection(ratio=0.3),
         learning=LearnMNFDAG(
             max_clique_size=5,  # Allow detecting 5-bit dependencies
             alpha=0.01,  # More conservative than default
@@ -169,7 +169,7 @@ def run_moa_example():
 
     components = EDAComponents(
         seeding=RandomInit(),
-        selection=TruncationSelection(proportion=0.5),
+        selection=TruncationSelection(ratio=0.5),
         learning=LearnMOA(
             k_neighbors=5,  # Max 5 neighbors per variable
             threshold_factor=1.5,  # From paper
@@ -218,7 +218,7 @@ def run_moa_trap5_example():
 
     components = EDAComponents(
         seeding=RandomInit(),
-        selection=TruncationSelection(proportion=0.3),
+        selection=TruncationSelection(ratio=0.3),
         learning=LearnMOA(
             k_neighbors=8,  # More neighbors for harder problem
             threshold_factor=1.5,
@@ -282,7 +282,7 @@ def comparison_example():
         for run in range(n_runs):
             components = EDAComponents(
                 seeding=RandomInit(),
-                selection=TruncationSelection(proportion=0.5),
+                selection=TruncationSelection(ratio=0.5),
                 learning=learning,
                 sampling=sampling,
                 replacement=ElitistReplacement(),

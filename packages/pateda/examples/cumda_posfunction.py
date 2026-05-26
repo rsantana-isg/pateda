@@ -23,6 +23,7 @@ References:
 - Santana, R., & Ochoa, A. "A Constraint Univariate Marginal Distribution Algorithm."
 """
 
+import sys
 import numpy as np
 from pateda import EDA, EDAComponents
 from pateda.seeding import SeedingUnitationConstraint

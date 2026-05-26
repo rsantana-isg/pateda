@@ -25,6 +25,7 @@ References:
 
 # Add parent directory to path for running examples without installation
 
+import sys
 import numpy as np
 from pateda import EDA, EDAComponents
 from pateda.seeding import SeedingUnitationConstraint

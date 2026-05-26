@@ -11,16 +11,16 @@ This script shows:
 
 import numpy as np
 import matplotlib.pyplot as plt
-from pateda.learning.gaussian import (
+from pateda.learning.basic_gaussian import (
     learn_gaussian_univariate,
     learn_gaussian_full,
-    learn_mixture_gaussian_univariate,
 )
-from pateda.sampling.gaussian import (
+from pateda.learning.mixture_gaussian import learn_mixture_gaussian_univariate
+from pateda.sampling.basic_gaussian import (
     sample_gaussian_univariate,
     sample_gaussian_full,
-    sample_mixture_gaussian_univariate,
 )
+from pateda.sampling.mixture_gaussian import sample_mixture_gaussian_univariate
 
 
 # Benchmark functions

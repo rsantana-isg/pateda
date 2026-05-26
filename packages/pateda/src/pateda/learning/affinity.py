@@ -14,8 +14,10 @@ References:
 """
 
 from typing import Any, List, Tuple, Optional
+import warnings
 import numpy as np
 from sklearn.cluster import AffinityPropagation
+from sklearn.exceptions import ConvergenceWarning
 
 from pateda.core.components import LearningMethod
 from pateda.core.models import FactorizedModel
@@ -145,21 +147,35 @@ class LearnAffinityFactorization(LearningMethod):
         else:
             pref = preference
 
-        # Run affinity propagation
+        # Check for degenerate case: all similarities equal → AP will warn and
+        # return an arbitrary single cluster, so skip it and return one cluster.
+        sim_flat = similarity_matrix.ravel()
+        if np.all(sim_flat == sim_flat[0]):
+            labels = np.zeros(similarity_matrix.shape[0], dtype=int)
+            return labels, False
+
+        # Run affinity propagation, suppressing sklearn's ConvergenceWarning and
+        # the "mutually equal similarities" UserWarning — both are handled below.
         try:
-            ap = AffinityPropagation(
-                damping=self.damping,
-                max_iter=self.max_iter,
-                convergence_iter=self.convergence_iter,
-                preference=pref,
-                affinity="precomputed",
-                random_state=None,
-            )
-            ap.fit(similarity_matrix)
+            with warnings.catch_warnings():
+                warnings.simplefilter("ignore", ConvergenceWarning)
+                warnings.simplefilter("ignore", UserWarning)
+                ap = AffinityPropagation(
+                    damping=self.damping,
+                    max_iter=self.max_iter,
+                    convergence_iter=self.convergence_iter,
+                    preference=pref,
+                    affinity="precomputed",
+                    random_state=None,
+                )
+                ap.fit(similarity_matrix)
             labels = ap.labels_
             converged = ap.n_iter_ < self.max_iter
+            # Degenerate output: all assigned to label -1 means no exemplars found
+            if np.all(labels == -1) or len(np.unique(labels)) == 0:
+                labels = np.zeros(similarity_matrix.shape[0], dtype=int)
+                converged = False
         except Exception:
-            # If clustering fails, put all in one cluster
             labels = np.zeros(similarity_matrix.shape[0], dtype=int)
             converged = False
 
