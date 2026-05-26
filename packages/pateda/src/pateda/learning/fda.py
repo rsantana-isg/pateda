@@ -207,7 +207,7 @@ class LearnFDA(LearningMethod):
     - MATEDA-2.0 User Guide, Section 4.1, Example 2
     """
 
-    def __init__(self, cliques: np.ndarray = None):
+    def __init__(self, cliques: np.ndarray = None, alpha: float = 1.0):
         """
         Initialize FDA learning
 
@@ -215,8 +215,11 @@ class LearnFDA(LearningMethod):
             cliques: Clique structure matrix. If None, creates univariate structure
                     Each row: [n_overlap, n_new, overlap_indices..., new_indices...]
                     For UMDA: Each row is [0, 1, -, var_index] (no overlaps)
+            alpha: Laplace smoothing pseudo-count for probability tables.
+                   Default 1.0 matches MATEDA-2.0; use 0.0 to disable.
         """
         self.cliques = cliques
+        self.alpha = alpha
 
     def learn(
         self,
@@ -253,7 +256,8 @@ class LearnFDA(LearningMethod):
             cliques[:, 2] = np.arange(n_vars)  # Variable index
 
         # Learn probability tables for each clique
-        tables = learn_fda_parameters(cliques, population, n_vars, cardinality)
+        alpha = params.get("alpha", self.alpha)
+        tables = learn_fda_parameters(cliques, population, n_vars, cardinality, alpha=alpha)
 
         # Create and return model
         model = FactorizedModel(

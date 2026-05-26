@@ -76,7 +76,11 @@ def find_marginal_prob(
 
 
 def learn_fda_parameters(
-    cliques: np.ndarray, population: np.ndarray, n_vars: int, cardinality: np.ndarray
+    cliques: np.ndarray,
+    population: np.ndarray,
+    n_vars: int,
+    cardinality: np.ndarray,
+    alpha: float = 1.0,
 ) -> List[np.ndarray]:
     """
     Learn probability tables for FDA model given clique structure
@@ -89,6 +93,9 @@ def learn_fda_parameters(
         population: Population to learn from
         n_vars: Number of variables
         cardinality: Cardinality of each variable
+        alpha: Laplace smoothing pseudo-count added to every cell of every
+               probability table.  Default 1.0 matches the original MATEDA
+               behaviour; set to 0.0 to disable smoothing.
 
     Returns:
         List of probability tables, one per clique
@@ -137,14 +144,13 @@ def learn_fda_parameters(
 
                 table[overlap_idx, new_idx] += 1
 
-            # Normalize to get probabilities (with Laplace smoothing)
+            # Normalize to get probabilities (with Laplace smoothing of strength alpha)
             for i in range(n_overlap_configs):
                 count_sum = np.sum(table[i, :])
-                if count_sum > 0:
-                    # Laplace smoothing
-                    table[i, :] = (table[i, :] + 1) / (count_sum + n_new_configs)
+                if count_sum > 0 or alpha > 0:
+                    table[i, :] = (table[i, :] + alpha) / (count_sum + alpha * n_new_configs)
                 else:
-                    # Uniform if no data
+                    # Uniform if no data and no smoothing requested
                     table[i, :] = 1.0 / n_new_configs
 
         else:
@@ -157,8 +163,8 @@ def learn_fda_parameters(
                 new_idx = num_convert_card(new_vals, n_new, new_acc_card)
                 table[new_idx] += 1
 
-            # Normalize (with Laplace smoothing)
-            table = (table + 1) / (n_samples + n_new_configs)
+            # Normalize (with Laplace smoothing of strength alpha)
+            table = (table + alpha) / (n_samples + alpha * n_new_configs)
 
         tables.append(table)
 

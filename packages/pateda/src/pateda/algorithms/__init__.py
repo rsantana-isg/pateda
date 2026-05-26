@@ -1,23 +1,19 @@
 """
-PATEDA - Python Algorithms for Estimation of Distribution Algorithms
+Plug-and-play EDA algorithm wrappers.
 
-A Python port of MATEDA-3.0
+Discrete algorithms::
+
+    from pateda.algorithms import UMDA, BMDA, TreeEDA, ...
+
+Continuous algorithms::
+
+    from pateda.algorithms import GaussianUMDA, GaussianEDA, ...
+
+Permutation algorithms::
+
+    from pateda.algorithms import EHMEDA, MallowsKendallEDA, ...
 """
 
-__version__ = "0.1.0"
-__author__ = "Roberto Santana (original MATEDA), Claude (Python port)"
-
-from pateda.core.eda import EDA
-from pateda.core.components import EDAComponents
-from pateda.core.models import (
-    Model,
-    FactorizedModel,
-    TreeModel,
-    BayesianNetworkModel,
-    GaussianModel,
-)
-
-# Plug-and-play algorithm wrappers
 from pateda.algorithms.discrete import (
     UMDA,
     BMDA,
@@ -59,15 +55,7 @@ from pateda.algorithms.permutation import (
 )
 
 __all__ = [
-    # Core
-    "EDA",
-    "EDAComponents",
-    "Model",
-    "FactorizedModel",
-    "TreeModel",
-    "BayesianNetworkModel",
-    "GaussianModel",
-    # Discrete algorithms
+    # Discrete
     "UMDA",
     "BMDA",
     "TreeEDA",
@@ -88,13 +76,13 @@ __all__ = [
     "CFDA",
     "FDA",
     "BSC",
-    # Continuous algorithms
+    # Continuous
     "GaussianUMDA",
     "GaussianEDA",
     "MixtureGaussianEDA",
     "GMRFEDA",
     "VineEDA",
-    # Permutation algorithms
+    # Permutation
     "EHMEDA",
     "NHMEDA",
     "MallowsKendallEDA",
