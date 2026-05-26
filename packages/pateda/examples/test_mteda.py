@@ -28,8 +28,12 @@ References:
 - RepMutMTFDA.pdf: Priors and Adaptive Learning for MT-FDA
 """
 
+import sys
+import os
+
 # Add parent directory to path for running examples without installation
 # Need to add grandparent of grandparent so that 'import pateda' can find the pateda dir
+sys.path.insert(0, os.path.dirname(os.path.dirname(os.path.dirname(os.path.abspath(__file__)))))
 
 import numpy as np
 import time
@@ -197,9 +201,8 @@ def run_mteda_experiment(
         sampling=sampling,
         replacement=ElitistReplacement(),
         stop_condition=MaxGenerationsOrOptimum(
-            max_generations=max_generations,
+            max_gen=max_generations,
             optimal_fitness=optimal_fitness,
-            tolerance=1e-6,
         ),
     )
 
