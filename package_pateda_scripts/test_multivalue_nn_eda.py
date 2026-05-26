@@ -33,11 +33,6 @@ import argparse
 import time
 import warnings
 import numpy as np
-from pathlib import Path
-
-# Allow running as a standalone script from any directory.
-# Layout: <project_root>/pateda/scripts/test_multivalue_nn_eda.py
-sys.path.insert(0, str(Path(__file__).parent.parent.parent))
 
 # ── Standard EDA framework (used for the UMDA baseline) ──────────────────────
 from pateda import EDA, EDAComponents

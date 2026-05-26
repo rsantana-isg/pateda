@@ -99,7 +99,7 @@ def fix_eda_components_file(filepath):
 
 def main():
     """Fix all example files"""
-    examples_dir = Path(__file__).parent / 'examples'
+    examples_dir = Path(__file__).parent.parent / 'packages' / 'pateda' / 'examples'
 
     print("Fixing elitism in all EDA examples...\n")
 

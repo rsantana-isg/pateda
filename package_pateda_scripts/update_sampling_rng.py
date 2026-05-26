@@ -5,6 +5,7 @@ Script to update all sampling files with rng parameter support
 
 import os
 import re
+from pathlib import Path
 
 def update_file(filepath, updates):
     """Apply a list of (old_string, new_string) updates to a file"""
@@ -24,7 +25,7 @@ def update_file(filepath, updates):
     print(f"Updated {filepath}")
 
 # Define updates for each file
-base_dir = "/home/user/pateda/pateda/sampling"
+base_dir = str(Path(__file__).parent.parent / 'packages' / 'pateda' / 'src' / 'pateda' / 'sampling')
 
 # cumda.py - uses stochastic_universal_sampling
 cumda_updates = [

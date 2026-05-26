@@ -49,17 +49,9 @@ Silent pass/fail:
 import argparse
 import sys
 import warnings
-from pathlib import Path
 from typing import Dict, Tuple
 
 import numpy as np
-
-# Allow running as a standalone script without installing the package.
-# Directory layout: <project_root>/pateda/scripts/test_mixed_cardinality_edas.py
-#   parent              = <project_root>/pateda/scripts/
-#   parent.parent       = <project_root>/pateda/   ← the 'pateda' package itself
-#   parent.parent.parent = <project_root>/         ← needed so 'import pateda' resolves
-sys.path.insert(0, str(Path(__file__).parent.parent.parent))
 
 warnings.filterwarnings("ignore", message="pyvinecopulib not available")
 

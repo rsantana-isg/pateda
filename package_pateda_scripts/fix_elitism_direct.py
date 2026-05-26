@@ -88,7 +88,7 @@ def fix_file(filepath):
 
 def main():
     """Fix all example files"""
-    examples_dir = Path(__file__).parent / 'examples'
+    examples_dir = Path(__file__).parent.parent / 'packages' / 'pateda' / 'examples'
 
     print("Adding elitism to EDA examples...\n")
 

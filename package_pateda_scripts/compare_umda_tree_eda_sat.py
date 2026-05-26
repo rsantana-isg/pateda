@@ -37,14 +37,6 @@ References
   algorithms: where two worlds collide." arXiv:1707.03093.
 """
 
-import sys
-import os
-from pathlib import Path
-
-# Allow running directly from any directory
-sys.path.insert(0, str(Path(__file__).parent.parent.parent))
-#sys.path.insert(0, os.path.dirname(os.path.dirname(os.path.abspath(__file__))))
-
 import numpy as np
 from typing import Dict, List, Optional, Tuple
 

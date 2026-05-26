@@ -153,7 +153,7 @@ def fix_example_file(filepath):
 
 def main():
     """Fix all example files to use elitism"""
-    examples_dir = Path(__file__).parent / 'examples'
+    examples_dir = Path(__file__).parent.parent / 'packages' / 'pateda' / 'examples'
 
     print("Adding ElitistReplacement to EDA examples to guarantee elitism...\n")
 
