@@ -25,8 +25,12 @@ from pateda.learning.utils.markov_network import (
     find_maximal_cliques_greedy,
     order_cliques_for_sampling,
     convert_cliques_to_factorized_structure,
+    cliques_to_neighborhoods,
 )
-from pateda.learning.utils.probability_tables import compute_clique_tables
+from pateda.learning.utils.probability_tables import (
+    compute_clique_tables,
+    compute_moa_tables,
+)
 
 
 class LearnMNFDAG(LearningMethod):
@@ -49,6 +53,7 @@ class LearnMNFDAG(LearningMethod):
         alpha: float = 0.05,
         prior: bool = True,
         return_factorized: bool = True,
+        max_neighborhood: Optional[int] = 8,
     ):
         """
         Initialize MN-FDAG learner
@@ -59,14 +64,20 @@ class LearnMNFDAG(LearningMethod):
             alpha: Significance level for G-test (default 0.05)
                   Lower alpha = more conservative (fewer edges)
             prior: Whether to use Laplace prior smoothing (default True)
-            return_factorized: If True, return FactorizedModel (for PLS)
-                             If False, return MarkovNetworkModel
+            return_factorized: If True, return FactorizedModel (for PLS).
+                             If False, return MarkovNetworkModel with
+                             per-variable conditional tables matching the
+                             MOA layout — enables the fast Gibbs path.
+            max_neighborhood: Cap on the per-variable Markov blanket size
+                             (only used when ``return_factorized=False``).
+                             Keeps conditional tables tractable; default 8.
         """
         self.max_clique_size = max_clique_size
         self.max_n_cliques = max_n_cliques
         self.alpha = alpha
         self.prior = prior
         self.return_factorized = return_factorized
+        self.max_neighborhood = max_neighborhood
 
     def learn(
         self,
@@ -112,18 +123,7 @@ class LearnMNFDAG(LearningMethod):
             adjacency, self.max_clique_size, self.max_n_cliques
         )
 
-        # Step 4: Order cliques
-        clique_order = order_cliques_for_sampling(cliques)
-
-        # Step 5: Convert to factorized structure
-        structure = convert_cliques_to_factorized_structure(cliques, clique_order)
-
-        # Step 6: Compute probability tables
-        tables = compute_clique_tables(
-            population, cliques, structure, cardinality, weights, self.prior
-        )
-
-        # Create metadata
+        # Create metadata shared by both return paths
         metadata = {
             "generation": generation,
             "model_type": "MN-FDAG",
@@ -134,12 +134,36 @@ class LearnMNFDAG(LearningMethod):
         }
 
         if self.return_factorized:
+            # FactorizedModel path: PLS sampling via SampleFDA
+            clique_order = order_cliques_for_sampling(cliques)
+            structure = convert_cliques_to_factorized_structure(cliques, clique_order)
+            tables = compute_clique_tables(
+                population, cliques, structure, cardinality, weights, self.prior
+            )
             return FactorizedModel(
                 structure=structure, parameters=tables, metadata=metadata
             )
-        else:
-            return MarkovNetworkModel(
-                structure=np.array(cliques, dtype=object),
-                parameters=tables,
-                metadata=metadata,
-            )
+
+        # MarkovNetworkModel path: produce MOA-style per-variable artifacts so
+        # SampleGibbs uses the fast direct-table lookup instead of the slow
+        # generic clique search.
+        neighbors_list = cliques_to_neighborhoods(
+            cliques, n_vars,
+            mi_matrix=g_matrix,
+            max_neighborhood=self.max_neighborhood,
+        )
+        per_var_cliques = [
+            np.concatenate([[v], neighbors_list[v]]).astype(int)
+            if len(neighbors_list[v]) > 0
+            else np.array([v], dtype=int)
+            for v in range(n_vars)
+        ]
+        tables = compute_moa_tables(
+            population, neighbors_list, cardinality, weights, self.prior
+        )
+        metadata["neighbors"] = neighbors_list
+        return MarkovNetworkModel(
+            structure=np.array(per_var_cliques, dtype=object),
+            parameters=tables,
+            metadata=metadata,
+        )

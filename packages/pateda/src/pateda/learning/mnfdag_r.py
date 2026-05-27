@@ -41,8 +41,12 @@ from pateda.learning.utils.markov_network import (
     find_maximal_cliques_greedy,
     order_cliques_for_sampling,
     convert_cliques_to_factorized_structure,
+    cliques_to_neighborhoods,
 )
-from pateda.learning.utils.probability_tables import compute_clique_tables
+from pateda.learning.utils.probability_tables import (
+    compute_clique_tables,
+    compute_moa_tables,
+)
 
 
 class LearnMNFDAGR(LearningMethod):
@@ -76,6 +80,7 @@ class LearnMNFDAGR(LearningMethod):
         alpha: float = 0.05,
         prior: bool = True,
         return_factorized: bool = True,
+        max_neighborhood: Optional[int] = 8,
     ):
         """
         Initialize MN-FDAG_r learner
@@ -99,6 +104,7 @@ class LearnMNFDAGR(LearningMethod):
         self.alpha = alpha
         self.prior = prior
         self.return_factorized = return_factorized
+        self.max_neighborhood = max_neighborhood
 
     def _build_restricted_dependency_graph_gtest(
         self,
@@ -201,17 +207,6 @@ class LearnMNFDAGR(LearningMethod):
             adjacency, self.max_clique_size, self.max_n_cliques
         )
 
-        # Step 3: Order cliques
-        clique_order = order_cliques_for_sampling(cliques)
-
-        # Step 4: Convert to factorized structure
-        structure = convert_cliques_to_factorized_structure(cliques, clique_order)
-
-        # Step 5: Compute probability tables
-        tables = compute_clique_tables(
-            population, cliques, structure, cardinality, weights, self.prior
-        )
-
         n_interactions = int(np.sum(np.triu(self.interaction_matrix, k=1)))
 
         metadata = {
@@ -225,12 +220,37 @@ class LearnMNFDAGR(LearningMethod):
         }
 
         if self.return_factorized:
+            clique_order = order_cliques_for_sampling(cliques)
+            structure = convert_cliques_to_factorized_structure(cliques, clique_order)
+            tables = compute_clique_tables(
+                population, cliques, structure, cardinality, weights, self.prior
+            )
             return FactorizedModel(
                 structure=structure, parameters=tables, metadata=metadata
             )
-        else:
-            return MarkovNetworkModel(
-                structure=np.array(cliques, dtype=object),
-                parameters=tables,
-                metadata=metadata,
-            )
+
+        # MarkovNetworkModel path: build MOA-style per-variable conditional
+        # tables so SampleGibbs uses the fast direct-table lookup.  Neighbors
+        # are sorted by mutual information (highest first) before being capped
+        # at ``max_neighborhood`` so the most informative ones are kept.
+        mi_matrix = adjacency.astype(float)
+        neighbors_list = cliques_to_neighborhoods(
+            cliques, n_vars,
+            mi_matrix=mi_matrix,
+            max_neighborhood=self.max_neighborhood,
+        )
+        per_var_cliques = [
+            np.concatenate([[v], neighbors_list[v]]).astype(int)
+            if len(neighbors_list[v]) > 0
+            else np.array([v], dtype=int)
+            for v in range(n_vars)
+        ]
+        tables = compute_moa_tables(
+            population, neighbors_list, cardinality, weights, self.prior
+        )
+        metadata["neighbors"] = neighbors_list
+        return MarkovNetworkModel(
+            structure=np.array(per_var_cliques, dtype=object),
+            parameters=tables,
+            metadata=metadata,
+        )

@@ -191,8 +191,14 @@ class SampleGibbs(SamplingMethod):
         """
         config = configuration.copy()
 
-        # Determine if this is MOA model (one clique per variable)
-        is_moa = metadata.get("model_type") == "MOA"
+        # Use the fast direct-table path whenever the learner provides one
+        # clique per variable AND per-variable conditional tables (the MOA
+        # layout).  MN-FDAG and MN-FDAg_r now populate ``metadata['neighbors']``
+        # for the same layout, so they share the fast path.
+        is_moa = (
+            metadata.get("model_type") == "MOA"
+            or "neighbors" in metadata
+        )
 
         # Gibbs iterations (with burnin)
         total_iters = n_iterations + self.burnin

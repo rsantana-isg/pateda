@@ -255,6 +255,57 @@ def neighbors_to_cliques(neighbors_list: List[np.ndarray]) -> List[np.ndarray]:
     return cliques
 
 
+def cliques_to_neighborhoods(
+    cliques: List[np.ndarray],
+    n_vars: int,
+    mi_matrix: Optional[np.ndarray] = None,
+    max_neighborhood: Optional[int] = None,
+) -> List[np.ndarray]:
+    """
+    Derive per-variable Markov blankets from a clique decomposition.
+
+    For each variable ``v``, the Markov blanket is the union of the other
+    variables in every clique containing ``v``.  When ``mi_matrix`` is
+    provided neighbors are returned in descending mutual-information order;
+    otherwise they are returned in ascending index order.
+
+    Used by MN-FDAG / MN-FDAg_r to build the same per-variable conditional
+    tables that MOA uses, enabling the fast Gibbs sampling path.
+
+    Args:
+        cliques: List of maximal cliques (each is a 1-D int array).
+        n_vars: Total number of variables.
+        mi_matrix: Optional (n_vars, n_vars) mutual-information matrix used
+            to sort neighbors.  When supplied with ``max_neighborhood`` we
+            keep the highest-MI neighbors first.
+        max_neighborhood: Cap on the blanket size per variable.  ``None``
+            means no cap.
+
+    Returns:
+        List of length ``n_vars``.  Entry ``i`` is a 1-D int array of
+        neighbor indices for variable ``i`` (excluding ``i`` itself).
+    """
+    blankets = [set() for _ in range(n_vars)]
+    for clique in cliques:
+        clique_list = [int(v) for v in clique]
+        for v in clique_list:
+            for u in clique_list:
+                if u != v:
+                    blankets[v].add(u)
+
+    neighbors_list: List[np.ndarray] = []
+    for v in range(n_vars):
+        nbrs = np.array(sorted(blankets[v]), dtype=int)
+        if mi_matrix is not None and len(nbrs) > 0:
+            # Sort by MI(v, neighbor) descending.
+            scores = mi_matrix[v, nbrs]
+            nbrs = nbrs[np.argsort(-scores)]
+        if max_neighborhood is not None and len(nbrs) > max_neighborhood:
+            nbrs = nbrs[:max_neighborhood]
+        neighbors_list.append(nbrs)
+    return neighbors_list
+
+
 def order_cliques_for_sampling(cliques: List[np.ndarray]) -> np.ndarray:
     """
     Order cliques for probabilistic logic sampling (PLS)
