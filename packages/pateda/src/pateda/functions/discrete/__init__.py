@@ -5,7 +5,9 @@ from pateda.functions.discrete.deceptive import deceptive3
 from pateda.functions.discrete.ising import (
     load_ising,
     eval_ising,
-    create_ising_objective_function
+    create_ising_objective_function,
+    load_ising_benchmark_instance,
+    build_ising_interaction_matrix,
 )
 from pateda.functions.discrete.hp_protein import (
     create_fibonacci_hp_sequence,
@@ -31,16 +33,20 @@ from pateda.functions.discrete.sat import (
     load_random_3sat,
     make_random_formulas,
     make_var_dep_formulas,
-    load_sat_from_file
+    load_sat_from_file,
+    load_sat_benchmark_instance,
+    build_sat_interaction_matrix,
 )
 from pateda.functions.discrete.ubqp import (
     UBQPInstance,
     evaluate_ubqp,
     load_ubqp_instance,
+    load_ubqp_benchmark_instance,
     generate_random_ubqp,
     save_ubqp_instance,
     create_max_cut_ubqp,
-    create_set_packing_ubqp
+    create_set_packing_ubqp,
+    build_ubqp_interaction_matrix,
 )
 from pateda.functions.discrete.additive_decomposable import (
     # K-Deceptive functions
@@ -102,6 +108,8 @@ __all__ = [
     "load_ising",
     "eval_ising",
     "create_ising_objective_function",
+    "load_ising_benchmark_instance",
+    "build_ising_interaction_matrix",
     "create_fibonacci_hp_sequence",
     "eval_chain",
     "evaluate_hp_energy",
@@ -120,13 +128,17 @@ __all__ = [
     "make_random_formulas",
     "make_var_dep_formulas",
     "load_sat_from_file",
+    "load_sat_benchmark_instance",
+    "build_sat_interaction_matrix",
     "UBQPInstance",
     "evaluate_ubqp",
     "load_ubqp_instance",
+    "load_ubqp_benchmark_instance",
     "generate_random_ubqp",
     "save_ubqp_instance",
     "create_max_cut_ubqp",
     "create_set_packing_ubqp",
+    "build_ubqp_interaction_matrix",
     # Additive decomposable functions
     "k_deceptive",
     "gen_k_decep",

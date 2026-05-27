@@ -7,6 +7,12 @@ including multi-objective variants.
 
 import numpy as np
 from typing import List, Tuple, Optional
+from pathlib import Path
+
+
+UBQP_BENCHMARK_KNOWN_OPTIMA = {
+    "bqp100": 3955,
+}
 
 
 class UBQPInstance:
@@ -98,6 +104,11 @@ class UBQPInstance:
         return results
 
 
+def _default_ubqp_instances_dir() -> Path:
+    """Return the packaged directory containing UBQP benchmark instances."""
+    return Path(__file__).resolve().parent.parent / "UBQP_Instances"
+
+
 def evaluate_ubqp(solution: np.ndarray, ubqp_instance: UBQPInstance) -> np.ndarray:
     """
     Evaluate a solution or population on a uBQP instance.
@@ -117,6 +128,75 @@ def evaluate_ubqp(solution: np.ndarray, ubqp_instance: UBQPInstance) -> np.ndarr
         Objective values
     """
     return ubqp_instance.evaluate(solution)
+
+
+def load_ubqp_benchmark_instance(
+    instance_name: str,
+    instances_dir: Optional[str] = None,
+) -> Tuple[UBQPInstance, object]:
+    """
+    Load a packaged single-objective UBQP benchmark instance.
+
+    Parameters
+    ----------
+    instance_name : str
+        Benchmark name such as ``bqp50`` or ``bqp50.txt``.
+    instances_dir : str, optional
+        Directory containing benchmark files. When omitted, the packaged
+        ``UBQP_Instances`` directory is used.
+    """
+    instances_path = Path(instances_dir) if instances_dir is not None else _default_ubqp_instances_dir()
+    filename = instance_name if instance_name.endswith(".txt") else f"{instance_name}.txt"
+    instance_file = instances_path / filename
+
+    if not instance_file.exists():
+        raise FileNotFoundError(f"UBQP instance file not found: {instance_file}")
+
+    with instance_file.open("r", encoding="utf-8") as handle:
+        handle.readline()  # Seed (unused)
+        header = handle.readline().strip().split()
+        n_vars = int(header[0])
+        n_edges = int(header[1])
+        instance = UBQPInstance(n_vars, n_objectives=1)
+
+        for _ in range(n_edges):
+            i_str, j_str, weight_str = handle.readline().strip().split()
+            instance.add_interaction(0, int(i_str), int(j_str), float(weight_str))
+
+    optimal_fitness = UBQP_BENCHMARK_KNOWN_OPTIMA.get(instance_file.stem, "Unknown")
+    return instance, optimal_fitness
+
+
+def build_ubqp_interaction_matrix(
+    ubqp_instance: UBQPInstance,
+    threshold_ratio: float = 0.0,
+) -> np.ndarray:
+    """
+    Build a binary interaction matrix from UBQP edge strengths.
+
+    Only off-diagonal interactions with ``abs(weight) >= max_abs_weight *
+    threshold_ratio`` are retained.
+    """
+    if not 0.0 <= threshold_ratio <= 1.0:
+        raise ValueError(
+            f"threshold_ratio must be between 0.0 and 1.0, got {threshold_ratio}"
+        )
+
+    interaction_matrix = np.eye(ubqp_instance.n_vars, dtype=int)
+    interactions = ubqp_instance.objectives[0]
+    max_abs_weight = max((abs(weight) for _, _, weight in interactions), default=0.0)
+    cutoff = max_abs_weight * threshold_ratio
+
+    for i, j, weight in interactions:
+        if i == j or abs(weight) < cutoff:
+            continue
+
+        left = i - 1
+        right = j - 1
+        interaction_matrix[left, right] = 1
+        interaction_matrix[right, left] = 1
+
+    return interaction_matrix
 
 
 def load_ubqp_instance(filename: str, n_vars: int, n_objectives: int) -> UBQPInstance:
@@ -147,12 +227,12 @@ def load_ubqp_instance(filename: str, n_vars: int, n_objectives: int) -> UBQPIns
 
     with open(filename, 'r') as f:
         # Read seed (not used)
-        seed = int(f.readline().strip())
+        _ = int(f.readline().strip())
 
         for obj_idx in range(n_objectives):
             # Read objective header
             line = f.readline().strip().split()
-            obj_id, n_edges = int(line[0]), int(line[1])
+            _, n_edges = int(line[0]), int(line[1])
 
             # Read edges
             for _ in range(n_edges):

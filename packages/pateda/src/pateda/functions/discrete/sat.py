@@ -5,7 +5,17 @@ This module provides functions for evaluating and loading SAT problems.
 """
 
 import numpy as np
-from typing import List, Tuple, Dict, Optional
+from typing import List, Tuple, Optional
+from pathlib import Path
+
+
+SAT_BENCHMARK_KNOWN_OPTIMA = {
+    "uf100-01": 430,
+    "uf100-02": 430,
+    "uf100-03": 430,
+    "uf100-04": 430,
+    "uf100-05": 430,
+}
 
 
 class SATInstance:
@@ -96,6 +106,11 @@ class SATInstance:
         return results
 
 
+def _default_sat_instances_dir() -> Path:
+    """Return the packaged directory containing benchmark SAT instances."""
+    return Path(__file__).resolve().parent.parent / "SAT_instances"
+
+
 def evaluate_sat(solution: np.ndarray, sat_instance: SATInstance) -> np.ndarray:
     """
     Evaluate a solution or population on a SAT instance.
@@ -115,6 +130,88 @@ def evaluate_sat(solution: np.ndarray, sat_instance: SATInstance) -> np.ndarray:
         Objective values (number of satisfied clauses per formula)
     """
     return sat_instance.evaluate(solution)
+
+
+def load_sat_benchmark_instance(
+    instance_name: str,
+    instances_dir: Optional[str] = None,
+) -> Tuple[SATInstance, object]:
+    """
+    Load a benchmark 3-SAT instance from the packaged DIMACS files.
+
+    Parameters
+    ----------
+    instance_name : str
+        Instance base name such as ``uf20-01`` or a full ``.cnf`` filename.
+    instances_dir : str, optional
+        Directory containing DIMACS files. When omitted, the packaged
+        ``SAT_instances`` directory is used.
+
+    Returns
+    -------
+    tuple
+        ``(sat_instance, optimal_fitness)`` where ``optimal_fitness`` is
+        ``"Unknown"`` unless a packaged optimum is known.
+    """
+    instance_file = Path(instances_dir) if instances_dir is not None else _default_sat_instances_dir()
+    if instance_file.is_dir():
+        filename = instance_name if instance_name.endswith(".cnf") else f"{instance_name}.cnf"
+        instance_file = instance_file / filename
+
+    if not instance_file.exists():
+        raise FileNotFoundError(f"SAT instance file not found: {instance_file}")
+
+    instance = SATInstance()
+    clauses = []
+
+    with instance_file.open("r", encoding="utf-8") as handle:
+        for raw_line in handle:
+            line = raw_line.strip()
+            if not line or line.startswith("c") or line.startswith("%"):
+                continue
+
+            if line.startswith("p"):
+                parts = line.split()
+                instance.n_vars = int(parts[2])
+                continue
+
+            literals = [int(value) for value in line.split() if value != "0"]
+            if len(literals) == 0:
+                continue
+            if len(literals) != 3:
+                raise ValueError(
+                    f"Expected a 3-literal clause in {instance_file}, got {len(literals)} literals: {line}"
+                )
+
+            clause = []
+            for literal in literals:
+                clause.extend([abs(literal), 1 if literal > 0 else 0])
+            clauses.append(tuple(clause))
+
+    instance.add_formula(clauses)
+
+    optimal_fitness = SAT_BENCHMARK_KNOWN_OPTIMA.get(instance_file.stem, "Unknown")
+
+    return instance, optimal_fitness
+
+
+def build_sat_interaction_matrix(sat_instance: SATInstance) -> np.ndarray:
+    """
+    Build a binary interaction matrix from SAT clause co-occurrences.
+
+    Variables that appear together in a clause are marked as interacting.
+    """
+    interaction_matrix = np.eye(sat_instance.n_vars, dtype=int)
+
+    for formula in sat_instance.formulas:
+        for clause in formula:
+            variables = [int(clause[0]) - 1, int(clause[2]) - 1, int(clause[4]) - 1]
+            for i, left in enumerate(variables):
+                for right in variables[i + 1:]:
+                    interaction_matrix[left, right] = 1
+                    interaction_matrix[right, left] = 1
+
+    return interaction_matrix
 
 
 def load_random_3sat(
