@@ -10,6 +10,11 @@ from typing import List, Tuple, Optional
 from pathlib import Path
 
 
+UBQP_BENCHMARK_KNOWN_OPTIMA = {
+    "bqp100": 3955,
+}
+
+
 class UBQPInstance:
     """
     Represents an unconstrained Binary Quadratic Programming problem.
@@ -158,7 +163,7 @@ def load_ubqp_benchmark_instance(
             i_str, j_str, weight_str = handle.readline().strip().split()
             instance.add_interaction(0, int(i_str), int(j_str), float(weight_str))
 
-    optimal_fitness = 3955 if instance_file.stem == "bqp100" else "Unknown"
+    optimal_fitness = UBQP_BENCHMARK_KNOWN_OPTIMA.get(instance_file.stem, "Unknown")
     return instance, optimal_fitness
 
 
@@ -173,7 +178,9 @@ def build_ubqp_interaction_matrix(
     threshold_ratio`` are retained.
     """
     if not 0.0 <= threshold_ratio <= 1.0:
-        raise ValueError("threshold_ratio must be between 0.0 and 1.0")
+        raise ValueError(
+            f"threshold_ratio must be between 0.0 and 1.0, got {threshold_ratio}"
+        )
 
     interaction_matrix = np.eye(ubqp_instance.n_vars, dtype=int)
     interactions = ubqp_instance.objectives[0]
@@ -220,12 +227,12 @@ def load_ubqp_instance(filename: str, n_vars: int, n_objectives: int) -> UBQPIns
 
     with open(filename, 'r') as f:
         # Read seed (not used)
-        seed = int(f.readline().strip())
+        _ = int(f.readline().strip())
 
         for obj_idx in range(n_objectives):
             # Read objective header
             line = f.readline().strip().split()
-            obj_id, n_edges = int(line[0]), int(line[1])
+            _, n_edges = int(line[0]), int(line[1])
 
             # Read edges
             for _ in range(n_edges):

@@ -91,7 +91,7 @@ def load_problem(problem_type, instance_name):
         interaction_matrix = build_sat_interaction_matrix(sat_instance)
 
         def fitness_func(solution):
-            return _single_objective(evaluate_sat(solution, sat_instance))
+            return _single_objective(evaluate_sat(np.asarray(solution), sat_instance))
 
         return fitness_func, sat_instance.n_vars, 2, interaction_matrix, optimal
 
@@ -100,9 +100,10 @@ def load_problem(problem_type, instance_name):
         interaction_matrix = build_ising_interaction_matrix(lattice)
 
         def fitness_func(solution):
-            if np.asarray(solution).ndim == 1:
-                return -eval_ising(solution, lattice, inter)
-            return np.array([-eval_ising(sol, lattice, inter) for sol in solution])
+            solution_array = np.asarray(solution)
+            if solution_array.ndim == 1:
+                return -eval_ising(solution_array, lattice, inter)
+            return np.array([-eval_ising(sol, lattice, inter) for sol in solution_array])
 
         return fitness_func, n_vars, 2, interaction_matrix, optimal
 
@@ -114,7 +115,7 @@ def load_problem(problem_type, instance_name):
         )
 
         def fitness_func(solution):
-            return _single_objective(evaluate_ubqp(solution, ubqp_instance))
+            return _single_objective(evaluate_ubqp(np.asarray(solution), ubqp_instance))
 
         return fitness_func, ubqp_instance.n_vars, 2, interaction_matrix, optimal
 

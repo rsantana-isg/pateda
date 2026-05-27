@@ -5,8 +5,17 @@ This module provides functions for evaluating and loading SAT problems.
 """
 
 import numpy as np
-from typing import List, Tuple, Dict, Optional
+from typing import List, Tuple, Optional
 from pathlib import Path
+
+
+SAT_BENCHMARK_KNOWN_OPTIMA = {
+    "uf100-01": 430,
+    "uf100-02": 430,
+    "uf100-03": 430,
+    "uf100-04": 430,
+    "uf100-05": 430,
+}
 
 
 class SATInstance:
@@ -167,8 +176,12 @@ def load_sat_benchmark_instance(
                 continue
 
             literals = [int(value) for value in line.split() if value != "0"]
-            if len(literals) != 3:
+            if len(literals) == 0:
                 continue
+            if len(literals) != 3:
+                raise ValueError(
+                    f"Expected a 3-literal clause in {instance_file}, got {len(literals)} literals: {line}"
+                )
 
             clause = []
             for literal in literals:
@@ -177,10 +190,7 @@ def load_sat_benchmark_instance(
 
     instance.add_formula(clauses)
 
-    optimal_fitness = "Unknown"
-    instance_base = instance_file.stem
-    if instance_base in {"uf100-01", "uf100-02", "uf100-03", "uf100-04", "uf100-05"}:
-        optimal_fitness = 430
+    optimal_fitness = SAT_BENCHMARK_KNOWN_OPTIMA.get(instance_file.stem, "Unknown")
 
     return instance, optimal_fitness
 

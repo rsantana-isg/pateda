@@ -10,6 +10,14 @@ from typing import Optional, Tuple
 from pathlib import Path
 
 
+ISING_KNOWN_OPTIMA = {
+    "SG_100_1": 130,
+    "SG_100_2": 136,
+    "SG_100_3": 136,
+    "SG_100_4": 130,
+}
+
+
 def _default_ising_instances_dir() -> Path:
     """Return the packaged directory containing Ising benchmark instances."""
     return Path(__file__).resolve().parent.parent / "Ising_Instances"
@@ -20,7 +28,9 @@ def _parse_ising_instance_name(instance_name: str) -> Tuple[int, int]:
     parts = instance_name.replace(".txt", "").split("_")
     if len(parts) != 3 or parts[0] != "SG":
         raise ValueError(
-            f"Invalid Ising instance name format: {instance_name}. Expected format: SG_<n>_<inst>"
+            "Invalid Ising instance name format: "
+            f"{instance_name}. Parsed parts={parts!r}. Expected format: SG_<n>_<inst> "
+            "where <n> is the number of variables and <inst> is the instance number."
         )
     return int(parts[1]), int(parts[2])
 
@@ -60,7 +70,7 @@ def load_ising(n: int, inst: int, instances_dir: str = None) -> Tuple[np.ndarray
         num_vars = int(fp.readline().strip())
         dim = int(fp.readline().strip())
         neigh = int(fp.readline().strip())
-        width = int(fp.readline().strip())
+        _ = int(fp.readline().strip())
 
         # Initialize lattice and inter
         neighbor = int(2**neigh * dim)
@@ -68,7 +78,9 @@ def load_ising(n: int, inst: int, instances_dir: str = None) -> Tuple[np.ndarray
         inter = np.zeros((num_vars, neighbor), dtype=float)
 
         if num_vars != n:
-            raise ValueError(f"Instance SG_{n}_{inst} declares {num_vars} variables in the file")
+            raise ValueError(
+                f"Instance SG_{n}_{inst} file declares {num_vars} variables but {n} were expected"
+            )
 
         # Load the structures from file
         for i in range(num_vars):
@@ -98,15 +110,8 @@ def load_ising_benchmark_instance(
     n_vars, inst = _parse_ising_instance_name(instance_name)
     lattice, inter = load_ising(n_vars, inst, instances_dir)
 
-    optimal_fitness = "Unknown"
-    if instance_name.replace(".txt", "") == "SG_100_1":
-        optimal_fitness = 130
-    elif instance_name.replace(".txt", "") == "SG_100_2":
-        optimal_fitness = 136
-    elif instance_name.replace(".txt", "") == "SG_100_3":
-        optimal_fitness = 136
-    elif instance_name.replace(".txt", "") == "SG_100_4":
-        optimal_fitness = 130
+    instance_base = instance_name.replace(".txt", "")
+    optimal_fitness = ISING_KNOWN_OPTIMA.get(instance_base, "Unknown")
 
     return n_vars, lattice, inter, optimal_fitness
 
