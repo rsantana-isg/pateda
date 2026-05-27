@@ -63,7 +63,7 @@ N_GEN = 50
 SEL_RATIO = 0.5
 N_RUNS = 3
 SEEDS = list(range(1, N_RUNS + 1))
-UBQP_THRESHOLD_RATIO = 0.5
+UBQP_THRESHOLD_RATIO = 0.5  # Keep strongest UBQP interactions when building priors
 
 
 class _FlattenFitnessSampler(SamplingMethod):
@@ -103,7 +103,6 @@ class _RandomMaskPartialSampler(SamplingMethod):
     """Use current population as template and set random positions to NaN."""
 
     def __init__(self, n_samples: int, inherit_prob: float = 0.5):
-        self.n_samples = n_samples
         self.inherit_prob = inherit_prob
         self._inner = SamplePartialFDA(n_samples=n_samples)
 
