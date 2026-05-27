@@ -274,11 +274,14 @@ class LearnMIMIC(LearningMethod):
                 # Get bivariate probabilities
                 if parent_idx < var_idx:
                     biv_probs = biv_prob[parent_idx][var_idx]
-                    # Reshape to [parent, child]
-                    aux_biv_prob = biv_probs.reshape(k_var, k_parent).T
+                    # biv_prob[i][j] is stored row-major with i as the row variable.
+                    # Here i=parent_idx, so reshape directly to (parent, child).
+                    aux_biv_prob = biv_probs.reshape(k_parent, k_var)
                 else:
                     biv_probs = biv_prob[var_idx][parent_idx]
-                    aux_biv_prob = biv_probs.reshape(k_parent, k_var)
+                    # biv_prob[var][parent] has var as row variable; transpose
+                    # to obtain (parent, child).
+                    aux_biv_prob = biv_probs.reshape(k_var, k_parent).T
 
                 # Compute conditional probability P(child | parent)
                 parent_probs = np.tile(
