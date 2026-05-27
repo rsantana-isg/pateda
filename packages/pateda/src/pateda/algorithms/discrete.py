@@ -326,14 +326,28 @@ class PBIL(_BaseEDA):
     Population-Based Incremental Learning (PBIL).
 
     Maintains a probability vector updated incrementally from selected
-    individuals using a learning rate.
+    individuals using a learning rate:
+
+        P_new = (1 - alpha) * P_old + alpha * freq(selected)
+
+    With ``alpha = 1`` PBIL reduces exactly to UMDA; with smaller values it
+    blends the new frequencies with the previous probability vector to
+    smooth updates across generations.
 
     Parameters
     ----------
     n_vars, cardinality, fitness_func, pop_size, n_gen, selection_ratio,
     elitism, random_seed : see UMDA.
     alpha : float
-        Learning rate for probability update (default 0.1).
+        Learning rate for probability update (default 0.5).
+
+        Note: the original Baluja (1994) paper recommends ``alpha = 0.05``-
+        ``0.1`` for runs of *thousands* of generations.  For the typical EDA
+        regime (``n_gen`` in the tens or low hundreds) such small values
+        leave the probability vector close to uniform — i.e. PBIL barely
+        explores beyond random search.  We therefore default to ``0.5``,
+        which gives a fair speed/memory trade-off; pass a smaller value
+        when running for many more generations.
     """
 
     def __init__(
@@ -345,7 +359,7 @@ class PBIL(_BaseEDA):
         n_gen: int = 50,
         selection_ratio: float = 0.5,
         elitism: bool = True,
-        alpha: float = 0.1,
+        alpha: float = 0.5,
         random_seed: Optional[int] = None,
     ):
         card = _to_cardinality(cardinality, n_vars)

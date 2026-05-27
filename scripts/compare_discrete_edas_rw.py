@@ -1,10 +1,18 @@
 """
 Compare all discrete EDAs on packaged real-world benchmark instances.
 
-Problems and default instances follow ``packages/pateda/examples/discrete_EDA_RW.py``:
-  1. SAT   -> uf20-01
-  2. Ising -> SG_16_1
-  3. UBQP  -> bqp50
+Each algorithm is executed ``N_RUNS`` times on every instance (the seeds
+``[1, 2, ..., N_RUNS]``).  For every (algorithm, instance) pair we print
+the vector of best fitnesses across runs together with the mean fitness
+and mean wall-clock time, formatted as::
+
+    UMDA     UBQP bqp100: [3874.0, 3758.0, 3829.0]  mean=3820.33  time=12.34s
+
+The benchmark uses harder, larger n=100 instances of all three problems:
+
+  1. SAT   -> uf100-01     (100 binary vars, 430 clauses)
+  2. Ising -> SG_100_1     (100-spin spin glass)
+  3. UBQP  -> bqp100       (100-var unconstrained binary QP)
 
 Usage:
     python scripts/compare_discrete_edas_rw.py
@@ -51,24 +59,26 @@ ALGORITHMS = [
     ("MTED", MTED),
     ("MNFDA", MNFDA),
     ("MNFDAR", MNFDAR),
- #   ("MNFDAG", MNFDAG),
- #   ("MNFDAGR", MNFDAGR),
- #   ("MOA", MOA),
+    #("MNFDAG", MNFDAG),
+    #("MNFDAGR", MNFDAGR),
+    #("MOA", MOA),
     ("FDA", FDA),
     ("BSC", BSC),
 ]
 
+# Harder, n=100 benchmark instances of each problem type.
 PROBLEMS = [
-    ("SAT", "uf20-01"),
-    ("Ising", "SG_16_1"),
-    ("UBQP", "bqp50"),
+    ("SAT", "uf100-01"),
+    ("Ising", "SG_100_1"),
+    ("UBQP", "bqp100"),
 ]
 
 RESTRICTED_ALGORITHMS = {"TreeEDA-r", "MNFDAR", "MNFDAGR"}
 POP_SIZE = 200
 N_GEN = 50
 SEL_RATIO = 0.5
-SEED = 42
+N_RUNS = 3                 # repetitions per (algorithm, instance) pair
+SEEDS = list(range(1, N_RUNS + 1))   # seeds [1, 2, 3]
 UBQP_THRESHOLD_RATIO = 0.5
 
 
@@ -122,8 +132,9 @@ def load_problem(problem_type, instance_name):
     raise ValueError(f"Unsupported problem type: {problem_type}")
 
 
-def run_one(alg_name, alg_cls, n_vars, cardinality, fitness_func, interaction_matrix):
-    """Run one algorithm on one benchmark."""
+def run_single_seed(alg_name, alg_cls, n_vars, cardinality, fitness_func,
+                    interaction_matrix, seed):
+    """Run one algorithm on one benchmark for one seed."""
     kwargs = {}
     if alg_name in RESTRICTED_ALGORITHMS:
         kwargs["interaction_matrix"] = interaction_matrix
@@ -135,21 +146,34 @@ def run_one(alg_name, alg_cls, n_vars, cardinality, fitness_func, interaction_ma
         pop_size=POP_SIZE,
         n_gen=N_GEN,
         selection_ratio=SEL_RATIO,
-        random_seed=SEED,
+        random_seed=seed,
         **kwargs,
     )
 
     t0 = time.time()
     stats, _ = alg.run(verbose=False)
     elapsed = time.time() - t0
-    mean_last = stats.mean_fitness[-1] if stats.mean_fitness else float("nan")
-    return stats.best_fitness_overall, mean_last, elapsed
+    return float(stats.best_fitness_overall), elapsed
+
+
+def run_all_seeds(alg_name, alg_cls, n_vars, cardinality, fitness_func,
+                  interaction_matrix):
+    """Repeat one algorithm ``N_RUNS`` times; return per-seed bests and times."""
+    bests = []
+    times = []
+    for seed in SEEDS:
+        best, elapsed = run_single_seed(
+            alg_name, alg_cls, n_vars, cardinality,
+            fitness_func, interaction_matrix, seed,
+        )
+        bests.append(best)
+        times.append(elapsed)
+    return bests, times
 
 
 def main():
     """Run the comparison table for all configured real-world benchmarks."""
-    header_width = 14
-    col_w = 14
+    name_w = 10
 
     for problem_type, instance_name in PROBLEMS:
         fitness_func, n_vars, cardinality, interaction_matrix, optimal = load_problem(
@@ -161,33 +185,34 @@ def main():
         print(f"\n{'=' * 84}")
         print(
             f"Problem: {problem_type}  Instance: {instance_name}  "
-            f"(n_vars={n_vars}, cardinality={cardinality}, prior_edges={n_edges}, optimal={optimal})"
+            f"(n_vars={n_vars}, cardinality={cardinality}, "
+            f"prior_edges={n_edges}, optimal={optimal})"
+        )
+        print(
+            f"pop_size={POP_SIZE}  n_gen={N_GEN}  selection_ratio={SEL_RATIO}  "
+            f"n_runs={N_RUNS}  seeds={SEEDS}"
         )
         print(f"{'=' * 84}")
-        print(
-            f"{'Algorithm':<{header_width}} {'Best':>{col_w}} "
-            f"{'MeanLast':>{col_w}} {'Time(s)':>{col_w}}"
-        )
-        print("-" * (header_width + 3 * col_w + 4))
+
+        problem_tag = f"{problem_type} {instance_name}"
 
         for alg_name, alg_cls in ALGORITHMS:
             try:
-                best, mean_last, elapsed = run_one(
-                    alg_name,
-                    alg_cls,
-                    n_vars,
-                    cardinality,
-                    fitness_func,
-                    interaction_matrix,
+                bests, times = run_all_seeds(
+                    alg_name, alg_cls, n_vars, cardinality,
+                    fitness_func, interaction_matrix,
                 )
+                mean_best = float(np.mean(bests))
+                mean_time = float(np.mean(times))
+                # Format the per-seed bests as a vector with up to 4 decimals.
+                bests_str = "[" + ", ".join(f"{b:.4f}" for b in bests) + "]"
                 print(
-                    f"{alg_name:<{header_width}} {best:>{col_w}.4f} "
-                    f"{mean_last:>{col_w}.4f} {elapsed:>{col_w}.2f}"
+                    f"{alg_name:<{name_w}} {problem_tag:<16}: "
+                    f"{bests_str}  mean={mean_best:.4f}  time={mean_time:.2f}s"
                 )
             except Exception as exc:
                 print(
-                    f"{alg_name:<{header_width}} {'ERROR':>{col_w}} "
-                    f"{str(exc)[:30]:>{col_w}} {'':>{col_w}}"
+                    f"{alg_name:<{name_w}} {problem_tag:<16}: ERROR -- {exc}"
                 )
                 traceback.print_exc()
 
