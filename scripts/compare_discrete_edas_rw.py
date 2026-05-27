@@ -51,9 +51,9 @@ ALGORITHMS = [
     ("MTED", MTED),
     ("MNFDA", MNFDA),
     ("MNFDAR", MNFDAR),
-    ("MNFDAG", MNFDAG),
-    ("MNFDAGR", MNFDAGR),
-    ("MOA", MOA),
+ #   ("MNFDAG", MNFDAG),
+ #   ("MNFDAGR", MNFDAGR),
+ #   ("MOA", MOA),
     ("FDA", FDA),
     ("BSC", BSC),
 ]
