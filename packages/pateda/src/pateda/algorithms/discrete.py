@@ -262,12 +262,15 @@ class TreeEDAR(_BaseEDA):
         selection_ratio: float = 0.5,
         elitism: bool = True,
         alpha: float = 0.0,
+        interaction_matrix: Optional[np.ndarray] = None,
         random_seed: Optional[int] = None,
     ):
         card = _to_cardinality(cardinality, n_vars)
-        # Default: full interaction matrix (all pairs allowed) — equivalent to
-        # unrestricted Tree-EDA but using the restricted learning code path.
-        interaction_matrix = np.ones((n_vars, n_vars), dtype=int)
+        if interaction_matrix is None:
+            # Default: full interaction matrix (all pairs allowed) —
+            # equivalent to unrestricted Tree-EDA but using the restricted
+            # learning code path.
+            interaction_matrix = np.ones((n_vars, n_vars), dtype=int)
         learner = LearnTreeModelR(interaction_matrix=interaction_matrix, alpha=alpha)
         sampler = SampleFDA(n_samples=pop_size)
         components = _make_components(learner, sampler, pop_size, selection_ratio, n_gen, elitism)
@@ -619,11 +622,13 @@ class MNFDAR(_BaseEDA):
         selection_ratio: float = 0.5,
         elitism: bool = True,
         max_clique_size: int = 3,
+        interaction_matrix: Optional[np.ndarray] = None,
         random_seed: Optional[int] = None,
     ):
         card = _to_cardinality(cardinality, n_vars)
-        # Default: full interaction matrix (all pairs allowed).
-        interaction_matrix = np.ones((n_vars, n_vars), dtype=int)
+        if interaction_matrix is None:
+            # Default: full interaction matrix (all pairs allowed).
+            interaction_matrix = np.ones((n_vars, n_vars), dtype=int)
         learner = LearnMNFDAR(
             interaction_matrix=interaction_matrix,
             max_clique_size=max_clique_size,
@@ -699,12 +704,15 @@ class MNFDAGR(_BaseEDA):
         selection_ratio: float = 0.5,
         elitism: bool = True,
         max_clique_size: int = 3,
+        interaction_matrix: Optional[np.ndarray] = None,
         random_seed: Optional[int] = None,
     ):
         card = _to_cardinality(cardinality, n_vars)
-        # Default: full interaction matrix (all pairs allowed).
-        # return_factorized=False → returns MarkovNetworkModel required by SampleGibbs.
-        interaction_matrix = np.ones((n_vars, n_vars), dtype=int)
+        if interaction_matrix is None:
+            # Default: full interaction matrix (all pairs allowed).
+            # return_factorized=False → returns MarkovNetworkModel required by
+            # SampleGibbs.
+            interaction_matrix = np.ones((n_vars, n_vars), dtype=int)
         learner = LearnMNFDAGR(
             interaction_matrix=interaction_matrix,
             max_clique_size=max_clique_size,

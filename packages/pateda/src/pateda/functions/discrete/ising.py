@@ -6,8 +6,23 @@ The Ising model is a spin glass optimization problem used to test EDAs.
 """
 
 import numpy as np
-from typing import Tuple
+from typing import Optional, Tuple
 from pathlib import Path
+
+
+def _default_ising_instances_dir() -> Path:
+    """Return the packaged directory containing Ising benchmark instances."""
+    return Path(__file__).resolve().parent.parent / "Ising_Instances"
+
+
+def _parse_ising_instance_name(instance_name: str) -> Tuple[int, int]:
+    """Parse ``SG_<n>_<inst>`` benchmark names."""
+    parts = instance_name.replace(".txt", "").split("_")
+    if len(parts) != 3 or parts[0] != "SG":
+        raise ValueError(
+            f"Invalid Ising instance name format: {instance_name}. Expected format: SG_<n>_<inst>"
+        )
+    return int(parts[1]), int(parts[2])
 
 
 def load_ising(n: int, inst: int, instances_dir: str = None) -> Tuple[np.ndarray, np.ndarray]:
@@ -32,7 +47,7 @@ def load_ising(n: int, inst: int, instances_dir: str = None) -> Tuple[np.ndarray
                     inter[i, j] = interaction value between variable i and its j-th neighbor
     """
     if instances_dir is None:
-        instances_dir = Path(__file__).parent.parent.parent.parent / "functions" / "ising-model"
+        instances_dir = _default_ising_instances_dir()
     else:
         instances_dir = Path(instances_dir)
 
@@ -52,20 +67,62 @@ def load_ising(n: int, inst: int, instances_dir: str = None) -> Tuple[np.ndarray
         lattice = np.zeros((num_vars, neighbor + 1), dtype=int)
         inter = np.zeros((num_vars, neighbor), dtype=float)
 
+        if num_vars != n:
+            raise ValueError(f"Instance SG_{n}_{inst} declares {num_vars} variables in the file")
+
         # Load the structures from file
         for i in range(num_vars):
-            lattice[i, 0] = int(fp.readline().strip())
+            line = fp.readline().strip().split()
+            lattice[i, 0] = int(line[0])
 
             if lattice[i, 0] > 0:
-                # Read neighbor indices (convert from 0-indexed to 1-indexed as in MATLAB)
-                for j in range(1, lattice[i, 0] + 1):
-                    lattice[i, j] = int(fp.readline().strip()) + 1
+                n_neighbors = int(lattice[i, 0])
+                for j in range(n_neighbors):
+                    lattice[i, j + 1] = int(line[1 + j]) + 1
 
-                # Read interaction values
-                for j in range(lattice[i, 0]):
-                    inter[i, j] = float(fp.readline().strip())
+                for j in range(n_neighbors):
+                    inter[i, j] = float(line[1 + n_neighbors + j])
 
     return lattice, inter
+
+
+def load_ising_benchmark_instance(
+    instance_name: str,
+    instances_dir: Optional[str] = None,
+) -> Tuple[int, np.ndarray, np.ndarray, object]:
+    """
+    Load a packaged Ising benchmark instance by name.
+
+    Returns ``(n_vars, lattice, inter, optimal_fitness)``.
+    """
+    n_vars, inst = _parse_ising_instance_name(instance_name)
+    lattice, inter = load_ising(n_vars, inst, instances_dir)
+
+    optimal_fitness = "Unknown"
+    if instance_name.replace(".txt", "") == "SG_100_1":
+        optimal_fitness = 130
+    elif instance_name.replace(".txt", "") == "SG_100_2":
+        optimal_fitness = 136
+    elif instance_name.replace(".txt", "") == "SG_100_3":
+        optimal_fitness = 136
+    elif instance_name.replace(".txt", "") == "SG_100_4":
+        optimal_fitness = 130
+
+    return n_vars, lattice, inter, optimal_fitness
+
+
+def build_ising_interaction_matrix(lattice: np.ndarray) -> np.ndarray:
+    """Build a binary interaction matrix from the Ising lattice neighborhood structure."""
+    n_vars = lattice.shape[0]
+    interaction_matrix = np.eye(n_vars, dtype=int)
+
+    for i in range(n_vars):
+        for j in range(1, int(lattice[i, 0]) + 1):
+            neighbor_idx = int(lattice[i, j]) - 1
+            interaction_matrix[i, neighbor_idx] = 1
+            interaction_matrix[neighbor_idx, i] = 1
+
+    return interaction_matrix
 
 
 def eval_ising(ind: np.ndarray, lattice: np.ndarray, inter: np.ndarray) -> float:
