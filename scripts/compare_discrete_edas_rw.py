@@ -68,9 +68,10 @@ ALGORITHMS = [
 
 # Harder, n=100 benchmark instances of each problem type.
 PROBLEMS = [
+    ("UBQP", "bqp100"),
     ("SAT", "uf100-01"),
     ("Ising", "SG_100_1"),
-    ("UBQP", "bqp100"),
+  
 ]
 
 RESTRICTED_ALGORITHMS = {"TreeEDA-r", "MNFDAR", "MNFDAGR"}
