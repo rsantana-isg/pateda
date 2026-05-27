@@ -51,21 +51,25 @@ def hiff(x):
     H(x) = sum of block contributions across all hierarchical levels.
     """
     x = np.asarray(x, dtype=int)
+    if x.ndim != 1:
+        x = x.ravel()
+
     n = len(x)
+    if n == 0 or n & (n - 1):
+        raise ValueError("HIFF requires a non-empty vector whose length is a power of 2")
+
     vals = x.copy().astype(float)
-    score = 0.0
-    block_size = 2
-    while block_size <= n:
-        new_vals = np.zeros(n // block_size)
-        for i in range(n // block_size):
-            block = vals[i * block_size: (i + 1) * block_size]
+    score = float(n)
+    while len(vals) >= 2:
+        new_vals = np.zeros(len(vals) // 2)
+        for i in range(len(new_vals)):
+            block = vals[2 * i: 2 * i + 2]
             if np.all(block == 0) or np.all(block == 1):
-                score += block_size
+                score += len(block) * (n // len(vals))
                 new_vals[i] = block[0]
             else:
                 new_vals[i] = -1  # sentinel: not uniform
         vals = new_vals
-        block_size *= 2
     return score
 
 
