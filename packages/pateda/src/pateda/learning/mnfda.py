@@ -25,7 +25,6 @@ from pateda.learning.utils.mutual_information import (
     chi_square_test,
 )
 from pateda.learning.utils.markov_network import (
-    build_dependency_graph_threshold,
     find_maximal_cliques_greedy,
     order_cliques_for_sampling,
     convert_cliques_to_factorized_structure,
