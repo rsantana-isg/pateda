@@ -68,6 +68,7 @@ import numpy as np
 
 from pateda.core.components import LearningMethod
 from pateda.core.models import BayesianNetworkModel
+from pateda.learning.utils.table_size import joint_table_size
 
 
 class LearnBOA(LearningMethod):
@@ -86,6 +87,7 @@ class LearnBOA(LearningMethod):
         metric_alpha: float = 1.0,
         use_decision_graphs: bool = False,
         ordering: Optional[np.ndarray] = None,
+        limit_joint_table_size: bool = True,
     ):
         """
         Initialize BOA learning
@@ -96,12 +98,15 @@ class LearnBOA(LearningMethod):
             metric_alpha: Alpha parameter for BD metric (prior strength)
             use_decision_graphs: Use decision graphs for compact CPD representation
             ordering: Variable ordering for K2 algorithm (if None, use natural order)
+            limit_joint_table_size: If True, only allow parent sets whose
+                conditional-table size (variable + parents) is <= n_samples
         """
         self.max_parents = max_parents
         self.score_metric = score_metric
         self.metric_alpha = metric_alpha
         self.use_decision_graphs = use_decision_graphs
         self.ordering = ordering
+        self.limit_joint_table_size = limit_joint_table_size
 
     def _k2_score(
         self,
@@ -219,6 +224,7 @@ class LearnBOA(LearningMethod):
             Adjacency matrix (parents -> children)
         """
         adjacency = np.zeros((n_vars, n_vars), dtype=int)
+        n_samples = population.shape[0]
 
         # Process variables in given order
         for i, var in enumerate(ordering):
@@ -242,6 +248,10 @@ class LearnBOA(LearningMethod):
                         continue
 
                     test_parents = current_parents + [candidate]
+                    if self.limit_joint_table_size:
+                        table_size = joint_table_size(cardinality, [var] + test_parents)
+                        if table_size > n_samples:
+                            continue
                     score = self._k2_score(
                         var, test_parents, population, cardinality, self.metric_alpha
                     )
