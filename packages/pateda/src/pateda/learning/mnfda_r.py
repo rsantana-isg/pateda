@@ -42,6 +42,7 @@ from pateda.learning.utils.markov_network import (
     convert_cliques_to_factorized_structure,
 )
 from pateda.learning.utils.probability_tables import compute_clique_tables
+from pateda.learning.utils.table_size import split_variables_by_table_limit
 
 
 class LearnMNFDAR(LearningMethod):
@@ -92,6 +93,16 @@ class LearnMNFDAR(LearningMethod):
         self.threshold = threshold
         self.prior = prior
         self.return_factorized = return_factorized
+
+    @staticmethod
+    def _apply_table_size_limit(
+        cliques: list, cardinality: np.ndarray, n_samples: int
+    ) -> list:
+        """Split oversized cliques so each resulting joint table fits in sample size."""
+        limited = []
+        for clique in cliques:
+            limited.extend(split_variables_by_table_limit(clique, cardinality, n_samples))
+        return limited
 
     def _build_restricted_dependency_graph(
         self,
@@ -190,6 +201,7 @@ class LearnMNFDAR(LearningMethod):
         cliques = find_maximal_cliques_greedy(
             adjacency, self.max_clique_size, self.max_n_cliques
         )
+        cliques = self._apply_table_size_limit(cliques, cardinality, population.shape[0])
 
         # Step 3: Order cliques for sampling
         clique_order = order_cliques_for_sampling(cliques)

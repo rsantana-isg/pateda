@@ -68,6 +68,7 @@ import numpy as np
 
 from pateda.core.components import LearningMethod
 from pateda.core.models import BayesianNetworkModel
+from pateda.learning.utils.table_size import joint_table_size
 
 
 class LearnEBNA(LearningMethod):
@@ -85,6 +86,7 @@ class LearnEBNA(LearningMethod):
         score_metric: str = "bic",
         alpha: float = 0.0,
         structure: Optional[np.ndarray] = None,
+        limit_joint_table_size: bool = True,
     ):
         """
         Initialize EBNA learning
@@ -95,11 +97,14 @@ class LearnEBNA(LearningMethod):
             alpha: Smoothing parameter for probability estimation
             structure: Pre-defined structure (DAG as adjacency matrix)
                       If provided, structure learning is skipped
+            limit_joint_table_size: If True, only allow parent sets whose
+                conditional-table size (variable + parents) is <= n_samples
         """
         self.max_parents = max_parents
         self.score_metric = score_metric
         self.alpha = alpha
         self.structure = structure
+        self.limit_joint_table_size = limit_joint_table_size
 
     def _calculate_local_score(
         self,
@@ -267,6 +272,10 @@ class LearnEBNA(LearningMethod):
                         continue
 
                     test_parents = current_parents + [candidate]
+                    if self.limit_joint_table_size:
+                        table_size = joint_table_size(cardinality, [var] + test_parents)
+                        if table_size > n_samples:
+                            continue
                     score = self._calculate_local_score(
                         var, test_parents, population, cardinality, n_samples
                     )
