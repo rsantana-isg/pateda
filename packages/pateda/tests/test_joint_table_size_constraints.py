@@ -21,12 +21,13 @@ def _all_structure_table_sizes(structure: np.ndarray, cardinality: np.ndarray):
 
 
 def test_ebna_limits_parent_sets_by_table_size():
+    rng = np.random.default_rng(42)
     n_vars = 6
     n_samples = 128
     cardinality = np.array([64] * n_vars)
 
     population = np.zeros((n_samples, n_vars), dtype=int)
-    base = np.random.randint(0, 64, size=n_samples)
+    base = rng.integers(0, 64, size=n_samples)
     for i in range(n_vars):
         population[:, i] = base
     fitness = np.sum(population, axis=1).astype(float)
@@ -37,12 +38,13 @@ def test_ebna_limits_parent_sets_by_table_size():
 
 
 def test_boa_limits_parent_sets_by_table_size():
+    rng = np.random.default_rng(43)
     n_vars = 6
     n_samples = 128
     cardinality = np.array([64] * n_vars)
 
     population = np.zeros((n_samples, n_vars), dtype=int)
-    base = np.random.randint(0, 64, size=n_samples)
+    base = rng.integers(0, 64, size=n_samples)
     for i in range(n_vars):
         population[:, i] = base
     fitness = np.sum(population, axis=1).astype(float)
@@ -53,10 +55,11 @@ def test_boa_limits_parent_sets_by_table_size():
 
 
 def test_fda_splits_oversized_cliques():
+    rng = np.random.default_rng(44)
     n_vars = 4
     n_samples = 128
     cardinality = np.array([64] * n_vars)
-    population = np.random.randint(0, 64, size=(n_samples, n_vars))
+    population = rng.integers(0, 64, size=(n_samples, n_vars))
     fitness = np.sum(population, axis=1).astype(float)
 
     # One oversized clique with all variables: 64^4 > n_samples
@@ -68,10 +71,11 @@ def test_fda_splits_oversized_cliques():
 
 
 def test_mnfda_limits_clique_table_size():
+    rng = np.random.default_rng(45)
     n_vars = 6
     n_samples = 128
     cardinality = np.array([64] * n_vars)
-    population = np.random.randint(0, 64, size=(n_samples, n_vars))
+    population = rng.integers(0, 64, size=(n_samples, n_vars))
     population[:, 1] = population[:, 0]
     population[:, 2] = population[:, 0]
     fitness = np.sum(population, axis=1).astype(float)
@@ -85,10 +89,11 @@ def test_mnfda_limits_clique_table_size():
 
 
 def test_mnfdar_limits_clique_table_size():
+    rng = np.random.default_rng(46)
     n_vars = 6
     n_samples = 128
     cardinality = np.array([64] * n_vars)
-    population = np.random.randint(0, 64, size=(n_samples, n_vars))
+    population = rng.integers(0, 64, size=(n_samples, n_vars))
     population[:, 1] = population[:, 0]
     population[:, 2] = population[:, 0]
     fitness = np.sum(population, axis=1).astype(float)
