@@ -38,9 +38,9 @@ from pateda.functions.discrete.ubqp import (
 # Experiment configuration
 # ---------------------------------------------------------------------------
 
-POP_SIZE         = 200
+POP_SIZE         = 500
 N_GEN            = 50
-SEL_RATIO        = 0.5
+SEL_RATIO        = 0.15
 N_RUNS           = 5
 SEEDS            = list(range(1, N_RUNS + 1))
 UBQP_THRESHOLD   = 0.5    # threshold_ratio for build_ubqp_interaction_matrix
