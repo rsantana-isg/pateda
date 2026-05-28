@@ -132,83 +132,21 @@ class SampleMixtureTrees(SamplingMethod):
         cardinality: np.ndarray
     ):
         """
-        Convert tree structure back to FactorizedModel for sampling
+        Convert tree structure back to FactorizedModel for sampling.
 
-        Args:
-            tree_structure: Tree structure (parent-child relationships)
-            tree_parameters: Tree parameters (probability tables)
-            n_vars: Number of variables
-            cardinality: Variable cardinalities
-
-        Returns:
-            FactorizedModel representation
+        The TreeModel produced by LearnMixtureTrees._factorized_to_tree already
+        stores the structure in FDA clique format:
+            [n_overlap, n_new, overlap_vars..., new_vars..., (zero-padding)]
+        with the matching probability tables.  We reconstruct a FactorizedModel
+        directly - no re-parsing or re-building of cliques needed.
         """
         from pateda.core.models import FactorizedModel
 
-        # The tree_parameters are already in the format from BMDA (clique-based)
-        # We can use them directly if we also have the corresponding cliques
-
-        # Reconstruct cliques from tree structure
-        # This is a simplified version - assumes tree_parameters are already in clique format
-        # from the BMDA learning
-
-        # For proper implementation, would need to:
-        # 1. Build cliques from tree edges
-        # 2. Map parameters correctly
-
-        # Temporary solution: assume parameters are already in compatible format
-        # Build a simple factorization structure
-
-        cliques = []
-        tables = []
-
-        # Add root nodes and edges based on tree structure
-        for edge_idx in range(len(tree_structure)):
-            n_parents, parent, child = tree_structure[edge_idx]
-
-            if n_parents == 0:
-                # Root node
-                clique = np.zeros(3, dtype=int)
-                clique[0] = 0  # no overlap
-                clique[1] = 1  # one new variable
-                clique[2] = child  # the variable
-                cliques.append(clique)
-            else:
-                # Parent-child edge
-                clique = np.zeros(4, dtype=int)
-                clique[0] = 1  # one overlap (parent)
-                clique[1] = 1  # one new (child)
-                clique[2] = parent  # overlap variable
-                clique[3] = child  # new variable
-                cliques.append(clique)
-
-        # Use the provided parameters
-        if len(tree_parameters) == len(cliques):
-            tables = tree_parameters
-        else:
-            # Fallback: use uniform distributions
-            tables = []
-            for clique in cliques:
-                n_new = int(clique[1])
-                if n_new > 0:
-                    new_vars = [int(clique[2 + clique[0] + i]) for i in range(n_new)]
-                    table_shape = tuple([int(cardinality[v]) for v in new_vars])
-                    table = np.ones(table_shape) / np.prod(table_shape)
-                    tables.append(table)
-
-        # Convert to array with padding
-        max_size = max(len(c) for c in cliques)
-        cliques_array = np.zeros((len(cliques), max_size), dtype=int)
-        for i, c in enumerate(cliques):
-            cliques_array[i, :len(c)] = c
-
-        model = FactorizedModel(
-            structure=cliques_array,
-            parameters=tables,
-            metadata={"model_type": "Tree (from mixture)"}
+        return FactorizedModel(
+            structure=tree_structure,
+            parameters=tree_parameters,
+            metadata={"model_type": "Tree (from mixture)"},
         )
-
-        return model
 
 
 class SampleMixtureTreesDirect(SamplingMethod):

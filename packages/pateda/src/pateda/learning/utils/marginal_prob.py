@@ -49,8 +49,10 @@ def find_marginal_prob(
         for val in range(cardinality[i]):
             counts[val] = np.sum(population[:, i] == val)
 
-        # Convert to probabilities
-        probs = counts / n_samples
+        # Convert to probabilities (apply alpha consistently with bivariate)
+        counts += alpha
+        total = counts.sum()
+        probs = counts / total if total > 0 else np.ones(cardinality[i]) / cardinality[i]
         univ_prob.append(probs)
 
     # Calculate bivariate probabilities for all pairs

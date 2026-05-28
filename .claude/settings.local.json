@@ -55,7 +55,9 @@
       "Bash(bash slurm/launch_compare_EDAs_RW.sh)",
       "Bash(bash /media/rsantana/ReallyCrucial1/Dropbox/Pending_Papers/N33_PATEDA/github/pateda/slurm/slurm_compare_EDAs_RW.sh 20 100 30 0.5 1 UMDA SAT 20 /media/rsantana/ReallyCrucial1/Dropbox/Pending_Papers/N33_PATEDA/github/pateda/packages/pateda/src/pateda/functions/SAT_instances/uf20-01.cnf)",
       "Bash(rm -f /media/rsantana/ReallyCrucial1/Dropbox/Pending_Papers/N33_PATEDA/github/pateda/results/results_EDA_RW_SAT_UMDA_20_uf20-01_pop100_gen30_sel0.5_seed1.dat)",
-      "Bash(bash)"
+      "Bash(bash)",
+      "Bash(jobs -l)",
+      "Bash(kill 1997032 2005210)"
     ]
   }
 }

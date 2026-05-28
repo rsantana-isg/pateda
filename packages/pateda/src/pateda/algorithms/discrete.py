@@ -547,6 +547,17 @@ class MTED(_BaseEDA):
         Number of tree components in the mixture.
     alpha : float
         Laplace smoothing pseudo-count (0 = no smoothing).
+    weight_learning : str
+        Method for learning mixture weights: "uniform", "em", or
+        "fitness_proportional".
+    use_priors : bool
+        If True, add priors to prevent premature convergence (mutation-like
+        effect as described in RepMutMTFDA).
+    use_adaptive : bool
+        If True, stop learning early when the model probability of the data
+        reaches ``adaptive_mu`` (avoids overfitting).
+    adaptive_mu : float
+        Threshold for adaptive learning (default 0.9).
     """
 
     def __init__(
@@ -560,10 +571,22 @@ class MTED(_BaseEDA):
         elitism: bool = True,
         n_trees: int = 5,
         alpha: float = 0.0,
+        weight_learning: str = "uniform",
+        use_priors: bool = False,
+        use_adaptive: bool = False,
+        adaptive_mu: float = 0.9,
         random_seed: Optional[int] = None,
     ):
         card = _to_cardinality(cardinality, n_vars)
-        learner = LearnMixtureTrees(n_components=n_trees, alpha=alpha)
+        learner = LearnMixtureTrees(
+            n_components=n_trees,
+            alpha=alpha,
+            weight_learning=weight_learning,
+            use_priors=use_priors,
+            use_adaptive=use_adaptive,
+            truncation_ratio=selection_ratio,
+            adaptive_mu=adaptive_mu,
+        )
         sampler = SampleMixtureTrees(n_samples=pop_size)
         components = _make_components(learner, sampler, pop_size, selection_ratio, n_gen, elitism)
         eda = EDA(pop_size, n_vars, fitness_func, card, components, random_seed=random_seed)

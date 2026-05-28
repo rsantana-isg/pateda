@@ -218,16 +218,20 @@ class SamplePartialFDA(SamplingMethod):
                     # Mixed case: some new_vars fixed, some NaN
                     # Marginalise over fixed positions to sample only NaN ones.
                     # --------------------------------------------------------
-                    # Reshape joint probability to per-variable tensor
+                    # The flat table uses LSB-first (little-endian) indexing:
+                    #   flat_idx = v0*1 + v1*card0 + v2*card0*card1 + ...
+                    # This matches numpy F-order (Fortran/column-major), so
+                    # we must reshape AND ravel with order='F' to keep axes
+                    # aligned with the acc_card convention used throughout.
                     shape = tuple(new_card)
-                    probs_tensor = joint_probs.reshape(shape)
+                    probs_tensor = joint_probs.reshape(shape, order='F')
 
                     # Slice out the fixed-variable dimensions
                     slices = [slice(None)] * n_new
                     for pos in np.where(~nan_positions)[0]:
                         slices[pos] = int(new_pop[j, new_vars[pos]])
 
-                    marginal = probs_tensor[tuple(slices)].ravel()
+                    marginal = probs_tensor[tuple(slices)].ravel(order='F')
 
                     prob_sum = np.sum(marginal)
                     if prob_sum > 0:

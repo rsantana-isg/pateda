@@ -214,20 +214,25 @@ class LearnTreeModelR(LearningMethod):
         biv_prob: List[List[np.ndarray]],
     ) -> List[np.ndarray]:
         """
-        Learn conditional probability tables for tree structure
+        Learn conditional probability tables for tree structure.
+
+        Computes tables directly from population counts (not via bivariate
+        marginals) so that Laplace smoothing scales correctly with cardinality.
+        See LearnTreeModel._learn_parameters for the rationale.
 
         Args:
             cliques: Tree structure
             population: Population data
             n_vars: Number of variables
             cardinality: Variable cardinalities
-            univ_prob: Univariate marginal probabilities
-            biv_prob: Bivariate marginal probabilities
+            univ_prob: Univariate marginal probabilities (used for structure only)
+            biv_prob: Bivariate marginal probabilities (used for structure only)
 
         Returns:
             List of probability tables (conditional or marginal)
         """
         n_samples = population.shape[0]
+        smooth = max(self.alpha, 1.0)
         tables = []
 
         for j in range(n_vars):
@@ -237,7 +242,10 @@ class LearnTreeModelR(LearningMethod):
                 child_idx = int(cliques[j, 2])
                 card_child = int(cardinality[child_idx])
 
-                table = (univ_prob[child_idx] * n_samples + 1) / (n_samples + card_child)
+                counts = np.bincount(
+                    population[:, child_idx].astype(int), minlength=card_child
+                ).astype(float)
+                table = (counts + smooth) / (n_samples + smooth * card_child)
                 tables.append(table)
 
             else:
@@ -246,28 +254,21 @@ class LearnTreeModelR(LearningMethod):
                 card_child = int(cardinality[child_idx])
                 card_parent = int(cardinality[parent_idx])
 
-                if parent_idx < child_idx:
-                    biv_probs = biv_prob[parent_idx][child_idx]
-                    # biv_prob[i][j] is stored row-major with i as the row variable.
-                    # Here i=parent_idx, so reshape directly to (card_parent, card_child).
-                    aux_biv_prob = biv_probs.reshape(card_parent, card_child)
-                else:
-                    biv_probs = biv_prob[child_idx][parent_idx]
-                    # biv_prob[child][parent] has child as row variable;
-                    # transpose to get (card_parent, card_child).
-                    aux_biv_prob = biv_probs.reshape(card_child, card_parent).T
+                # Dirichlet prior centred at child marginal (see LearnTreeModel
+                # for the rationale): sparse rows fall back to the marginal.
+                c_counts = np.bincount(
+                    population[:, child_idx].astype(int), minlength=card_child
+                ).astype(float)
+                child_marginal = (c_counts + smooth) / (n_samples + smooth * card_child)
 
-                lap_biv_prob = (aux_biv_prob * n_samples + 1) / (n_samples + card_child * card_parent)
-                lap_parent_probs = (univ_prob[parent_idx] * n_samples + 1) / (n_samples + card_parent)
+                joint = np.zeros((card_parent, card_child))
+                pv = population[:, parent_idx].astype(int)
+                cv = population[:, child_idx].astype(int)
+                np.add.at(joint, (pv, cv), 1)
 
-                parent_probs = np.tile(lap_parent_probs.reshape(-1, 1), (1, card_child))
-                cond_biv_prob = lap_biv_prob / parent_probs
-
-                cond_biv_prob = cond_biv_prob / np.tile(
-                    cond_biv_prob.sum(axis=1, keepdims=True), (1, card_child)
-                )
-
-                tables.append(cond_biv_prob)
+                row_sums = joint.sum(axis=1, keepdims=True)
+                table = (joint + smooth * child_marginal[np.newaxis, :]) / (row_sums + smooth)
+                tables.append(table)
 
         return tables
 

@@ -288,17 +288,15 @@ class LearnBMDA(LearningMethod):
         # 3) Marginal P(var) for every variable (used both for roots and as a
         #    denominator when deriving conditional tables).
         # ------------------------------------------------------------------
+        # Use at least 1 pseudo-count per cell so that unseen values get
+        # non-zero probability and high-cardinality marginals are smoothed.
+        smooth = max(alpha, 1.0)
         marginal_probs = []
         for v in range(n_vars):
             k = int(cardinality_int[v])
             counts = np.bincount(population[:, v].astype(int), minlength=k).astype(float)
-            if alpha > 0:
-                counts = counts + alpha
-            total = counts.sum()
-            if total <= 0:
-                marginal_probs.append(np.full(k, 1.0 / k))
-            else:
-                marginal_probs.append(counts / total)
+            counts = counts + smooth
+            marginal_probs.append(counts / counts.sum())
 
         # ------------------------------------------------------------------
         # 4) Build cliques in BFS order so every parent is sampled before its
@@ -320,20 +318,18 @@ class LearnBMDA(LearningMethod):
 
             # Joint count P(parent, child)
             joint_counts = np.zeros((k_p, k_c))
-            for sample in population:
-                joint_counts[int(sample[parent]), int(sample[child])] += 1
-            if alpha > 0:
-                joint_counts = joint_counts + alpha
+            pv = population[:, parent].astype(int)
+            cv = population[:, child].astype(int)
+            np.add.at(joint_counts, (pv, cv), 1)
 
-            # Conditional P(child | parent) — row k is the distribution of the
-            # child given parent = k.  Use the smoothed parent marginal as the
-            # denominator so unseen parent values fall back to a uniform child.
+            # Conditional P(child | parent) with a Dirichlet prior centred at
+            # the child marginal.  Sparse parent rows (high-cardinality parent,
+            # few samples per value) fall back to the child marginal rather
+            # than to uniform, preserving the effective distribution.
+            c_counts = np.bincount(cv, minlength=k_c).astype(float)
+            child_marginal = (c_counts + smooth) / (pop_size + smooth * k_c)
             row_sums = joint_counts.sum(axis=1, keepdims=True)
-            empty_rows = (row_sums.squeeze(-1) == 0)
-            if np.any(empty_rows):
-                joint_counts[empty_rows, :] = 1.0
-                row_sums[empty_rows, 0] = float(k_c)
-            cond = joint_counts / row_sums
+            cond = (joint_counts + smooth * child_marginal[np.newaxis, :]) / (row_sums + smooth)
 
             cliques.append([1, 1, parent, child])
             tables.append(cond)

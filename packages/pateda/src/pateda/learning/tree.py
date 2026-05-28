@@ -250,68 +250,70 @@ class LearnTreeModel(LearningMethod):
         biv_prob: List[List[np.ndarray]],
     ) -> List[np.ndarray]:
         """
-        Learn conditional probability tables for tree structure
+        Learn conditional probability tables for tree structure.
+
+        Computes tables directly from population counts (not via bivariate
+        marginals) so that Laplace smoothing scales correctly with cardinality
+        for both binary and high-cardinality variables.
 
         Args:
             cliques: Tree structure
             population: Population data
             n_vars: Number of variables
             cardinality: Variable cardinalities
-            univ_prob: Univariate marginal probabilities
-            biv_prob: Bivariate marginal probabilities
+            univ_prob: Univariate marginal probabilities (used for structure only)
+            biv_prob: Bivariate marginal probabilities (used for structure only)
 
         Returns:
             List of probability tables (conditional or marginal)
         """
         n_samples = population.shape[0]
+        # smooth: pseudo-count concentration for the Dirichlet prior
+        smooth = max(self.alpha, 1.0)
         tables = []
 
         for j in range(n_vars):
             n_parents = int(cliques[j, 0])
 
             if n_parents == 0:
-                # Root node: use marginal probability
                 child_idx = int(cliques[j, 2])
                 card_child = int(cardinality[child_idx])
 
-                # Apply Laplace smoothing
-                table = (univ_prob[child_idx] * n_samples + 1) / (n_samples + card_child)
+                counts = np.bincount(
+                    population[:, child_idx].astype(int), minlength=card_child
+                ).astype(float)
+                table = (counts + smooth) / (n_samples + smooth * card_child)
                 tables.append(table)
 
             else:
-                # Non-root: use conditional probability P(child | parent)
                 child_idx = int(cliques[j, 3])
                 parent_idx = int(cliques[j, 2])
                 card_child = int(cardinality[child_idx])
                 card_parent = int(cardinality[parent_idx])
 
-                if parent_idx < child_idx:
-                    biv_probs = biv_prob[parent_idx][child_idx]
-                    # biv_prob[i][j] is stored row-major with i as the row variable.
-                    # Here i=parent_idx, so reshape directly to (card_parent, card_child).
-                    aux_biv_prob = biv_probs.reshape(card_parent, card_child)
-                else:
-                    biv_probs = biv_prob[child_idx][parent_idx]
-                    # biv_prob[child][parent] has child as row variable;
-                    # transpose to get (card_parent, card_child).
-                    aux_biv_prob = biv_probs.reshape(card_child, card_parent).T
+                # Child's smoothed marginal: used as the Dirichlet prior centre
+                # for each row of the conditional table.  When a parent value k
+                # is rarely (or never) observed, row k falls back to the
+                # child's marginal instead of to a flat uniform distribution.
+                # This ensures that high-cardinality parents degrade gracefully
+                # rather than destroying the child's effective marginal.
+                c_counts = np.bincount(
+                    population[:, child_idx].astype(int), minlength=card_child
+                ).astype(float)
+                child_marginal = (c_counts + smooth) / (n_samples + smooth * card_child)
 
-                # Apply Laplace smoothing to bivariate and parent marginals to ensure
-                # non-zero probability for configurations not present in the population.
-                # This prior avoids divide-by-zero when a parent value never appears.
-                lap_biv_prob = (aux_biv_prob * n_samples + 1) / (n_samples + card_child * card_parent)
-                lap_parent_probs = (univ_prob[parent_idx] * n_samples + 1) / (n_samples + card_parent)
+                joint = np.zeros((card_parent, card_child))
+                pv = population[:, parent_idx].astype(int)
+                cv = population[:, child_idx].astype(int)
+                np.add.at(joint, (pv, cv), 1)
 
-                # Compute conditional probability P(child | parent) using smoothed probs
-                parent_probs = np.tile(lap_parent_probs.reshape(-1, 1), (1, card_child))
-                cond_biv_prob = lap_biv_prob / parent_probs
-
-                # Normalize to ensure valid probability distribution
-                cond_biv_prob = cond_biv_prob / np.tile(
-                    cond_biv_prob.sum(axis=1, keepdims=True), (1, card_child)
-                )
-
-                tables.append(cond_biv_prob)
+                row_sums = joint.sum(axis=1, keepdims=True)
+                # Bayesian MAP with Dirichlet(smooth * child_marginal) prior:
+                #   P(child=l | parent=k) = (n_kl + smooth*p_l) / (n_k + smooth)
+                # where p_l = child_marginal[l].  Sparse rows converge to the
+                # marginal; data-rich rows converge to the empirical conditional.
+                table = (joint + smooth * child_marginal[np.newaxis, :]) / (row_sums + smooth)
+                tables.append(table)
 
         return tables
 
