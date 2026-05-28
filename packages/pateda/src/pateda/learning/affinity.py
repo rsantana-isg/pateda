@@ -236,8 +236,14 @@ class LearnAffinityFactorization(LearningMethod):
                 )
                 cliques.extend(sub_cliques)
             else:
-                # Create clique for this cluster
-                cliques.append(cluster_vars)
+                # Recursion depth limit reached or cluster is within size limit.
+                # If the cluster is still too large, split it into chunks to
+                # prevent the joint probability table from exceeding memory.
+                if cluster_size > self.max_clique_size:
+                    for k in range(0, cluster_size, self.max_clique_size):
+                        cliques.append(cluster_vars[k : k + self.max_clique_size])
+                else:
+                    cliques.append(cluster_vars)
 
         return cliques
 
