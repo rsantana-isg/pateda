@@ -36,7 +36,11 @@ dependencies = [
     "scikit-learn>=1.0",
     "matplotlib>=3.4",
     "seaborn>=0.11",
-    "pgmpy>=0.1.19",
+    # Bayesian-network EDAs (BOA, EBNA) delegate structure/parameter learning
+    # and sampling to the bayes_nets library (replaces the former pgmpy use).
+    # In-development package: install from the local checkout with
+    #   pip install -e edas_bayes_nets
+    "bayes_nets>=0.1.0",
     "typing-extensions>=4.0",
 ]
 

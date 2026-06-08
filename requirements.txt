@@ -7,7 +7,9 @@ scipy>=1.7.0
 pandas>=1.3.0
 
 # Probabilistic models
-pgmpy>=0.1.19
+# Bayesian-network EDAs (BOA, EBNA) use bayes_nets (replaces the former pgmpy).
+# Install the in-development package with: pip install -e edas_bayes_nets
+bayes_nets>=0.1.0
 networkx>=2.6.0
 
 # Machine learning utilities

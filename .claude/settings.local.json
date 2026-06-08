@@ -57,7 +57,21 @@
       "Bash(rm -f /media/rsantana/ReallyCrucial1/Dropbox/Pending_Papers/N33_PATEDA/github/pateda/results/results_EDA_RW_SAT_UMDA_20_uf20-01_pop100_gen30_sel0.5_seed1.dat)",
       "Bash(bash)",
       "Bash(jobs -l)",
-      "Bash(kill 1997032 2005210)"
+      "Bash(kill 1997032 2005210)",
+      "Bash(claude config *)",
+      "Bash(sed -n '63,72p' ebna.py)",
+      "Bash(sed -n '63,72p' boa.py)",
+      "Bash(PYTHONPATH=src python3.11 -m pytest tests/test_discrete_eda.py tests/test_joint_table_size_constraints.py tests/test_new_edas.py -q)",
+      "Bash(PYTHONPATH=src python3.11 -m pytest tests/test_discrete_eda.py::TestEBNA::test_ebna_on_deceptive -q)",
+      "Bash(git stash *)",
+      "Bash(PYTHONPATH=src python3.11 -m pytest tests/test_bn_edas_bayes_nets.py -q)",
+      "Bash(PYTHONPATH=src python3.11 -m pytest tests/test_bn_edas_bayes_nets.py::test_boa_eda_solves_onemax -q)",
+      "Bash(PYTHONPATH=src python3.11 examples/bn_eda_bayes_nets_demo.py 7)",
+      "Bash(sed -n '1,80p' learning/utils/markov_network.py)",
+      "Bash(sed -n '1,60p' learning/utils/conversions.py)",
+      "Bash(PYTHONPATH=src python3.11 -m pytest --collect-only -q)",
+      "Bash(PYTHONPATH=src python3.11 -m pytest tests/test_bn_edas_bayes_nets.py tests/test_discrete_eda.py tests/test_joint_table_size_constraints.py tests/test_map_sampling.py -q)",
+      "Bash(PYTHONPATH=src python3.11 -m pytest \"tests/test_map_sampling.py::TestMAPSampling::test_hybrid_map_basic\" \"tests/test_map_sampling.py::TestMAPWithMNFDA::test_mnfda_hybrid_map\" \"tests/test_map_sampling.py::TestMAPPerformanceComparison::test_compare_sampling_methods_onemax\" -q)"
     ]
   }
 }

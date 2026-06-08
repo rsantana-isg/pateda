@@ -66,9 +66,10 @@ References:
 from typing import Any, Optional
 import numpy as np
 
+from bayes_nets import BayesianNetwork
+
 from pateda.core.components import LearningMethod
 from pateda.core.models import BayesianNetworkModel
-from pateda.learning.utils.table_size import joint_table_size
 
 
 class LearnBOA(LearningMethod):
@@ -76,8 +77,13 @@ class LearnBOA(LearningMethod):
     Learn a BOA (Bayesian Optimization Algorithm) model
 
     BOA learns a Bayesian network using sophisticated scoring metrics and
-    structure learning algorithms. Can use decision trees or decision graphs
-    for compact representation of CPDs.
+    structure learning algorithms.
+
+    Structure and parameter learning are delegated to
+    :class:`bayes_nets.BayesianNetwork`; this class adapts the result to the
+    pateda :class:`~pateda.core.models.BayesianNetworkModel` contract
+    (``structure`` = adjacency matrix, ``parameters`` = dict mapping each
+    variable to ``{"parents": [...], "cpd": array}``).
     """
 
     def __init__(
@@ -108,229 +114,6 @@ class LearnBOA(LearningMethod):
         self.ordering = ordering
         self.limit_joint_table_size = limit_joint_table_size
 
-    def _k2_score(
-        self,
-        var: int,
-        parents: list,
-        population: np.ndarray,
-        cardinality: np.ndarray,
-        alpha: float = 1.0,
-    ) -> float:
-        """
-        Calculate K2 score for a variable given its parents
-
-        The K2 score is based on the Bayesian-Dirichlet metric with uniform prior.
-
-        Args:
-            var: Variable index
-            parents: List of parent indices
-            population: Population data
-            cardinality: Variable cardinalities
-            alpha: Prior parameter (equivalent sample size)
-
-        Returns:
-            K2 score (log probability)
-        """
-        from scipy.special import gammaln
-
-        k = int(cardinality[var])  # Variable cardinality
-        n_samples = population.shape[0]
-
-        if len(parents) == 0:
-            # No parents: just marginal distribution
-            counts = np.zeros(k)
-            for val in range(k):
-                counts[val] = np.sum(population[:, var] == val)
-
-            # K2 score
-            score = gammaln(alpha) - gammaln(n_samples + alpha)
-            for count in counts:
-                score += gammaln(count + alpha / k) - gammaln(alpha / k)
-
-            return score
-
-        else:
-            # With parents: conditional distribution
-            parent_card = [int(cardinality[p]) for p in parents]
-            n_parent_configs = int(np.prod(parent_card))
-
-            # Calculate parent configuration indices
-            parent_configs = np.zeros(n_samples, dtype=int)
-            for i in range(n_samples):
-                config = 0
-                mult = 1
-                for j, p in enumerate(parents):
-                    config += int(population[i, p]) * mult
-                    mult *= parent_card[j]
-                parent_configs[i] = config
-
-            # K2 score
-            score = 0.0
-            for parent_config in range(n_parent_configs):
-                mask = parent_configs == parent_config
-                n_config = np.sum(mask)
-
-                if n_config > 0 or alpha > 0:
-                    counts = np.zeros(k)
-                    for val in range(k):
-                        counts[val] = np.sum(population[mask, var] == val)
-
-                    # Add contribution from this parent configuration
-                    score += gammaln(alpha) - gammaln(n_config + alpha)
-                    for count in counts:
-                        score += gammaln(count + alpha / k) - gammaln(alpha / k)
-
-            return score
-
-    def _bd_score(
-        self,
-        var: int,
-        parents: list,
-        population: np.ndarray,
-        cardinality: np.ndarray,
-        alpha: float = 1.0,
-    ) -> float:
-        """
-        Calculate Bayesian-Dirichlet (BD) score
-
-        Similar to K2 but with explicit prior strength parameter.
-
-        Args:
-            var: Variable index
-            parents: List of parent indices
-            population: Population data
-            cardinality: Variable cardinalities
-            alpha: Prior parameter strength
-
-        Returns:
-            BD score
-        """
-        # BD is essentially the same as K2 with adjustable alpha
-        return self._k2_score(var, parents, population, cardinality, alpha)
-
-    def _k2_algorithm(
-        self, population: np.ndarray, n_vars: int, cardinality: np.ndarray, ordering: np.ndarray
-    ) -> np.ndarray:
-        """
-        K2 algorithm for Bayesian network structure learning
-
-        Args:
-            population: Population data
-            n_vars: Number of variables
-            cardinality: Variable cardinalities
-            ordering: Variable ordering
-
-        Returns:
-            Adjacency matrix (parents -> children)
-        """
-        adjacency = np.zeros((n_vars, n_vars), dtype=int)
-        n_samples = population.shape[0]
-
-        # Process variables in given order
-        for i, var in enumerate(ordering):
-            # Can only have parents from earlier in ordering
-            possible_parents = ordering[:i]
-
-            current_parents = []
-            current_score = self._k2_score(
-                var, current_parents, population, cardinality, self.metric_alpha
-            )
-
-            improved = True
-            while improved and len(current_parents) < self.max_parents:
-                improved = False
-                best_parent = -1
-                best_score = current_score
-
-                # Try adding each possible parent
-                for candidate in possible_parents:
-                    if candidate in current_parents:
-                        continue
-
-                    test_parents = current_parents + [candidate]
-                    if self.limit_joint_table_size:
-                        table_size = joint_table_size(cardinality, [var] + test_parents)
-                        if table_size > n_samples:
-                            continue
-                    score = self._k2_score(
-                        var, test_parents, population, cardinality, self.metric_alpha
-                    )
-
-                    if score > best_score:
-                        best_score = score
-                        best_parent = candidate
-                        improved = True
-
-                if improved:
-                    current_parents.append(best_parent)
-                    current_score = best_score
-
-            # Set adjacency matrix
-            for parent in current_parents:
-                adjacency[parent, var] = 1
-
-        return adjacency
-
-    def _learn_cpd(
-        self,
-        var: int,
-        parents: list,
-        population: np.ndarray,
-        cardinality: np.ndarray,
-    ) -> np.ndarray:
-        """
-        Learn conditional probability distribution
-
-        Args:
-            var: Variable index
-            parents: Parent indices
-            population: Population data
-            cardinality: Variable cardinalities
-
-        Returns:
-            CPD table
-        """
-        k = int(cardinality[var])
-        n_samples = population.shape[0]
-        alpha_smooth = self.metric_alpha / k  # Smoothing
-
-        if len(parents) == 0:
-            # Marginal distribution
-            counts = np.zeros(k)
-            for val in range(k):
-                counts[val] = np.sum(population[:, var] == val) + alpha_smooth
-
-            return counts / np.sum(counts)
-
-        else:
-            # Conditional distribution
-            parent_card = [int(cardinality[p]) for p in parents]
-            n_parent_configs = int(np.prod(parent_card))
-
-            # Calculate parent configuration indices
-            parent_configs = np.zeros(n_samples, dtype=int)
-            for i in range(n_samples):
-                config = 0
-                mult = 1
-                for j, p in enumerate(parents):
-                    config += int(population[i, p]) * mult
-                    mult *= parent_card[j]
-                parent_configs[i] = config
-
-            # CPD table
-            cpd = np.zeros((n_parent_configs, k))
-
-            for parent_config in range(n_parent_configs):
-                mask = parent_configs == parent_config
-                counts = np.zeros(k)
-
-                for val in range(k):
-                    counts[val] = np.sum(population[mask, var] == val) + alpha_smooth
-
-                cpd[parent_config, :] = counts / np.sum(counts)
-
-            return cpd
-
     def learn(
         self,
         generation: int,
@@ -354,23 +137,33 @@ class LearnBOA(LearningMethod):
         Returns:
             Learned BayesianNetworkModel
         """
-        # Get variable ordering
+        cardinality = np.asarray(cardinality, dtype=int)
+        data = np.asarray(population, dtype=int)
+
+        # Map BOA's "bd" (Bayesian-Dirichlet) metric onto the K2 scoring used by
+        # bayes_nets; both are Dirichlet-multinomial marginal-likelihood scores.
+        method = "k2" if self.score_metric == "bd" else self.score_metric
+
+        # K2 requires a variable ordering; default to the natural order.
         if self.ordering is not None:
-            ordering = self.ordering
+            ordering = np.asarray(self.ordering, dtype=int)
         else:
             ordering = np.arange(n_vars)
 
-        # Learn structure using K2 algorithm
-        adjacency = self._k2_algorithm(population, n_vars, cardinality, ordering)
+        bn = BayesianNetwork(n_vars=n_vars, cardinality=cardinality)
+        bn.fit(
+            data,
+            method=method,
+            max_parents=self.max_parents,
+            alpha=self.metric_alpha,
+            ordering=ordering,
+            limit_table_size=self.limit_joint_table_size,
+        )
 
-        # Learn CPDs for each variable
-        cpds = {}
-        for var in range(n_vars):
-            parents = list(np.where(adjacency[:, var] > 0)[0])
-            cpd = self._learn_cpd(var, parents, population, cardinality)
-            cpds[var] = {"parents": parents, "cpd": cpd}
+        # Adapt to the pateda BayesianNetworkModel contract.
+        adjacency = bn.to_adjacency_matrix()
+        cpds = bn.cpds
 
-        # Create and return model
         model = BayesianNetworkModel(
             structure=adjacency,
             parameters=cpds,

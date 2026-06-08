@@ -72,16 +72,22 @@ class BayesianNetworkModel(Model):
     """
     Bayesian Network model
 
-    Uses pgmpy for structure and parameter learning.
+    Uses the ``bayes_nets`` library for structure and parameter learning
+    (see :class:`bayes_nets.BayesianNetwork`).
 
     Attributes:
-        structure: pgmpy BayesianNetwork object or DAG representation
-        parameters: CPD (Conditional Probability Distribution) tables
+        structure: DAG adjacency matrix (numpy array), where
+            ``structure[i, j] == 1`` means an edge i -> j (i is a parent of j).
+        parameters: Conditional Probability Distributions, a dict mapping each
+            variable index to ``{"parents": [...], "cpd": np.ndarray}``.
+            For a root variable the CPD is a 1-D probability vector; for a
+            variable with parents it is a 2-D array of shape
+            ``(n_parent_configs, cardinality[var])``.
         metadata: Learning algorithm info, scores, etc.
     """
 
-    structure: Any  # pgmpy BayesianNetwork or NetworkX DiGraph
-    parameters: Any  # pgmpy CPD tables or dict of CPDs
+    structure: Any  # DAG adjacency matrix (numpy array)
+    parameters: Any  # dict mapping var -> {"parents": [...], "cpd": np.ndarray}
 
 
 @dataclass
