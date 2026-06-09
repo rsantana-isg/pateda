@@ -10,9 +10,11 @@ high-fitness individuals, potentially leading to faster convergence.
 
 References:
     - Based on the implementation in MATEDA-1.0 (EDA.cpp, BayesianNetwork.cpp)
-    - Inza, I., Larranaga, P., Etxeberria, R., & Sierra, B. (2000).
-      Feature subset selection by Bayesian network-based optimization.
-      Artificial Intelligence, 123(1-2), 157-184.
+    - Santana, R.: Factorized distribution algorithms: Selection without selected population. 
+      In: Proceedings of the 17th European Simulation Multiconference ESM 2003, Nottingham, England, pp. 91–97 (2003)
+    - Santana, R., Mendiburu, A., & Lozano, J. A. (2014, December). 
+      Customized selection in estimation of distribution algorithms. 
+      In Asia-Pacific Conference on Simulated Evolution and Learning (pp. 94-105). Cham: Springer International Publishing.
 """
 
 from typing import Any
