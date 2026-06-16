@@ -27,18 +27,18 @@ from typing import Callable, Optional, Tuple
 import numpy as np
 
 from pateda.core.eda import Statistics, Cache
-from pateda.seeding.permutation_init import PermutationInit
+from perm_pateda.seeding.permutation_init import PermutationInit
 
-from pateda.learning.histogram import LearnEHM, LearnNHM
-from pateda.sampling.histogram import SampleEHM, SampleNHM
+from perm_pateda.learning.histogram import LearnEHM, LearnNHM
+from perm_pateda.sampling.histogram import SampleEHM, SampleNHM
 
-from pateda.learning.mallows import (
+from perm_pateda.learning.mallows import (
     LearnMallowsKendall,
     LearnMallowsCayley,
     LearnGeneralizedMallowsKendall,
     LearnGeneralizedMallowsCayley,
 )
-from pateda.sampling.mallows import (
+from perm_pateda.sampling.mallows import (
     SampleMallowsKendall,
     SampleMallowsCayley,
     SampleGeneralizedMallowsKendall,

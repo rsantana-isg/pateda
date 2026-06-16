@@ -175,6 +175,7 @@ from pateda.core.models import FactorizedModel
 from pateda.learning.utils.marginal_prob import learn_fda_parameters
 from pateda.learning.utils.markov_network import convert_cliques_to_factorized_structure
 from pateda.learning.utils.table_size import split_variables_by_table_limit
+from pateda.learning.utils.weights import count_weights_from_p
 
 
 class LearnFDA(LearningMethod):
@@ -283,9 +284,12 @@ class LearnFDA(LearningMethod):
         n_samples = population.shape[0]
         cliques = self._apply_table_size_limit(cliques, cardinality, n_samples)
 
-        # Learn probability tables for each clique
+        # Learn probability tables for each clique (optionally weighted by p)
         alpha = params.get("alpha", self.alpha)
-        tables = learn_fda_parameters(cliques, population, n_vars, cardinality, alpha=alpha)
+        weights = count_weights_from_p(params.get("p"), n_samples)
+        tables = learn_fda_parameters(
+            cliques, population, n_vars, cardinality, alpha=alpha, weights=weights
+        )
 
         # Create and return model
         model = FactorizedModel(

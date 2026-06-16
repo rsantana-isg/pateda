@@ -70,6 +70,7 @@ from bayes_nets import BayesianNetwork
 
 from pateda.core.components import LearningMethod
 from pateda.core.models import BayesianNetworkModel
+from pateda.learning.utils.weights import normalize_probabilities
 
 
 class LearnEBNA(LearningMethod):
@@ -139,12 +140,16 @@ class LearnEBNA(LearningMethod):
         cardinality = np.asarray(cardinality, dtype=int)
         data = np.asarray(population, dtype=int)
 
+        # Customized selection: bayes_nets expects sample_weights as a
+        # probability vector summing to 1 (None -> uniform 1/N).
+        sample_weights = normalize_probabilities(params.get("p"), data.shape[0])
+
         bn = BayesianNetwork(n_vars=n_vars, cardinality=cardinality)
 
         if self.structure is not None:
             # Fixed structure: only estimate the CPDs.
             bn.set_structure(np.asarray(self.structure, dtype=int))
-            bn.learn_parameters(data, alpha=self.alpha)
+            bn.learn_parameters(data, alpha=self.alpha, sample_weights=sample_weights)
         else:
             # Learn structure and parameters with the requested scoring metric.
             bn.fit(
@@ -153,6 +158,7 @@ class LearnEBNA(LearningMethod):
                 max_parents=self.max_parents,
                 alpha=self.alpha,
                 limit_table_size=self.limit_joint_table_size,
+                sample_weights=sample_weights,
             )
 
         # Adapt to the pateda BayesianNetworkModel contract.

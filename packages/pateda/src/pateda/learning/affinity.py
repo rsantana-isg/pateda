@@ -22,6 +22,7 @@ from sklearn.exceptions import ConvergenceWarning
 from pateda.core.components import LearningMethod
 from pateda.core.models import FactorizedModel
 from pateda.learning.utils.marginal_prob import find_marginal_prob
+from pateda.learning.utils.weights import count_weights_from_p
 
 
 class LearnAffinityFactorization(LearningMethod):
@@ -278,6 +279,7 @@ class LearnAffinityFactorization(LearningMethod):
         cliques: np.ndarray,
         population: np.ndarray,
         cardinality: np.ndarray,
+        weights: Optional[np.ndarray] = None,
     ) -> List[np.ndarray]:
         """
         Learn probability tables for each clique
@@ -286,12 +288,15 @@ class LearnAffinityFactorization(LearningMethod):
             cliques: Clique structure array
             population: Population data
             cardinality: Variable cardinalities
+            weights: Optional count-scale weights (``N * p``) for customized
+                     selection (``None`` -> uniform raw counts).
 
         Returns:
             List of probability tables
         """
         tables = []
         n_samples = population.shape[0]
+        w = None if weights is None else np.asarray(weights, dtype=float)
 
         for i in range(cliques.shape[0]):
             n_overlap = int(cliques[i, 0])
@@ -306,7 +311,7 @@ class LearnAffinityFactorization(LearningMethod):
             # Count occurrences of each configuration
             counts = np.zeros(total_card)
 
-            for sample in population:
+            for s, sample in enumerate(population):
                 # Convert variable values to a single index
                 idx = 0
                 multiplier = 1
@@ -315,7 +320,7 @@ class LearnAffinityFactorization(LearningMethod):
                     idx += val * multiplier
                     multiplier *= clique_cards[j]
 
-                counts[int(idx)] += 1
+                counts[int(idx)] += 1.0 if w is None else w[s]
 
             # Apply Laplace smoothing
             if self.alpha > 0:
@@ -350,8 +355,13 @@ class LearnAffinityFactorization(LearningMethod):
         Returns:
             Learned FactorizedModel with affinity-based factorization
         """
-        # Learn univariate and bivariate marginal probabilities
-        univ_prob, biv_prob = find_marginal_prob(population, n_vars, cardinality)
+        # Customized selection: count-scale weights (N * p) or None for uniform.
+        weights = count_weights_from_p(params.get("p"), population.shape[0])
+
+        # Learn univariate and bivariate marginal probabilities (weighted)
+        univ_prob, biv_prob = find_marginal_prob(
+            population, n_vars, cardinality, weights=weights
+        )
 
         # Compute mutual information matrix
         mi_matrix = self._compute_mutual_information_matrix(
@@ -385,8 +395,8 @@ class LearnAffinityFactorization(LearningMethod):
         # Convert to standard clique format
         cliques = self._create_clique_structure(cliques_list, n_vars)
 
-        # Learn parameters for each clique
-        tables = self._learn_clique_parameters(cliques, population, cardinality)
+        # Learn parameters for each clique (weighted)
+        tables = self._learn_clique_parameters(cliques, population, cardinality, weights)
 
         # Create and return model
         model = FactorizedModel(
@@ -628,10 +638,12 @@ class LearnAffinityFactorizationElim(LearningMethod):
         cliques: np.ndarray,
         population: np.ndarray,
         cardinality: np.ndarray,
+        weights: Optional[np.ndarray] = None,
     ) -> List[np.ndarray]:
-        """Learn probability tables for each clique"""
+        """Learn probability tables for each clique (optionally p-weighted)"""
         tables = []
         n_samples = population.shape[0]
+        w = None if weights is None else np.asarray(weights, dtype=float)
 
         for i in range(cliques.shape[0]):
             n_overlap = int(cliques[i, 0])
@@ -644,7 +656,7 @@ class LearnAffinityFactorizationElim(LearningMethod):
 
             counts = np.zeros(total_card)
 
-            for sample in population:
+            for s, sample in enumerate(population):
                 idx = 0
                 multiplier = 1
                 for j, var in enumerate(clique_vars):
@@ -652,7 +664,7 @@ class LearnAffinityFactorizationElim(LearningMethod):
                     idx += val * multiplier
                     multiplier *= clique_cards[j]
 
-                counts[int(idx)] += 1
+                counts[int(idx)] += 1.0 if w is None else w[s]
 
             if self.alpha > 0:
                 counts += self.alpha
@@ -685,8 +697,13 @@ class LearnAffinityFactorizationElim(LearningMethod):
         Returns:
             Learned FactorizedModel
         """
-        # Learn marginal probabilities
-        univ_prob, biv_prob = find_marginal_prob(population, n_vars, cardinality)
+        # Customized selection: count-scale weights (N * p) or None for uniform.
+        weights = count_weights_from_p(params.get("p"), population.shape[0])
+
+        # Learn marginal probabilities (weighted)
+        univ_prob, biv_prob = find_marginal_prob(
+            population, n_vars, cardinality, weights=weights
+        )
 
         # Compute mutual information matrix
         mi_matrix = self._compute_mutual_information_matrix(
@@ -703,8 +720,8 @@ class LearnAffinityFactorizationElim(LearningMethod):
         # Convert to standard format
         cliques = self._create_clique_structure(cliques_list, n_vars)
 
-        # Learn parameters
-        tables = self._learn_clique_parameters(cliques, population, cardinality)
+        # Learn parameters (weighted)
+        tables = self._learn_clique_parameters(cliques, population, cardinality, weights)
 
         # Create model
         model = FactorizedModel(

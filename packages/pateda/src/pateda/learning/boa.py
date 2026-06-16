@@ -70,6 +70,7 @@ from bayes_nets import BayesianNetwork
 
 from pateda.core.components import LearningMethod
 from pateda.core.models import BayesianNetworkModel
+from pateda.learning.utils.weights import normalize_probabilities
 
 
 class LearnBOA(LearningMethod):
@@ -140,6 +141,10 @@ class LearnBOA(LearningMethod):
         cardinality = np.asarray(cardinality, dtype=int)
         data = np.asarray(population, dtype=int)
 
+        # Customized selection: bayes_nets expects sample_weights as a
+        # probability vector summing to 1 (None -> uniform 1/N).
+        sample_weights = normalize_probabilities(params.get("p"), data.shape[0])
+
         # Map BOA's "bd" (Bayesian-Dirichlet) metric onto the K2 scoring used by
         # bayes_nets; both are Dirichlet-multinomial marginal-likelihood scores.
         method = "k2" if self.score_metric == "bd" else self.score_metric
@@ -158,6 +163,7 @@ class LearnBOA(LearningMethod):
             alpha=self.metric_alpha,
             ordering=ordering,
             limit_table_size=self.limit_joint_table_size,
+            sample_weights=sample_weights,
         )
 
         # Adapt to the pateda BayesianNetworkModel contract.

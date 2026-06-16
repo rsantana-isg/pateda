@@ -10,6 +10,10 @@ import numpy as np
 
 from pateda.core.components import LearningMethod
 from pateda.core.models import FactorizedModel
+from pateda.learning.utils.weights import (
+    count_weights_from_p,
+    weighted_bivariate_counts,
+)
 
 
 class LearnBMDA(LearningMethod):
@@ -44,7 +48,8 @@ class LearnBMDA(LearningMethod):
         self.alpha = alpha
 
     def _mutual_information(
-        self, var1_data: np.ndarray, var2_data: np.ndarray, k1: int, k2: int
+        self, var1_data: np.ndarray, var2_data: np.ndarray, k1: int, k2: int,
+        weights: Optional[np.ndarray] = None,
     ) -> float:
         """
         Calculate mutual information between two variables
@@ -54,16 +59,16 @@ class LearnBMDA(LearningMethod):
             var2_data: Data for second variable
             k1: Cardinality of first variable
             k2: Cardinality of second variable
+            weights: Optional count-scale weights (``N * p``) for customized
+                     selection (``None`` -> uniform raw counts).
 
         Returns:
             Mutual information value
         """
         n = len(var1_data)
 
-        # Calculate joint and marginal counts
-        joint_counts = np.zeros((k1, k2))
-        for i in range(n):
-            joint_counts[int(var1_data[i]), int(var2_data[i])] += 1
+        # Calculate joint and marginal counts (optionally probability weighted)
+        joint_counts = weighted_bivariate_counts(var1_data, var2_data, k1, k2, weights)
 
         # Add small constant to avoid log(0)
         joint_counts += 1e-10
@@ -230,6 +235,9 @@ class LearnBMDA(LearningMethod):
         pop_size = population.shape[0]
         cardinality_int = np.asarray(cardinality, dtype=int)
 
+        # Customized selection: count-scale weights (N * p) or None for uniform.
+        w = count_weights_from_p(params.get("p"), pop_size)
+
         # ------------------------------------------------------------------
         # 1) Learn the undirected dependency graph (max-spanning tree)
         # ------------------------------------------------------------------
@@ -246,6 +254,7 @@ class LearnBMDA(LearningMethod):
                         population[:, j],
                         int(cardinality_int[i]),
                         int(cardinality_int[j]),
+                        weights=w,
                     )
                     mi_matrix[i, j] = mi
                     mi_matrix[j, i] = mi
@@ -294,7 +303,9 @@ class LearnBMDA(LearningMethod):
         marginal_probs = []
         for v in range(n_vars):
             k = int(cardinality_int[v])
-            counts = np.bincount(population[:, v].astype(int), minlength=k).astype(float)
+            counts = np.bincount(
+                population[:, v].astype(int), weights=w, minlength=k
+            ).astype(float)
             counts = counts + smooth
             marginal_probs.append(counts / counts.sum())
 
@@ -316,17 +327,17 @@ class LearnBMDA(LearningMethod):
             k_p = int(cardinality_int[parent])
             k_c = int(cardinality_int[child])
 
-            # Joint count P(parent, child)
+            # Joint count P(parent, child) (optionally probability weighted)
             joint_counts = np.zeros((k_p, k_c))
             pv = population[:, parent].astype(int)
             cv = population[:, child].astype(int)
-            np.add.at(joint_counts, (pv, cv), 1)
+            np.add.at(joint_counts, (pv, cv), 1.0 if w is None else w)
 
             # Conditional P(child | parent) with a Dirichlet prior centred at
             # the child marginal.  Sparse parent rows (high-cardinality parent,
             # few samples per value) fall back to the child marginal rather
             # than to uniform, preserving the effective distribution.
-            c_counts = np.bincount(cv, minlength=k_c).astype(float)
+            c_counts = np.bincount(cv, weights=w, minlength=k_c).astype(float)
             child_marginal = (c_counts + smooth) / (pop_size + smooth * k_c)
             row_sums = joint_counts.sum(axis=1, keepdims=True)
             cond = (joint_counts + smooth * child_marginal[np.newaxis, :]) / (row_sums + smooth)

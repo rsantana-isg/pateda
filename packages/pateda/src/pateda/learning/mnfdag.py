@@ -31,6 +31,7 @@ from pateda.learning.utils.probability_tables import (
     compute_clique_tables,
     compute_moa_tables,
 )
+from pateda.learning.utils.weights import count_weights_from_p
 
 
 class LearnMNFDAG(LearningMethod):
@@ -110,6 +111,9 @@ class LearnMNFDAG(LearningMethod):
             FactorizedModel or MarkovNetworkModel
         """
         weights = params.get("weights", None)
+        if weights is None:
+            # Customized selection: count-scale weights (N * p) or None (uniform).
+            weights = count_weights_from_p(params.get("p"), population.shape[0])
 
         # Step 1: Compute mutual information and G-test
         g_matrix, adjacency = compute_g_test_matrix(

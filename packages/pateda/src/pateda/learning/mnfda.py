@@ -31,6 +31,7 @@ from pateda.learning.utils.markov_network import (
 )
 from pateda.learning.utils.probability_tables import compute_clique_tables
 from pateda.learning.utils.table_size import split_variables_by_table_limit
+from pateda.learning.utils.weights import count_weights_from_p
 
 
 class LearnMNFDA(LearningMethod):
@@ -113,8 +114,11 @@ class LearnMNFDA(LearningMethod):
         Returns:
             FactorizedModel or MarkovNetworkModel depending on return_factorized
         """
-        # Get parameters
+        # Get parameters.  Customized selection: if no explicit sample weights
+        # were given, derive count-scale weights (N * p) from p (None = uniform).
         weights = params.get("weights", None)
+        if weights is None:
+            weights = count_weights_from_p(params.get("p"), population.shape[0])
 
         # Step 1: Compute mutual information matrix
         mi_matrix = compute_mutual_information_matrix(population, cardinality, weights)

@@ -19,6 +19,10 @@ import numpy as np
 
 from pateda.core.components import LearningMethod
 from pateda.core.models import FactorizedModel
+from pateda.learning.utils.weights import (
+    count_weights_from_p,
+    weighted_univariate_counts,
+)
 
 
 class LearnPBIL(LearningMethod):
@@ -94,6 +98,9 @@ class LearnPBIL(LearningMethod):
 
         pop_size = population.shape[0]
 
+        # Customized selection: count-scale weights (N * p) or None for uniform.
+        weights = count_weights_from_p(params.get("p"), pop_size)
+
         # Initialize probability vector on first generation or if reset is requested
         if self._probability_vector is None or reset or generation == 0:
             if self.initial_prob is not None:
@@ -118,12 +125,10 @@ class LearnPBIL(LearningMethod):
         for var_idx in range(n_vars):
             k = int(cardinality[var_idx])
 
-            # Count occurrences of each value in selected population
-            counts = np.zeros(k)
-            for val in range(k):
-                counts[val] = np.sum(population[:, var_idx] == val)
+            # (Weighted) count of each value in the selected population
+            counts = weighted_univariate_counts(population[:, var_idx], k, weights)
 
-            # Calculate frequency
+            # Calculate frequency (weighted counts sum to pop_size)
             freq = counts / pop_size
 
             # Update probability vector using PBIL rule

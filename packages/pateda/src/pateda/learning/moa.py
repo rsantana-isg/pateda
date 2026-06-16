@@ -31,6 +31,7 @@ from pateda.learning.utils.markov_network import (
     neighbors_to_cliques,
 )
 from pateda.learning.utils.probability_tables import compute_moa_tables
+from pateda.learning.utils.weights import count_weights_from_p
 
 
 class LearnMOA(LearningMethod):
@@ -97,6 +98,9 @@ class LearnMOA(LearningMethod):
             MarkovNetworkModel with local neighborhood structure
         """
         weights = params.get("weights", None)
+        if weights is None:
+            # Customized selection: count-scale weights (N * p) or None (uniform).
+            weights = count_weights_from_p(params.get("p"), population.shape[0])
 
         # Step 1: Compute mutual information matrix
         mi_matrix = compute_mutual_information_matrix(population, cardinality, weights)

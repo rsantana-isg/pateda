@@ -8,7 +8,7 @@ permutation-based EDAs.
 
 import numpy as np
 from typing import Callable
-from pateda.permutation.distances import kendall_distance
+from perm_pateda.distances import kendall_distance
 
 
 def find_consensus_borda(population: np.ndarray) -> np.ndarray:
@@ -74,7 +74,7 @@ def find_consensus_median(
         Consensus permutation (the median)
 
     Example:
-        >>> from pateda.permutation.distances import kendall_distance
+        >>> from perm_pateda.distances import kendall_distance
         >>> pop = np.array([[1, 2, 3], [2, 1, 3], [1, 3, 2]])
         >>> find_consensus_median(kendall_distance, pop)
         array([1, 2, 3])

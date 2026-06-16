@@ -175,6 +175,7 @@ class LearnMixtureTrees(LearningMethod):
         population: np.ndarray,
         n_vars: int,
         cardinality: np.ndarray,
+        p: Optional[np.ndarray] = None,
     ) -> TreeModel:
         """
         Learn a single tree component using LearnTreeModel (Chow-Liu).
@@ -197,8 +198,21 @@ class LearnMixtureTrees(LearningMethod):
             # → different maximum-spanning-tree → genuinely diverse structures
             indices = np.random.choice(len(population), len(population), replace=True)
             component_pop = population[indices]
+            # Resample the selection probabilities to match the bootstrap and
+            # renormalise so they still sum to 1 over the component sample.
+            if p is not None:
+                component_p = np.asarray(p, dtype=float)[indices]
+                total = component_p.sum()
+                component_p = component_p / total if total > 0 else None
+            else:
+                component_p = None
         else:
             component_pop = population
+            component_p = p
+
+        learn_kwargs = {}
+        if component_p is not None:
+            learn_kwargs["p"] = component_p
 
         fda_model = learner.learn(
             generation=0,
@@ -206,6 +220,7 @@ class LearnMixtureTrees(LearningMethod):
             cardinality=cardinality,
             population=component_pop,
             fitness=np.zeros(len(component_pop)),
+            **learn_kwargs,
         )
 
         return self._factorized_to_tree(fda_model, n_vars)
@@ -768,6 +783,9 @@ class LearnMixtureTrees(LearningMethod):
         n_components = params.get("n_components", self.n_components)
         alpha = params.get("alpha", self.alpha)
 
+        # Customized selection: per-individual probabilities (None -> uniform).
+        p = params.get("p", None)
+
         # Learn multiple tree components
         components = []
         component_structures = []
@@ -775,7 +793,7 @@ class LearnMixtureTrees(LearningMethod):
 
         for j in range(n_components):
             tree_component = self._learn_component_tree(
-                j, population, n_vars, cardinality
+                j, population, n_vars, cardinality, p=p
             )
             components.append(tree_component)
             component_structures.append(tree_component.structure)

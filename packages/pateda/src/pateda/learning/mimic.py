@@ -22,12 +22,17 @@ References:
       Applications, 21(1), 5-20.
 """
 
-from typing import Any, List, Tuple
+from typing import Any, List, Optional, Tuple
 import numpy as np
 
 from pateda.core.components import LearningMethod
 from pateda.core.models import FactorizedModel
 from pateda.learning.utils.marginal_prob import find_marginal_prob
+from pateda.learning.utils.weights import (
+    count_weights_from_p,
+    weighted_univariate_counts,
+    weighted_bivariate_counts,
+)
 
 
 class LearnMIMIC(LearningMethod):
@@ -61,6 +66,7 @@ class LearnMIMIC(LearningMethod):
         var_idx: int,
         population: np.ndarray,
         cardinality: np.ndarray,
+        weights: Optional[np.ndarray] = None,
     ) -> float:
         """
         Compute entropy of a variable
@@ -69,6 +75,8 @@ class LearnMIMIC(LearningMethod):
             var_idx: Index of the variable
             population: Population data
             cardinality: Variable cardinalities
+            weights: Optional count-scale weights (``N * p``) for customized
+                     selection (``None`` -> uniform raw counts).
 
         Returns:
             Entropy value H(X_i)
@@ -76,10 +84,8 @@ class LearnMIMIC(LearningMethod):
         k = int(cardinality[var_idx])
         pop_size = population.shape[0]
 
-        # Count occurrences
-        counts = np.zeros(k)
-        for val in range(k):
-            counts[val] = np.sum(population[:, var_idx] == val)
+        # Count occurrences (optionally probability/fitness weighted)
+        counts = weighted_univariate_counts(population[:, var_idx], k, weights)
 
         # Calculate probabilities with smoothing
         probs = (counts + self.alpha) / (pop_size + k * self.alpha)
@@ -98,6 +104,7 @@ class LearnMIMIC(LearningMethod):
         parent_idx: int,
         population: np.ndarray,
         cardinality: np.ndarray,
+        weights: Optional[np.ndarray] = None,
     ) -> float:
         """
         Compute conditional entropy H(X_i | X_parent)
@@ -107,6 +114,8 @@ class LearnMIMIC(LearningMethod):
             parent_idx: Index of the parent variable
             population: Population data
             cardinality: Variable cardinalities
+            weights: Optional count-scale weights (``N * p``) for customized
+                     selection (``None`` -> uniform raw counts).
 
         Returns:
             Conditional entropy value H(X_i | X_parent)
@@ -115,12 +124,10 @@ class LearnMIMIC(LearningMethod):
         k_parent = int(cardinality[parent_idx])
         pop_size = population.shape[0]
 
-        # Compute joint counts
-        joint_counts = np.zeros((k_parent, k_var))
-        for i in range(pop_size):
-            parent_val = int(population[i, parent_idx])
-            var_val = int(population[i, var_idx])
-            joint_counts[parent_val, var_val] += 1
+        # Compute joint counts (parent as row variable; optionally weighted)
+        joint_counts = weighted_bivariate_counts(
+            population[:, parent_idx], population[:, var_idx], k_parent, k_var, weights
+        )
 
         # Compute conditional entropy
         cond_entropy = 0.0
@@ -151,6 +158,7 @@ class LearnMIMIC(LearningMethod):
         n_vars: int,
         population: np.ndarray,
         cardinality: np.ndarray,
+        weights: Optional[np.ndarray] = None,
     ) -> List[Tuple[int, int]]:
         """
         Build the MIMIC chain structure
@@ -172,7 +180,7 @@ class LearnMIMIC(LearningMethod):
         root_var = 0
 
         for i in range(n_vars):
-            entropy_i = self._compute_entropy(i, population, cardinality)
+            entropy_i = self._compute_entropy(i, population, cardinality, weights)
             if entropy_i < min_entropy:
                 min_entropy = entropy_i
                 root_var = i
@@ -191,7 +199,7 @@ class LearnMIMIC(LearningMethod):
             for j in range(n_vars):
                 if not linked[j]:
                     cond_entropy = self._compute_conditional_entropy(
-                        j, current_head, population, cardinality
+                        j, current_head, population, cardinality, weights
                     )
 
                     if cond_entropy < min_cond_entropy:
@@ -231,11 +239,16 @@ class LearnMIMIC(LearningMethod):
         """
         alpha = params.get("alpha", self.alpha)
 
-        # Build chain structure
-        chain = self._build_chain(n_vars, population, cardinality)
+        # Customized selection: count-scale weights (N * p) or None for uniform.
+        weights = count_weights_from_p(params.get("p"), population.shape[0])
 
-        # Get marginal probabilities
-        univ_prob, biv_prob = find_marginal_prob(population, n_vars, cardinality)
+        # Build chain structure (entropies optionally weighted by p)
+        chain = self._build_chain(n_vars, population, cardinality, weights)
+
+        # Get marginal probabilities (weighted) — used to build the CPTs
+        univ_prob, biv_prob = find_marginal_prob(
+            population, n_vars, cardinality, weights=weights
+        )
 
         # Build cliques and tables from chain
         cliques = []

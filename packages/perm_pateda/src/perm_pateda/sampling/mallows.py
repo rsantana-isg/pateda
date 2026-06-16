@@ -12,8 +12,8 @@ References:
 
 import numpy as np
 from typing import Dict, Any, Optional
-from pateda.permutation.consensus import compose_permutations
-from pateda.permutation.distances import _generate_perm_from_x
+from perm_pateda.consensus import compose_permutations
+from perm_pateda.distances import _generate_perm_from_x
 
 
 class SampleMallowsKendall:

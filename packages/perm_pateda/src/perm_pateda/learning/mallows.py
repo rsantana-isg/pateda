@@ -13,13 +13,13 @@ References:
 import numpy as np
 from typing import Dict, Any, Callable, Optional
 from scipy.optimize import fminbound, newton
-from pateda.permutation.distances import (
+from perm_pateda.distances import (
     kendall_distance,
     cayley_distance,
     ulam_distance,
     _x_vector_cycles,
 )
-from pateda.permutation.consensus import find_consensus_borda, find_consensus_median, compose_permutations
+from perm_pateda.consensus import find_consensus_borda, find_consensus_median, compose_permutations
 
 
 class LearnMallowsKendall:

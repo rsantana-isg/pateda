@@ -51,6 +51,7 @@ import numpy as np
 from pateda.core.components import LearningMethod
 from pateda.core.models import FactorizedModel
 from pateda.learning.utils.marginal_prob import learn_fda_parameters
+from pateda.learning.utils.weights import count_weights_from_p
 
 
 class LearnCFDA(LearningMethod):
@@ -150,7 +151,11 @@ class LearnCFDA(LearningMethod):
         self._validate_cliques(cliques, n_vars)
 
         # Learn probability tables for each clique using FDA learning
-        tables = learn_fda_parameters(cliques, population, n_vars, cardinality)
+        # (optionally weighted by p for customized selection)
+        weights = count_weights_from_p(params.get("p"), population.shape[0])
+        tables = learn_fda_parameters(
+            cliques, population, n_vars, cardinality, weights=weights
+        )
 
         # Create and return model
         model = FactorizedModel(

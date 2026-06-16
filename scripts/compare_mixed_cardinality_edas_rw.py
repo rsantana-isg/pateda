@@ -21,6 +21,20 @@ All EDA hyper-parameters (pop_size, n_gen, selection_ratio, seeds) are
 identical to compare_discrete_edas_rw.py.  The purpose is to verify that
 every algorithm is robust to a mixed-cardinality encoding of the same problems.
 
+Customized selection
+--------------------
+Each algorithm is additionally run under three *customized-selection* weightings
+(see WEIGHTINGS).  A weighting turns the selected population into a probability
+vector p (one probability per selected solution, sum == 1) that the learning
+methods use to weight their counts / probability tables:
+
+  - "uniform"      : p_i = 1/N            (classic EDA, identical to before)
+  - "proportional" : p_i ∝ (shifted) fitness
+  - "boltzmann"    : p_i ∝ exp(beta * standardised fitness)
+
+This is the mechanism described in Santana, Mendiburu & Lozano (2014),
+"Customized selection in estimation of distribution algorithms".
+
 Benchmarks (all have n=100 binary variables):
   1. UBQP  -> bqp100      (unconstrained binary quadratic programming)
   2. SAT   -> uf100-01    (100-var, 430-clause random 3-SAT)
@@ -91,6 +105,23 @@ SEL_RATIO = 0.30
 N_RUNS    = 3
 SEEDS     = list(range(1, N_RUNS + 1))
 UBQP_THRESHOLD_RATIO = 0.5
+
+# ---------------------------------------------------------------------------
+# Customized selection (per-individual probability weighting)
+#
+# Each weighting turns the selected population into a probability vector p (one
+# probability per selected solution, sum == 1) that the learning methods use to
+# weight their counts / probability tables:
+#   - "uniform"      : p_i = 1/N  (classic EDA — every selected solution equal)
+#   - "proportional" : p_i ∝ (shifted) fitness        (fitness-proportional)
+#   - "boltzmann"    : p_i ∝ exp(beta * standardised fitness)
+# beta is the inverse-temperature for the Boltzmann scheme (ignored otherwise).
+# ---------------------------------------------------------------------------
+WEIGHTINGS = [
+    ("uniform",      1.0),
+    ("proportional", 1.0),
+    ("boltzmann",    5.0),
+]
 
 # Super-variable encoding parameters — fixed across all problems and seeds.
 N_BINARY_VARS  = 100   # all three benchmarks use exactly 100 binary variables
@@ -247,7 +278,7 @@ def load_problem(problem_type: str, instance_name: str, groups: list):
 
 def run_single_seed(
     alg_name, alg_cls, n_vars, cardinality, fitness_func,
-    interaction_matrix, seed,
+    interaction_matrix, seed, weighting="uniform", beta=1.0,
 ):
     kwargs = {}
     if alg_name in RESTRICTED_ALGORITHMS:
@@ -264,6 +295,10 @@ def run_single_seed(
         **kwargs,
     )
 
+    # Customized selection: weight the selected individuals when learning the
+    # model.  "uniform" reproduces the classic EDA behaviour exactly.
+    alg.set_weighting(weighting, beta=beta)
+
     t0 = time.time()
     stats, _ = alg.run(verbose=False)
     elapsed = time.time() - t0
@@ -271,12 +306,13 @@ def run_single_seed(
 
 
 def run_all_seeds(alg_name, alg_cls, n_vars, cardinality, fitness_func,
-                  interaction_matrix):
+                  interaction_matrix, weighting="uniform", beta=1.0):
     bests, times = [], []
     for seed in SEEDS:
         best, elapsed = run_single_seed(
             alg_name, alg_cls, n_vars, cardinality,
             fitness_func, interaction_matrix, seed,
+            weighting=weighting, beta=beta,
         )
         bests.append(best)
         times.append(elapsed)
@@ -328,24 +364,30 @@ def main():
 
         problem_tag = f"{problem_type} {instance_name}"
 
-        for alg_name, alg_cls in ALGORITHMS:
-            try:
-                bests, times = run_all_seeds(
-                    alg_name, alg_cls, n_sv, card_vec,
-                    fitness_func, super_interaction,
-                )
-                mean_best = float(np.mean(bests))
-                mean_time = float(np.mean(times))
-                bests_str = "[" + ", ".join(f"{b:.4f}" for b in bests) + "]"
-                print(
-                    f"{alg_name:<{name_w}} {problem_tag:<16}: "
-                    f"{bests_str}  mean={mean_best:.4f}  time={mean_time:.2f}s"
-                )
-            except Exception as exc:
-                print(
-                    f"{alg_name:<{name_w}} {problem_tag:<16}: ERROR -- {exc}"
-                )
-                traceback.print_exc()
+        # Sweep each customized-selection weighting in turn.
+        for weighting, beta in WEIGHTINGS:
+            wlabel = weighting if weighting != "boltzmann" else f"boltzmann(beta={beta:g})"
+            print(f"\n-- weighting: {wlabel} " + "-" * (88 - len(wlabel)))
+
+            for alg_name, alg_cls in ALGORITHMS:
+                try:
+                    bests, times = run_all_seeds(
+                        alg_name, alg_cls, n_sv, card_vec,
+                        fitness_func, super_interaction,
+                        weighting=weighting, beta=beta,
+                    )
+                    mean_best = float(np.mean(bests))
+                    mean_time = float(np.mean(times))
+                    bests_str = "[" + ", ".join(f"{b:.4f}" for b in bests) + "]"
+                    print(
+                        f"{alg_name:<{name_w}} {problem_tag:<16}: "
+                        f"{bests_str}  mean={mean_best:.4f}  time={mean_time:.2f}s"
+                    )
+                except Exception as exc:
+                    print(
+                        f"{alg_name:<{name_w}} {problem_tag:<16}: ERROR -- {exc}"
+                    )
+                    traceback.print_exc()
 
     print()
 

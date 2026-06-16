@@ -69,11 +69,12 @@ References:
   Section 4.3: "Markov network based factorizations"
 """
 
-from typing import Any
+from typing import Any, Optional
 import numpy as np
 
 from pateda.core.components import LearningMethod
 from pateda.core.models import FactorizedModel
+from pateda.learning.utils.weights import count_weights_from_p
 
 
 class LearnMarkovChain(LearningMethod):
@@ -105,7 +106,8 @@ class LearnMarkovChain(LearningMethod):
         self,
         population: np.ndarray,
         cardinality: np.ndarray,
-        n_samples: int
+        n_samples: int,
+        weights: Optional[np.ndarray] = None,
     ) -> np.ndarray:
         """
         Learn joint distribution for first k+1 variables
@@ -135,7 +137,7 @@ class LearnMarkovChain(LearningMethod):
                 config_idx += int(population[sample_idx, var_idx]) * mult
                 mult *= init_cards[var_idx]
 
-            counts[config_idx] += 1
+            counts[config_idx] += 1.0 if weights is None else weights[sample_idx]
 
         # Apply smoothing
         if self.alpha > 0:
@@ -154,7 +156,8 @@ class LearnMarkovChain(LearningMethod):
         var: int,
         population: np.ndarray,
         cardinality: np.ndarray,
-        n_samples: int
+        n_samples: int,
+        weights: Optional[np.ndarray] = None,
     ) -> np.ndarray:
         """
         Learn conditional distribution p(x_var | x_{var-k}, ..., x_{var-1})
@@ -193,7 +196,9 @@ class LearnMarkovChain(LearningMethod):
         for sample_idx in range(n_samples):
             parent_config = parent_configs[sample_idx]
             var_value = int(population[sample_idx, var])
-            cpd[parent_config, var_value] += 1
+            cpd[parent_config, var_value] += (
+                1.0 if weights is None else weights[sample_idx]
+            )
 
         # Apply smoothing and normalize
         if self.alpha > 0:
@@ -245,6 +250,9 @@ class LearnMarkovChain(LearningMethod):
         alpha = params.get("alpha", self.alpha)
         n_samples = population.shape[0]
 
+        # Customized selection: count-scale weights (N * p) or None for uniform.
+        weights = count_weights_from_p(params.get("p"), n_samples)
+
         # Cliques structure for k-order Markov chain
         # Format: [n_overlap, n_new, overlap_indices..., new_indices...]
 
@@ -259,7 +267,9 @@ class LearnMarkovChain(LearningMethod):
             first_clique[2 + i] = i  # Variable indices
 
         cliques.append(first_clique)
-        tables.append(self._learn_joint_initial(population, cardinality, n_samples))
+        tables.append(
+            self._learn_joint_initial(population, cardinality, n_samples, weights)
+        )
 
         # Subsequent cliques: conditional distributions
         # Each variable from k+1 onwards depends on k previous variables
@@ -277,7 +287,9 @@ class LearnMarkovChain(LearningMethod):
             clique[2 + self.k] = var
 
             cliques.append(clique)
-            tables.append(self._learn_conditional(var, population, cardinality, n_samples))
+            tables.append(
+                self._learn_conditional(var, population, cardinality, n_samples, weights)
+            )
 
         # Convert cliques list to numpy array with padding
         max_clique_size = max(len(c) for c in cliques)

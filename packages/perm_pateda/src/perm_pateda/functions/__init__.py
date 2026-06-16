@@ -1,18 +1,23 @@
-"""Permutation-based optimization problems"""
+"""Permutation-based optimization problems.
 
-from pateda.functions.permutation.tsp import (
+Classical permutation problems used to benchmark permutation EDAs:
+Traveling Salesman (TSP), Quadratic Assignment (QAP) and Linear Ordering (LOP).
+The Permutation Flowshop Scheduling Problem (PFSP) is planned (see ROADMAP).
+"""
+
+from perm_pateda.functions.tsp import (
     TSP,
     create_random_tsp,
     create_tsp_from_coordinates,
 )
-from pateda.functions.permutation.qap import (
+from perm_pateda.functions.qap import (
     QAP,
     create_random_qap,
     create_uniform_qap,
     create_grid_qap,
     load_qaplib_instance,
 )
-from pateda.functions.permutation.lop import (
+from perm_pateda.functions.lop import (
     LOP,
     create_random_lop,
     create_tournament_lop,

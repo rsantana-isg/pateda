@@ -16,6 +16,7 @@ from pateda.core.components import (
     StatisticsMethod,
 )
 from pateda.core.models import Model
+from pateda.selection.weighting import compute_selection_probabilities
 
 
 @dataclass
@@ -132,6 +133,8 @@ class EDA:
         cardinality: Union[np.ndarray, List],
         components: EDAComponents,
         random_seed: Optional[int] = None,
+        selection_weighting: str = "uniform",
+        weighting_beta: float = 1.0,
     ):
         """
         Initialize EDA
@@ -145,6 +148,14 @@ class EDA:
                         For continuous: 2D array [min_values, max_values]
             components: EDA components configuration
             random_seed: Random seed for reproducibility (None = use system entropy)
+            selection_weighting: How to weight the selected individuals when
+                        learning the model (*customized selection*).  One of
+                        ``"uniform"`` (every selected solution has weight
+                        ``1/N``), ``"proportional"`` (fitness-proportional) or
+                        ``"boltzmann"``.  With ``"uniform"`` the behaviour is
+                        identical to the classic EDA.
+            weighting_beta: Inverse-temperature used by the ``"boltzmann"``
+                        weighting (ignored otherwise).
 
         Raises:
             ValueError: If components are invalid or incompatible
@@ -153,6 +164,8 @@ class EDA:
         self.n_vars = n_vars
         self.cardinality = np.array(cardinality)
         self.components = components
+        self.selection_weighting = selection_weighting
+        self.weighting_beta = weighting_beta
 
         # Initialize random number generator
         self.rng = np.random.default_rng(random_seed)
@@ -388,6 +401,20 @@ class EDA:
             #if verbose:
             #    print(f"  Selected {len(selected_pop)} individuals for learning")
 
+            # Customized selection: turn the selected fitness into a
+            # per-individual probability vector p (sum == 1).  With the default
+            # "uniform" weighting this is None and the learning methods take
+            # their classic unweighted path.
+            p = compute_selection_probabilities(
+                selected_fitness,
+                mode=getattr(self, "selection_weighting", "uniform"),
+                beta=getattr(self, "weighting_beta", 1.0),
+            )
+
+            learning_params = dict(self.components.learning_params)
+            if p is not None:
+                learning_params["p"] = p
+
             # Learning
             self.model = self.components.learning.learn(
                 self.generation,
@@ -395,7 +422,7 @@ class EDA:
                 self.cardinality,
                 selected_pop,
                 selected_fitness,
-                **self.components.learning_params,
+                **learning_params,
             )
 
             # Cache data if requested

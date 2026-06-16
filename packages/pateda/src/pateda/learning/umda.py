@@ -38,6 +38,10 @@ import numpy as np
 
 from pateda.core.components import LearningMethod
 from pateda.core.models import FactorizedModel
+from pateda.learning.utils.weights import (
+    count_weights_from_p,
+    weighted_univariate_counts,
+)
 
 
 class LearnUMDA(LearningMethod):
@@ -107,6 +111,10 @@ class LearnUMDA(LearningMethod):
         alpha = params.get("alpha", self.alpha)
         pop_size = population.shape[0]
 
+        # Customized selection: count-scale weights (N * p), or None for uniform
+        # (in which case behaviour is identical to plain frequency counting).
+        weights = count_weights_from_p(params.get("p"), pop_size)
+
         # Create univariate structure (each variable is independent)
         # Format: [n_overlap, n_new, overlap_indices..., new_indices...]
         # For univariate: [0, 1, var_index]
@@ -120,10 +128,8 @@ class LearnUMDA(LearningMethod):
         for var_idx in range(n_vars):
             k = int(cardinality[var_idx])  # Number of values this variable can take
 
-            # Count occurrences of each value
-            counts = np.zeros(k)
-            for val in range(k):
-                counts[val] = np.sum(population[:, var_idx] == val)
+            # (Weighted) count of each value: N * sum_i p_i I[x_i == val]
+            counts = weighted_univariate_counts(population[:, var_idx], k, weights)
 
             # Apply Laplace smoothing if requested
             if alpha > 0:

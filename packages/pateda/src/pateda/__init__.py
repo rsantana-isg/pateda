@@ -51,15 +51,6 @@ from pateda.algorithms.continuous import (
     RVineEDA,
 )
 
-from pateda.algorithms.permutation import (
-    EHMEDA,
-    NHMEDA,
-    MallowsKendallEDA,
-    MallowsCayleyEDA,
-    GMallowsKendallEDA,
-    GMallowsCayleyEDA,
-)
-
 __all__ = [
     # Core
     "EDA",
@@ -98,11 +89,4 @@ __all__ = [
     "VineEDA",
     "CVineEDA",
     "RVineEDA",
-    # Permutation algorithms
-    "EHMEDA",
-    "NHMEDA",
-    "MallowsKendallEDA",
-    "MallowsCayleyEDA",
-    "GMallowsKendallEDA",
-    "GMallowsCayleyEDA",
 ]

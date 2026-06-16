@@ -6,16 +6,16 @@ Tests both learning and sampling for Generalized Mallows models.
 
 import numpy as np
 import pytest
-from pateda.learning.mallows import (
+from perm_pateda.learning.mallows import (
     LearnGeneralizedMallowsKendall,
     LearnGeneralizedMallowsCayley,
 )
-from pateda.sampling.mallows import (
+from perm_pateda.sampling.mallows import (
     SampleGeneralizedMallowsKendall,
     SampleGeneralizedMallowsCayley,
 )
-from pateda.permutation.distances import kendall_distance, cayley_distance
-from pateda.permutation.consensus import find_consensus_borda
+from perm_pateda.distances import kendall_distance, cayley_distance
+from perm_pateda.consensus import find_consensus_borda
 
 
 class TestGeneralizedMallowsKendall:

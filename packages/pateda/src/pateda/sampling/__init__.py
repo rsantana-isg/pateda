@@ -34,8 +34,6 @@ from pateda.sampling.mixture_gaussian import (
     sample_mixture_gaussian_em,
 )
 from pateda.sampling.gmrf_eda import sample_gmrf_eda
-from pateda.sampling.mallows import SampleMallowsKendall, sample_mallows_kendall
-from pateda.sampling.histogram import SampleEHM, SampleNHM, sample_ehm, sample_nhm
 
 try:
     from pateda.sampling.vine_copula import (
@@ -60,8 +58,6 @@ __all__ = [
     "SampleGaussianUnivariate", "SampleGaussianFull",
     "sample_mixture_gaussian_univariate", "sample_mixture_gaussian_full",
     "sample_mixture_gaussian_em", "sample_gmrf_eda",
-    "SampleMallowsKendall", "sample_mallows_kendall",
-    "SampleEHM", "SampleNHM", "sample_ehm", "sample_nhm",
     "sample_vine_copula", "sample_vine_copula_biased",
     "sample_vine_copula_conditional",
 ]

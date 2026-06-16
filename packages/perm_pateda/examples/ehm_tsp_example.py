@@ -12,11 +12,11 @@ from pateda.core.eda import EDA
 from pateda.core.components import EDAComponents
 from pateda.seeding import RandomInit
 from pateda.selection import TruncationSelection
-from pateda.learning.histogram import LearnEHM
-from pateda.sampling.histogram import SampleEHM
+from perm_pateda.learning.histogram import LearnEHM
+from perm_pateda.sampling.histogram import SampleEHM
 from pateda.replacement import ElitistReplacement
 from pateda.stop_conditions import MaxGenerations
-from pateda.functions.permutation import create_random_tsp
+from perm_pateda.functions import create_random_tsp
 
 
 def main():

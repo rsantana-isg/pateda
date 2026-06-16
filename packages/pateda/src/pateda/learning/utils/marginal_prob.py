@@ -5,17 +5,25 @@ Equivalent to MATEDA's FindMargProb.m and LearnFDAParameters.m
 """
 
 import numpy as np
-from typing import List, Tuple
+from typing import List, Optional, Tuple
 
 from pateda.learning.utils.conversions import (
     find_acc_card,
     num_convert_card,
     index_convert_card,
 )
+from pateda.learning.utils.weights import (
+    weighted_univariate_counts,
+    weighted_bivariate_counts,
+)
 
 
 def find_marginal_prob(
-    population: np.ndarray, n_vars: int, cardinality: np.ndarray, alpha: float = 0.0
+    population: np.ndarray,
+    n_vars: int,
+    cardinality: np.ndarray,
+    alpha: float = 0.0,
+    weights: Optional[np.ndarray] = None,
 ) -> Tuple[List[np.ndarray], List[np.ndarray]]:
     """
     Calculate univariate and bivariate marginal probabilities from population
@@ -30,6 +38,10 @@ def find_marginal_prob(
                normalisation (default: 0.0, i.e. no smoothing).  A value such
                as 0.5 prevents zero-probability entries in the joint table when
                some configurations are absent from the selected set.
+        weights: Optional count-scale per-sample weights (``N * p``) of length
+               ``n_samples`` for *customized selection*.  ``None`` reproduces
+               the uniform (raw-count) behaviour.  See
+               :mod:`pateda.learning.utils.weights`.
 
     Returns:
         Tuple of (univariate_probs, bivariate_probs)
@@ -37,6 +49,7 @@ def find_marginal_prob(
         - bivariate_probs: List of arrays for each pair (i,j) where i<j
     """
     n_samples = population.shape[0]
+    w = None if weights is None else np.asarray(weights, dtype=float)
 
     # Initialize probability lists
     univ_prob = []
@@ -44,10 +57,8 @@ def find_marginal_prob(
 
     # Calculate univariate probabilities
     for i in range(n_vars):
-        # Count occurrences of each value
-        counts = np.zeros(cardinality[i])
-        for val in range(cardinality[i]):
-            counts[val] = np.sum(population[:, i] == val)
+        # Count occurrences of each value (optionally fitness/probability weighted)
+        counts = weighted_univariate_counts(population[:, i], cardinality[i], w)
 
         # Convert to probabilities (apply alpha consistently with bivariate)
         counts += alpha
@@ -62,10 +73,11 @@ def find_marginal_prob(
             if j <= i:
                 biv_row.append(None)
             else:
-                # Count co-occurrences
-                counts = np.zeros((cardinality[i], cardinality[j]))
-                for sample in population:
-                    counts[sample[i], sample[j]] += 1
+                # Count co-occurrences (optionally weighted)
+                counts = weighted_bivariate_counts(
+                    population[:, i], population[:, j],
+                    cardinality[i], cardinality[j], w,
+                )
 
                 # Apply Laplace smoothing and normalise
                 counts += alpha
@@ -83,6 +95,7 @@ def learn_fda_parameters(
     n_vars: int,
     cardinality: np.ndarray,
     alpha: float = 1.0,
+    weights: Optional[np.ndarray] = None,
 ) -> List[np.ndarray]:
     """
     Learn probability tables for FDA model given clique structure
@@ -98,12 +111,18 @@ def learn_fda_parameters(
         alpha: Laplace smoothing pseudo-count added to every cell of every
                probability table.  Default 1.0 matches the original MATEDA
                behaviour; set to 0.0 to disable smoothing.
+        weights: Optional count-scale per-sample weights (``N * p``) of length
+               ``n_samples`` for *customized selection*.  ``None`` reproduces
+               the uniform (raw-count) behaviour.  Approximate counts
+               ``N * sum p_i`` are accumulated first and Laplace smoothing is
+               applied on top, exactly as for raw counts.
 
     Returns:
         List of probability tables, one per clique
     """
     n_samples = population.shape[0]
     n_cliques = cliques.shape[0]
+    sample_w = None if weights is None else np.asarray(weights, dtype=float)
     tables = []
 
     for c in range(n_cliques):
@@ -137,14 +156,14 @@ def learn_fda_parameters(
             overlap_acc_card = find_acc_card(n_overlap, overlap_card)
             new_acc_card = find_acc_card(n_new, new_card)
 
-            for sample in population:
+            for s, sample in enumerate(population):
                 overlap_vals = sample[overlap_vars]
                 new_vals = sample[new_vars]
 
                 overlap_idx = num_convert_card(overlap_vals, n_overlap, overlap_acc_card)
                 new_idx = num_convert_card(new_vals, n_new, new_acc_card)
 
-                table[overlap_idx, new_idx] += 1
+                table[overlap_idx, new_idx] += 1 if sample_w is None else sample_w[s]
 
             # Normalize to get probabilities (with Laplace smoothing of strength alpha)
             for i in range(n_overlap_configs):
@@ -160,12 +179,13 @@ def learn_fda_parameters(
             table = np.zeros(n_new_configs)
             new_acc_card = find_acc_card(n_new, new_card)
 
-            for sample in population:
+            for s, sample in enumerate(population):
                 new_vals = sample[new_vars]
                 new_idx = num_convert_card(new_vals, n_new, new_acc_card)
-                table[new_idx] += 1
+                table[new_idx] += 1 if sample_w is None else sample_w[s]
 
-            # Normalize (with Laplace smoothing of strength alpha)
+            # Normalize (with Laplace smoothing of strength alpha).  Weighted
+            # counts sum to n_samples, so the denominator is unchanged.
             table = (table + alpha) / (n_samples + alpha * n_new_configs)
 
         tables.append(table)

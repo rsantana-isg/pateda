@@ -22,6 +22,7 @@ import numpy as np
 
 from pateda.core.components import LearningMethod
 from pateda.core.models import FactorizedModel
+from pateda.learning.utils.weights import count_weights_from_p
 
 
 class LearnBSC(LearningMethod):
@@ -79,45 +80,59 @@ class LearnBSC(LearningMethod):
         Raises:
             ValueError: If fitness array is not provided or has wrong shape
         """
-        if fitness is None:
-            raise ValueError("BSC requires fitness values to be provided")
-
-        if len(fitness.shape) != 1 or fitness.shape[0] != population.shape[0]:
-            raise ValueError(
-                f"Fitness array must be 1D with length equal to population size. "
-                f"Got shape {fitness.shape}, expected ({population.shape[0]},)"
-            )
-
         alpha = params.get("alpha", self.alpha)
         normalize_fitness = params.get("normalize_fitness", self.normalize_fitness)
 
         pop_size = population.shape[0]
 
-        # Normalize fitness values if requested
-        if normalize_fitness:
-            # Handle the case where all fitness values are the same
-            fitness_range = np.max(fitness) - np.min(fitness)
-            if fitness_range > 1e-10:
-                fitness_normalized = (fitness - np.min(fitness)) / fitness_range
-            else:
-                # If all fitness values are the same, use uniform weights
-                fitness_normalized = np.ones_like(fitness) / pop_size
+        # Customized selection takes precedence: if an explicit probability
+        # vector p is supplied, use it directly as the per-individual weight
+        # (count scale N * p) instead of deriving weights from fitness.  This
+        # is exactly the BSC scheme with p in place of normalised fitness.
+        p_weights = count_weights_from_p(params.get("p"), pop_size)
+
+        if p_weights is None:
+            if fitness is None:
+                raise ValueError(
+                    "BSC requires fitness values (or an explicit p) to be provided"
+                )
+            if len(fitness.shape) != 1 or fitness.shape[0] != pop_size:
+                raise ValueError(
+                    f"Fitness array must be 1D with length equal to population size. "
+                    f"Got shape {fitness.shape}, expected ({pop_size},)"
+                )
+
+        if p_weights is not None:
+            # Use the supplied probability vector p (count scale) directly as
+            # the per-individual weights.
+            fitness_normalized = p_weights
+            total_fitness = np.sum(p_weights)
         else:
-            fitness_normalized = fitness.copy()
+            # Normalize fitness values if requested
+            if normalize_fitness:
+                # Handle the case where all fitness values are the same
+                fitness_range = np.max(fitness) - np.min(fitness)
+                if fitness_range > 1e-10:
+                    fitness_normalized = (fitness - np.min(fitness)) / fitness_range
+                else:
+                    # If all fitness values are the same, use uniform weights
+                    fitness_normalized = np.ones_like(fitness) / pop_size
+            else:
+                fitness_normalized = fitness.copy()
 
-        # Ensure all fitness values are non-negative
-        if np.any(fitness_normalized < 0):
-            # Shift to make all values non-negative
-            fitness_normalized = fitness_normalized - np.min(fitness_normalized)
+            # Ensure all fitness values are non-negative
+            if np.any(fitness_normalized < 0):
+                # Shift to make all values non-negative
+                fitness_normalized = fitness_normalized - np.min(fitness_normalized)
 
-        # Calculate total fitness
-        total_fitness = np.sum(fitness_normalized)
+            # Calculate total fitness
+            total_fitness = np.sum(fitness_normalized)
 
-        # Avoid division by zero
-        if total_fitness < 1e-10:
-            # Fall back to uniform probabilities
-            fitness_normalized = np.ones_like(fitness) / pop_size
-            total_fitness = 1.0
+            # Avoid division by zero
+            if total_fitness < 1e-10:
+                # Fall back to uniform probabilities
+                fitness_normalized = np.ones_like(fitness) / pop_size
+                total_fitness = 1.0
 
         # Create univariate structure (each variable is independent)
         cliques = np.zeros((n_vars, 3))

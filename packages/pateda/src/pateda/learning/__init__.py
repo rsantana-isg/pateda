@@ -52,9 +52,6 @@ from pateda.learning.gmrf_eda import (
     learn_gmrf_eda_elasticnet,
     learn_gmrf_eda_lars,
 )
-from pateda.learning.mallows import LearnMallowsKendall, learn_mallows_kendall
-from pateda.learning.histogram import LearnEHM, LearnNHM, learn_ehm, learn_nhm
-
 try:
     from pateda.learning.vine_copula import (
         learn_vine_copula_cvine,
@@ -86,8 +83,6 @@ __all__ = [
     "learn_mixture_gaussian_em",
     "learn_gmrf_eda", "learn_gmrf_eda_lasso",
     "learn_gmrf_eda_elasticnet", "learn_gmrf_eda_lars",
-    "LearnMallowsKendall", "learn_mallows_kendall",
-    "LearnEHM", "LearnNHM", "learn_ehm", "learn_nhm",
     "learn_vine_copula_cvine", "learn_vine_copula_dvine",
     "learn_vine_copula_auto",
 ]

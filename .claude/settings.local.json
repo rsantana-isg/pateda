@@ -71,7 +71,24 @@
       "Bash(sed -n '1,60p' learning/utils/conversions.py)",
       "Bash(PYTHONPATH=src python3.11 -m pytest --collect-only -q)",
       "Bash(PYTHONPATH=src python3.11 -m pytest tests/test_bn_edas_bayes_nets.py tests/test_discrete_eda.py tests/test_joint_table_size_constraints.py tests/test_map_sampling.py -q)",
-      "Bash(PYTHONPATH=src python3.11 -m pytest \"tests/test_map_sampling.py::TestMAPSampling::test_hybrid_map_basic\" \"tests/test_map_sampling.py::TestMAPWithMNFDA::test_mnfda_hybrid_map\" \"tests/test_map_sampling.py::TestMAPPerformanceComparison::test_compare_sampling_methods_onemax\" -q)"
+      "Bash(PYTHONPATH=src python3.11 -m pytest \"tests/test_map_sampling.py::TestMAPSampling::test_hybrid_map_basic\" \"tests/test_map_sampling.py::TestMAPWithMNFDA::test_mnfda_hybrid_map\" \"tests/test_map_sampling.py::TestMAPPerformanceComparison::test_compare_sampling_methods_onemax\" -q)",
+      "Bash(grep -v \"$\\(pwd\\)/edas\")",
+      "Bash(/usr/bin/python3.11 -c \"import bayes_nets, pateda; print\\('bayes_nets', bayes_nets.__file__\\); print\\('pateda', pateda.__file__\\)\")",
+      "Bash(/usr/bin/python3.11 -c ' *)",
+      "Bash(/usr/bin/python3.11 -)",
+      "Bash(echo \"exit $?\")",
+      "Bash(/usr/bin/python3.11 -m py_compile scripts/compare_mixed_cardinality_edas_rw.py scripts/compare_bn_learning_edas_rw.py)",
+      "Bash(/usr/bin/python3.11 -m py_compile packages/pateda/src/pateda/learning/*.py packages/pateda/src/pateda/learning/utils/weights.py packages/pateda/src/pateda/selection/weighting.py packages/pateda/src/pateda/core/eda.py packages/pateda/src/pateda/algorithms/base.py)",
+      "Bash(timeout 120 /usr/bin/python3.11 -u -c ' *)",
+      "Bash(timeout 280 /usr/bin/python3.11 -m pytest tests/ -k \"learn or umda or tree or ebna or fda or mnfda or bmda or mimic or markov or eda or weight or bsc\" -q)",
+      "Bash(timeout 120 /usr/bin/python3.11 -m pytest tests/test_map_sampling.py::TestMAPWithMNFDA::test_mnfda_hybrid_map -q)",
+      "Bash(timeout 200 /usr/bin/python3.11 -m pytest tests/test_bn_edas_bayes_nets.py -q)",
+      "Bash(/usr/bin/python3.11 -c \"import pateda; print\\('pateda OK, exports:', len\\(pateda.__all__\\)\\)\")",
+      "Bash(/usr/bin/python3.11 -m pip install -e packages/perm_pateda --no-build-isolation -q)",
+      "Bash(/usr/bin/python3.11 -c \"import pateda; print\\('pateda OK, exports:', len\\(pateda.__all__\\)\\); import pateda.learning, pateda.sampling, pateda.algorithms; print\\('subpkgs OK'\\)\")",
+      "Bash(timeout 200 /usr/bin/python3.11 -m pytest tests/ -q)",
+      "Bash(timeout 200 /usr/bin/python3.11 -m pytest tests/ -q -k \"import or umda or discrete or learning or sampling or gaussian or continuous\")",
+      "Bash(timeout 120 /usr/bin/python3.11 -m pytest \"tests/test_map_sampling.py::TestMAPSampling::test_hybrid_map_basic\" \"tests/test_map_sampling.py::TestMAPPerformanceComparison::test_compare_sampling_methods_onemax\" -q)"
     ]
   }
 }

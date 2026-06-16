@@ -47,6 +47,7 @@ from pateda.learning.utils.probability_tables import (
     compute_clique_tables,
     compute_moa_tables,
 )
+from pateda.learning.utils.weights import count_weights_from_p
 
 
 class LearnMNFDAGR(LearningMethod):
@@ -196,6 +197,9 @@ class LearnMNFDAGR(LearningMethod):
 
         weights = params.get("weights", None)
         n_samples = population.shape[0]
+        if weights is None:
+            # Customized selection: count-scale weights (N * p) or None (uniform).
+            weights = count_weights_from_p(params.get("p"), n_samples)
 
         # Step 1: Build restricted dependency graph using G-test
         adjacency = self._build_restricted_dependency_graph_gtest(

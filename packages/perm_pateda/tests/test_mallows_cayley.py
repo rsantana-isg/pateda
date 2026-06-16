@@ -7,10 +7,10 @@ Cayley distance works correctly for permutation-based EDAs.
 
 import numpy as np
 
-from pateda.learning.mallows import LearnMallowsCayley
-from pateda.sampling.mallows import SampleMallowsCayley
-from pateda.permutation.distances import cayley_distance, _x_vector_cycles, _generate_perm_from_x
-from pateda.permutation.consensus import find_consensus_borda
+from perm_pateda.learning.mallows import LearnMallowsCayley
+from perm_pateda.sampling.mallows import SampleMallowsCayley
+from perm_pateda.distances import cayley_distance, _x_vector_cycles, _generate_perm_from_x
+from perm_pateda.consensus import find_consensus_borda
 
 
 def test_x_vector_cycles():

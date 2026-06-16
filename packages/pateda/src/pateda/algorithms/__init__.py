@@ -9,9 +9,7 @@ Continuous algorithms::
 
     from pateda.algorithms import GaussianUMDA, GaussianEDA, ...
 
-Permutation algorithms::
-
-    from pateda.algorithms import EHMEDA, MallowsKendallEDA, ...
+Permutation algorithms live in the separate ``perm_pateda`` package.
 """
 
 from pateda.algorithms.discrete import (
@@ -47,15 +45,6 @@ from pateda.algorithms.continuous import (
     RVineEDA,
 )
 
-from pateda.algorithms.permutation import (
-    EHMEDA,
-    NHMEDA,
-    MallowsKendallEDA,
-    MallowsCayleyEDA,
-    GMallowsKendallEDA,
-    GMallowsCayleyEDA,
-)
-
 __all__ = [
     # Discrete
     "UMDA",
@@ -86,11 +75,4 @@ __all__ = [
     "VineEDA",
     "CVineEDA",
     "RVineEDA",
-    # Permutation
-    "EHMEDA",
-    "NHMEDA",
-    "MallowsKendallEDA",
-    "MallowsCayleyEDA",
-    "GMallowsKendallEDA",
-    "GMallowsCayleyEDA",
 ]

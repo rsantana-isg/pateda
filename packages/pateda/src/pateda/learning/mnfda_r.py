@@ -43,6 +43,7 @@ from pateda.learning.utils.markov_network import (
 )
 from pateda.learning.utils.probability_tables import compute_clique_tables
 from pateda.learning.utils.table_size import split_variables_by_table_limit
+from pateda.learning.utils.weights import count_weights_from_p
 
 
 class LearnMNFDAR(LearningMethod):
@@ -191,6 +192,9 @@ class LearnMNFDAR(LearningMethod):
 
         weights = params.get("weights", None)
         n_samples = population.shape[0]
+        if weights is None:
+            # Customized selection: count-scale weights (N * p) or None (uniform).
+            weights = count_weights_from_p(params.get("p"), n_samples)
 
         # Step 1: Build restricted dependency graph
         adjacency = self._build_restricted_dependency_graph(

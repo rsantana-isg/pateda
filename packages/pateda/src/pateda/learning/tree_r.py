@@ -32,6 +32,7 @@ import numpy as np
 from pateda.core.components import LearningMethod
 from pateda.core.models import FactorizedModel
 from pateda.learning.utils.marginal_prob import find_marginal_prob
+from pateda.learning.utils.weights import count_weights_from_p
 
 
 class LearnTreeModelR(LearningMethod):
@@ -212,6 +213,7 @@ class LearnTreeModelR(LearningMethod):
         cardinality: np.ndarray,
         univ_prob: List[np.ndarray],
         biv_prob: List[List[np.ndarray]],
+        weights: Optional[np.ndarray] = None,
     ) -> List[np.ndarray]:
         """
         Learn conditional probability tables for tree structure.
@@ -233,6 +235,7 @@ class LearnTreeModelR(LearningMethod):
         """
         n_samples = population.shape[0]
         smooth = max(self.alpha, 1.0)
+        w = None if weights is None else np.asarray(weights, dtype=float)
         tables = []
 
         for j in range(n_vars):
@@ -243,7 +246,7 @@ class LearnTreeModelR(LearningMethod):
                 card_child = int(cardinality[child_idx])
 
                 counts = np.bincount(
-                    population[:, child_idx].astype(int), minlength=card_child
+                    population[:, child_idx].astype(int), weights=w, minlength=card_child
                 ).astype(float)
                 table = (counts + smooth) / (n_samples + smooth * card_child)
                 tables.append(table)
@@ -257,14 +260,14 @@ class LearnTreeModelR(LearningMethod):
                 # Dirichlet prior centred at child marginal (see LearnTreeModel
                 # for the rationale): sparse rows fall back to the marginal.
                 c_counts = np.bincount(
-                    population[:, child_idx].astype(int), minlength=card_child
+                    population[:, child_idx].astype(int), weights=w, minlength=card_child
                 ).astype(float)
                 child_marginal = (c_counts + smooth) / (n_samples + smooth * card_child)
 
                 joint = np.zeros((card_parent, card_child))
                 pv = population[:, parent_idx].astype(int)
                 cv = population[:, child_idx].astype(int)
-                np.add.at(joint, (pv, cv), 1)
+                np.add.at(joint, (pv, cv), 1.0 if w is None else w)
 
                 row_sums = joint.sum(axis=1, keepdims=True)
                 table = (joint + smooth * child_marginal[np.newaxis, :]) / (row_sums + smooth)
@@ -310,8 +313,13 @@ class LearnTreeModelR(LearningMethod):
 
         alpha = params.get("alpha", self.alpha)
 
-        # Learn univariate and bivariate marginal probabilities
-        univ_prob, biv_prob = find_marginal_prob(population, n_vars, cardinality, alpha=alpha)
+        # Customized selection: count-scale weights (N * p) or None for uniform.
+        weights = count_weights_from_p(params.get("p"), population.shape[0])
+
+        # Learn univariate and bivariate marginal probabilities (weighted)
+        univ_prob, biv_prob = find_marginal_prob(
+            population, n_vars, cardinality, alpha=alpha, weights=weights
+        )
 
         # Compute restricted mutual information matrix
         mi_matrix = self._compute_restricted_mi_matrix(
@@ -321,9 +329,9 @@ class LearnTreeModelR(LearningMethod):
         # Create tree structure (restricted to interacting pairs via MI=0)
         cliques = self._create_tree_structure(mi_matrix, n_vars)
 
-        # Learn parameters (conditional probability tables)
+        # Learn parameters (conditional probability tables, weighted)
         tables = self._learn_parameters(
-            cliques, population, n_vars, cardinality, univ_prob, biv_prob
+            cliques, population, n_vars, cardinality, univ_prob, biv_prob, weights=weights
         )
 
         n_interactions = int(np.sum(np.triu(self.interaction_matrix, k=1)))

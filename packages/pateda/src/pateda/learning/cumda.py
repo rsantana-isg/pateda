@@ -46,6 +46,10 @@ import numpy as np
 
 from pateda.core.components import LearningMethod
 from pateda.core.models import FactorizedModel
+from pateda.learning.utils.weights import (
+    count_weights_from_p,
+    weighted_univariate_counts,
+)
 
 
 class LearnCUMDA(LearningMethod):
@@ -109,6 +113,9 @@ class LearnCUMDA(LearningMethod):
         alpha = params.get("alpha", self.alpha)
         pop_size = population.shape[0]
 
+        # Customized selection: count-scale weights (N * p) or None for uniform.
+        weights = count_weights_from_p(params.get("p"), pop_size)
+
         # Verify binary variables
         if not np.all(cardinality == 2):
             raise ValueError("CUMDA only works with binary variables (cardinality=2)")
@@ -125,9 +132,10 @@ class LearnCUMDA(LearningMethod):
         # For CUMDA, we need P(x_i = 1) to use in sampling
         tables = []
         for var_idx in range(n_vars):
-            # Count occurrences of each value (0 and 1)
-            count_0 = np.sum(population[:, var_idx] == 0)
-            count_1 = np.sum(population[:, var_idx] == 1)
+            # (Weighted) count of each value (0 and 1)
+            counts = weighted_univariate_counts(population[:, var_idx], 2, weights)
+            count_0 = counts[0]
+            count_1 = counts[1]
 
             # Apply Laplace smoothing if requested
             if alpha > 0:
