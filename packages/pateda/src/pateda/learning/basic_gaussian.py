@@ -28,6 +28,7 @@ from typing import Dict, Any, Optional
 
 from pateda.core.components import LearningMethod
 from pateda.core.models import GaussianModel
+from pateda.learning.utils.weights import normalize_probabilities
 
 
 def learn_gaussian_univariate(
@@ -163,8 +164,13 @@ class LearnGaussianUnivariate(LearningMethod):
         Returns:
             Learned GaussianModel with univariate structure
         """
-        means = np.mean(population, axis=0)
-        stds = np.std(population, axis=0)
+        p = normalize_probabilities(params.get("p"), population.shape[0])
+        if p is not None:
+            means = np.average(population, weights=p, axis=0)
+            stds = np.sqrt(np.average((population - means) ** 2, weights=p, axis=0))
+        else:
+            means = np.mean(population, axis=0)
+            stds = np.std(population, axis=0)
 
         # Prevent zero standard deviation
         stds = np.maximum(stds, self.alpha)
@@ -228,8 +234,13 @@ class LearnGaussianFull(LearningMethod):
         Returns:
             Learned GaussianModel with full covariance structure
         """
-        mean = np.mean(population, axis=0)
-        cov = np.cov(population, rowvar=False)
+        p = normalize_probabilities(params.get("p"), population.shape[0])
+        if p is not None:
+            mean = np.average(population, weights=p, axis=0)
+            cov = np.cov(population, rowvar=False, aweights=p)
+        else:
+            mean = np.mean(population, axis=0)
+            cov = np.cov(population, rowvar=False)
 
         # Ensure positive definiteness by adding small regularization
         cov += np.eye(n_vars) * self.regularization

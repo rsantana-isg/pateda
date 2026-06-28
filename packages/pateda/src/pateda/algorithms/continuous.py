@@ -353,6 +353,8 @@ class _BaseVineEDA:
         selection_ratio: float = 0.5,
         elitism: bool = True,
         random_seed: Optional[int] = None,
+        selection_weighting: str = "uniform",
+        weighting_beta: float = 1.0,
     ):
         _require_pyvinecopulib()
         self.n_vars = n_vars
@@ -363,12 +365,15 @@ class _BaseVineEDA:
         self.selection_ratio = selection_ratio
         self.elitism = elitism
         self.rng = np.random.default_rng(random_seed)
+        self.selection_weighting = selection_weighting
+        self.weighting_beta = weighting_beta
 
     # ------------------------------------------------------------------
     # Hooks for subclasses
     # ------------------------------------------------------------------
 
-    def _learn_model(self, selected: np.ndarray, sel_fit: np.ndarray):
+    def _learn_model(self, selected: np.ndarray, sel_fit: np.ndarray,
+                     p: Optional[np.ndarray] = None):
         raise NotImplementedError
 
     # ------------------------------------------------------------------
@@ -380,6 +385,7 @@ class _BaseVineEDA:
 
     def run(self, verbose: bool = False) -> Tuple[Statistics, Cache]:
         from pateda.sampling.vine_copula import sample_vine_copula
+        from pateda.selection.weighting import compute_selection_probabilities
 
         stats = Statistics()
         cache = Cache()
@@ -404,7 +410,14 @@ class _BaseVineEDA:
             selected = population[sorted_idx[:n_select]]
             sel_fit = fitness[sorted_idx[:n_select]]
 
-            model = self._learn_model(selected, sel_fit)
+            # Customized selection: compute per-individual probability vector p
+            p = compute_selection_probabilities(
+                sel_fit,
+                mode=self.selection_weighting,
+                beta=self.weighting_beta,
+            )
+
+            model = self._learn_model(selected, sel_fit, p)
             new_pop = sample_vine_copula(model, self.pop_size, bounds=self.bounds, rng=self.rng)
             new_fit = self._evaluate(new_pop)
 
@@ -468,19 +481,23 @@ class VineEDA(_BaseVineEDA):
         elitism: bool = True,
         truncation_level: Optional[int] = None,
         random_seed: Optional[int] = None,
+        selection_weighting: str = "uniform",
+        weighting_beta: float = 1.0,
     ):
         super().__init__(
             n_vars, bounds, fitness_func, pop_size, n_gen,
             selection_ratio, elitism, random_seed,
+            selection_weighting, weighting_beta,
         )
         self.truncation_level = truncation_level
 
-    def _learn_model(self, selected: np.ndarray, sel_fit: np.ndarray):
+    def _learn_model(self, selected: np.ndarray, sel_fit: np.ndarray,
+                     p: Optional[np.ndarray] = None):
         from pateda.learning.vine_copula import learn_vine_copula_auto
-        return learn_vine_copula_auto(
-            selected, sel_fit,
-            {'truncation_level': self.truncation_level},
-        )
+        params = {'truncation_level': self.truncation_level}
+        if p is not None:
+            params['p'] = p
+        return learn_vine_copula_auto(selected, sel_fit, params)
 
 
 class CVineEDA(_BaseVineEDA):
@@ -517,25 +534,29 @@ class CVineEDA(_BaseVineEDA):
         copula_family: str = 'gaussian',
         truncation_level: Optional[int] = None,
         random_seed: Optional[int] = None,
+        selection_weighting: str = "uniform",
+        weighting_beta: float = 1.0,
     ):
         super().__init__(
             n_vars, bounds, fitness_func, pop_size, n_gen,
             selection_ratio, elitism, random_seed,
+            selection_weighting, weighting_beta,
         )
         self.copula_family = copula_family
         self.copula_family_idx = _copula_family_index(copula_family)
         self.truncation_level = truncation_level
 
-    def _learn_model(self, selected: np.ndarray, sel_fit: np.ndarray):
+    def _learn_model(self, selected: np.ndarray, sel_fit: np.ndarray,
+                     p: Optional[np.ndarray] = None):
         from pateda.learning.vine_copula import learn_vine_copula_cvine
-        return learn_vine_copula_cvine(
-            selected, sel_fit,
-            {
-                'copula_family': self.copula_family_idx,
-                'truncation_level': self.truncation_level,
-                'select_families': False,
-            },
-        )
+        params = {
+            'copula_family': self.copula_family_idx,
+            'truncation_level': self.truncation_level,
+            'select_families': False,
+        }
+        if p is not None:
+            params['p'] = p
+        return learn_vine_copula_cvine(selected, sel_fit, params)
 
 
 class RVineEDA(_BaseVineEDA):
@@ -571,22 +592,26 @@ class RVineEDA(_BaseVineEDA):
         copula_family: str = 'gaussian',
         truncation_level: Optional[int] = None,
         random_seed: Optional[int] = None,
+        selection_weighting: str = "uniform",
+        weighting_beta: float = 1.0,
     ):
         super().__init__(
             n_vars, bounds, fitness_func, pop_size, n_gen,
             selection_ratio, elitism, random_seed,
+            selection_weighting, weighting_beta,
         )
         self.copula_family = copula_family
         self.copula_family_idx = _copula_family_index(copula_family)
         self.truncation_level = truncation_level
 
-    def _learn_model(self, selected: np.ndarray, sel_fit: np.ndarray):
+    def _learn_model(self, selected: np.ndarray, sel_fit: np.ndarray,
+                     p: Optional[np.ndarray] = None):
         from pateda.learning.vine_copula import learn_vine_copula_dvine
-        return learn_vine_copula_dvine(
-            selected, sel_fit,
-            {
-                'copula_family': self.copula_family_idx,
-                'truncation_level': self.truncation_level,
-                'select_families': False,
-            },
-        )
+        params = {
+            'copula_family': self.copula_family_idx,
+            'truncation_level': self.truncation_level,
+            'select_families': False,
+        }
+        if p is not None:
+            params['p'] = p
+        return learn_vine_copula_dvine(selected, sel_fit, params)

@@ -173,8 +173,6 @@ import numpy as np
 from pateda.core.components import LearningMethod
 from pateda.core.models import FactorizedModel
 from pateda.learning.utils.marginal_prob import learn_fda_parameters
-from pateda.learning.utils.markov_network import convert_cliques_to_factorized_structure
-from pateda.learning.utils.table_size import split_variables_by_table_limit
 from pateda.learning.utils.weights import count_weights_from_p
 
 
@@ -224,28 +222,6 @@ class LearnFDA(LearningMethod):
         self.cliques = cliques
         self.alpha = alpha
 
-    @staticmethod
-    def _expand_clique_row(clique_row: np.ndarray) -> np.ndarray:
-        """Get all variable indices in a clique row."""
-        n_overlap = int(clique_row[0])
-        n_new = int(clique_row[1])
-        return clique_row[2 : 2 + n_overlap + n_new].astype(int)
-
-    def _apply_table_size_limit(
-        self, cliques: np.ndarray, cardinality: np.ndarray, n_samples: int
-    ) -> np.ndarray:
-        """Split oversized cliques so each resulting table fits in available samples."""
-        split_cliques = []
-        for row in cliques:
-            vars_in_clique = self._expand_clique_row(row)
-            split_cliques.extend(
-                split_variables_by_table_limit(vars_in_clique, cardinality, n_samples)
-            )
-
-        if len(split_cliques) == 0:
-            return cliques
-        return convert_cliques_to_factorized_structure(split_cliques)
-
     def learn(
         self,
         generation: int,
@@ -280,11 +256,8 @@ class LearnFDA(LearningMethod):
             cliques[:, 1] = 1  # One new variable per clique
             cliques[:, 2] = np.arange(n_vars)  # Variable index
 
-        # Constrain joint table sizes by available sample count
-        n_samples = population.shape[0]
-        cliques = self._apply_table_size_limit(cliques, cardinality, n_samples)
-
         # Learn probability tables for each clique (optionally weighted by p)
+        n_samples = population.shape[0]
         alpha = params.get("alpha", self.alpha)
         weights = count_weights_from_p(params.get("p"), n_samples)
         tables = learn_fda_parameters(

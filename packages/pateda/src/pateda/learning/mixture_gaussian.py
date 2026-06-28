@@ -29,6 +29,7 @@ from sklearn.mixture import GaussianMixture
 
 from pateda.core.components import LearningMethod
 from pateda.core.models import MixtureModel
+from pateda.learning.utils.weights import normalize_probabilities
 
 
 def learn_mixture_gaussian_univariate(
@@ -63,6 +64,7 @@ def learn_mixture_gaussian_univariate(
     n_clusters = params.get('n_clusters', 3)
     what_to_cluster = params.get('what_to_cluster', 'vars')
     normalize = params.get('normalize', True)
+    p = normalize_probabilities(params.get('p'), len(population))
 
     # Prepare data for clustering
     if what_to_cluster == 'vars':
@@ -80,9 +82,12 @@ def learn_mixture_gaussian_univariate(
         scaler = StandardScaler()
         cluster_data = scaler.fit_transform(cluster_data)
 
-    # Perform k-means clustering
+    # Perform k-means clustering (sample_weight scales centroid contributions)
     kmeans = KMeans(n_clusters=n_clusters, random_state=42, n_init=10)
-    labels = kmeans.fit_predict(cluster_data)
+    if p is not None:
+        labels = kmeans.fit_predict(cluster_data, sample_weight=p)
+    else:
+        labels = kmeans.fit_predict(cluster_data)
 
     # Learn Gaussian model for each cluster
     components = []
@@ -93,17 +98,26 @@ def learn_mixture_gaussian_univariate(
         cluster_pop = population[mask]
 
         if len(cluster_pop) > 1:
-            means = np.mean(cluster_pop, axis=0)
-            stds = np.std(cluster_pop, axis=0)
+            if p is not None:
+                cluster_p = p[mask] / p[mask].sum()
+                means = np.average(cluster_pop, weights=cluster_p, axis=0)
+                stds = np.sqrt(np.average((cluster_pop - means) ** 2, weights=cluster_p, axis=0))
+            else:
+                means = np.mean(cluster_pop, axis=0)
+                stds = np.std(cluster_pop, axis=0)
         else:
             # Fallback to overall statistics for small clusters
-            means = np.mean(population, axis=0)
-            stds = np.std(population, axis=0)
+            if p is not None:
+                means = np.average(population, weights=p, axis=0)
+                stds = np.sqrt(np.average((population - means) ** 2, weights=p, axis=0))
+            else:
+                means = np.mean(population, axis=0)
+                stds = np.std(population, axis=0)
 
         # Prevent zero standard deviation
         stds = np.maximum(stds, 1e-10)
 
-        weight = np.sum(mask) / pop_size
+        weight = float(p[mask].sum()) if p is not None else np.sum(mask) / pop_size
 
         components.append({
             'means': means,
@@ -150,6 +164,7 @@ def learn_mixture_gaussian_full(
     n_clusters = params.get('n_clusters', 3)
     what_to_cluster = params.get('what_to_cluster', 'vars')
     normalize = params.get('normalize', True)
+    p = normalize_probabilities(params.get('p'), len(population))
 
     # Prepare data for clustering
     if what_to_cluster == 'vars':
@@ -167,9 +182,12 @@ def learn_mixture_gaussian_full(
         scaler = StandardScaler()
         cluster_data = scaler.fit_transform(cluster_data)
 
-    # Perform k-means clustering
+    # Perform k-means clustering (sample_weight scales centroid contributions)
     kmeans = KMeans(n_clusters=n_clusters, random_state=42, n_init=10)
-    labels = kmeans.fit_predict(cluster_data)
+    if p is not None:
+        labels = kmeans.fit_predict(cluster_data, sample_weight=p)
+    else:
+        labels = kmeans.fit_predict(cluster_data)
 
     # Learn Gaussian model for each cluster
     components = []
@@ -181,17 +199,26 @@ def learn_mixture_gaussian_full(
         cluster_pop = population[mask]
 
         if len(cluster_pop) > 1:
-            mean = np.mean(cluster_pop, axis=0)
-            cov = np.cov(cluster_pop, rowvar=False)
+            if p is not None:
+                cluster_p = p[mask] / p[mask].sum()
+                mean = np.average(cluster_pop, weights=cluster_p, axis=0)
+                cov = np.cov(cluster_pop, rowvar=False, aweights=cluster_p)
+            else:
+                mean = np.mean(cluster_pop, axis=0)
+                cov = np.cov(cluster_pop, rowvar=False)
         else:
             # Fallback to overall statistics for small clusters
-            mean = np.mean(population, axis=0)
-            cov = np.cov(population, rowvar=False)
+            if p is not None:
+                mean = np.average(population, weights=p, axis=0)
+                cov = np.cov(population, rowvar=False, aweights=p)
+            else:
+                mean = np.mean(population, axis=0)
+                cov = np.cov(population, rowvar=False)
 
         # Ensure positive definiteness
         cov += np.eye(n_vars) * 1e-6
 
-        weight = np.sum(mask) / pop_size
+        weight = float(p[mask].sum()) if p is not None else np.sum(mask) / pop_size
 
         components.append({
             'mean': mean,
@@ -242,6 +269,7 @@ def learn_mixture_gaussian_em(
     covariance_type = params.get('covariance_type', 'full')
     max_iter = params.get('max_iter', 100)
     random_state = params.get('random_state', 42)
+    p = normalize_probabilities(params.get('p'), len(population))
 
     # Fit Gaussian Mixture using EM
     gm = GaussianMixture(
@@ -250,7 +278,21 @@ def learn_mixture_gaussian_em(
         max_iter=max_iter,
         random_state=random_state
     )
-    gm.fit(population)
+    if p is not None:
+        # sklearn GaussianMixture does not accept sample_weight; use largest-remainder
+        # integer resampling so each individual appears proportional to its weight.
+        # For uniform p this reproduces the original population exactly.
+        n = len(population)
+        quotients, remainders = np.divmod(p * n, 1)
+        counts = quotients.astype(int)
+        deficit = n - int(counts.sum())
+        if deficit > 0:
+            top_k = np.argsort(remainders)[::-1][:deficit]
+            counts[top_k] += 1
+        resampled = np.repeat(population, counts, axis=0)
+        gm.fit(resampled)
+    else:
+        gm.fit(population)
 
     return {
         'gm_model': gm,
@@ -331,6 +373,7 @@ class LearnMixtureGaussian(LearningMethod):
             'n_clusters': self.n_clusters,
             'what_to_cluster': self.what_to_cluster,
             'normalize': self.normalize,
+            'p': params.get('p', None),
         }
 
         # Use the appropriate functional learning method

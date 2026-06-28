@@ -19,6 +19,8 @@ References
 import numpy as np
 from typing import Dict, Any, List, Optional
 
+from pateda.learning.utils.weights import normalize_probabilities
+
 try:
     import pyvinecopulib as pv
     PYVINECOPULIB_AVAILABLE = True
@@ -50,6 +52,78 @@ def _get_copula_family(copula_index: int):
 
     family_name = COPULA_FAMILIES.get(copula_index, 'gaussian')
     return getattr(pv.BicopFamily, family_name)
+
+
+def weighted_pseudo_obs(population: np.ndarray, p: np.ndarray) -> np.ndarray:
+    """
+    Weighted empirical CDF pseudo-observations — Option B of customized selection.
+
+    Implements the same formula as ``pyvinecopulib.to_pseudo_obs(x, weights=p)``:
+
+        û_{ij} = n/(n+1) * Σ_{k=1}^{rank_ij} p_{(k)j}
+
+    where ``p_{(k)j}`` is the weight of the k-th ranked observation in column j
+    and ``rank_ij`` is the rank of observation i in column j (1-based).
+    For ties ('average' method), each tied observation receives the unweighted
+    average of the individual cumsum values of the tie group.
+
+    Reduces exactly to ``pv.to_pseudo_obs(x)`` for uniform weights p_k = 1/n
+    (both give ``rank_i / (n+1)``).  Values are strictly in (0, 1).
+
+    The dependency structure learned from weighted pseudo-observations reflects
+    high-fitness solutions more strongly: observations with larger p_i values
+    create larger gaps in the marginal CDF, so the vine copula captures the
+    co-movement of highly-weighted individuals.
+
+    Parameters
+    ----------
+    population : ndarray of shape (n, d)
+        Raw observations (selected population, before any transformation).
+    p : ndarray of shape (n,)
+        Normalized per-sample weights summing to 1 (all non-negative).
+
+    Returns
+    -------
+    u : ndarray of shape (n, d)
+        Pseudo-observations in (0, 1), suitable for vine copula fitting.
+    """
+    n, d = population.shape
+    u = np.empty((n, d))
+    scale = n / (n + 1.0)
+
+    for j in range(d):
+        x = population[:, j]
+        sort_idx = np.argsort(x, kind='stable')
+        x_s = x[sort_idx]
+        p_s = p[sort_idx]
+
+        # Cumulative sum of sorted weights: cumsum_s[k] = sum(p_s[:k])
+        cumsum_s = np.empty(n + 1)
+        cumsum_s[0] = 0.0
+        np.cumsum(p_s, out=cumsum_s[1:])
+
+        # Per-element CDF value scaled by n/(n+1)
+        cdf_vals = cumsum_s[1:] * scale   # shape (n,)
+
+        # Ties ('average' method): each tied element gets the unweighted mean
+        # of the individual cdf_vals for its tie group.
+        # cumsum of cdf_vals lets us compute group sums without a Python loop.
+        cdf_cumsum = np.empty(n + 1)
+        cdf_cumsum[0] = 0.0
+        np.cumsum(cdf_vals, out=cdf_cumsum[1:])
+
+        tie_start = np.searchsorted(x_s, x_s, side='left')   # first idx in tie group
+        tie_end   = np.searchsorted(x_s, x_s, side='right')  # one past last
+
+        group_sum  = cdf_cumsum[tie_end] - cdf_cumsum[tie_start]
+        group_size = (tie_end - tie_start).astype(float)
+        u_sorted = group_sum / group_size
+
+        u[sort_idx, j] = u_sorted
+
+    # Clip to open interval — guards against zero-weight boundary observations
+    np.clip(u, 1e-10, 1.0 - 1e-10, out=u)
+    return u
 
 
 def learn_vine_copula_cvine(
@@ -114,8 +188,9 @@ def learn_vine_copula_cvine(
     # Get bounds for rescaling
     bounds = np.vstack([np.min(population, axis=0), np.max(population, axis=0)])
 
-    # Transform to pseudo-observations (uniform [0,1])
-    u = pv.to_pseudo_obs(population)
+    # Transform to pseudo-observations — weighted when p is provided (Option B)
+    p = normalize_probabilities(params.get('p'), len(population))
+    u = pv.to_pseudo_obs(population, weights=p) if p is not None else pv.to_pseudo_obs(population)
     n_vars = population.shape[1]
 
     # Create C-vine structure
@@ -216,8 +291,9 @@ def learn_vine_copula_dvine(
     # Get bounds for rescaling
     bounds = np.vstack([np.min(population, axis=0), np.max(population, axis=0)])
 
-    # Transform to pseudo-observations (uniform [0,1])
-    u = pv.to_pseudo_obs(population)
+    # Transform to pseudo-observations — weighted when p is provided (Option B)
+    p = normalize_probabilities(params.get('p'), len(population))
+    u = pv.to_pseudo_obs(population, weights=p) if p is not None else pv.to_pseudo_obs(population)
     n_vars = population.shape[1]
 
     # Set up fit controls
@@ -319,8 +395,9 @@ def learn_vine_copula_auto(
     # Get bounds for rescaling
     bounds = np.vstack([np.min(population, axis=0), np.max(population, axis=0)])
 
-    # Transform to pseudo-observations (uniform [0,1])
-    u = pv.to_pseudo_obs(population)
+    # Transform to pseudo-observations — weighted when p is provided (Option B)
+    p = normalize_probabilities(params.get('p'), len(population))
+    u = pv.to_pseudo_obs(population, weights=p) if p is not None else pv.to_pseudo_obs(population)
     n_vars = population.shape[1]
 
     # Set up fit controls with comprehensive family set
