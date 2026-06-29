@@ -383,7 +383,18 @@ class _BaseVineEDA:
     def _evaluate(self, population: np.ndarray) -> np.ndarray:
         return np.array([self.fitness_func(population[i]) for i in range(len(population))])
 
-    def run(self, verbose: bool = False) -> Tuple[Statistics, Cache]:
+    def run(self, verbose: bool = False, cache_models: bool = False) -> Tuple[Statistics, Cache]:
+        """Run the vine-copula EDA.
+
+        Parameters
+        ----------
+        verbose : bool
+            Print per-generation progress.
+        cache_models : bool
+            When True, the learned vine model of every generation is stored in
+            the returned ``cache.models`` (used by the knowledge-extraction
+            tools in :mod:`pateda.knowledge_extraction`).
+        """
         from pateda.sampling.vine_copula import sample_vine_copula
         from pateda.selection.weighting import compute_selection_probabilities
 
@@ -418,6 +429,8 @@ class _BaseVineEDA:
             )
 
             model = self._learn_model(selected, sel_fit, p)
+            if cache_models:
+                cache.models.append(model)
             new_pop = sample_vine_copula(model, self.pop_size, bounds=self.bounds, rng=self.rng)
             new_fit = self._evaluate(new_pop)
 

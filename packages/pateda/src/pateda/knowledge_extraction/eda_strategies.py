@@ -204,27 +204,14 @@ def extract_gaussian_parameters_evolution(
 
         model = models[gen_idx]
 
-        # Extract mean
-        if hasattr(model, 'mean'):
-            mean = model.mean
-        elif hasattr(model, 'mu'):
-            mean = model.mu
-        else:
-            mean = None
-
-        # Extract covariance/std
-        if hasattr(model, 'covariance'):
-            cov = model.covariance
-        elif hasattr(model, 'cov'):
-            cov = model.cov
-        elif hasattr(model, 'sigma'):
-            if model.sigma.ndim == 1:
-                # Diagonal covariance
-                cov = np.diag(model.sigma ** 2)
-            else:
-                cov = model.sigma
-        else:
-            cov = None
+        # Robustly read mean/covariance from the learned model.  This handles
+        # the pateda ``GaussianModel`` (whose ``parameters`` dict uses keys
+        # ``mean``/``means`` and ``cov``/``covariance``/...), GMRF-EDA dicts and
+        # plain attribute-based objects.
+        from pateda.knowledge_extraction.gaussian_networks import (
+            extract_gaussian_parameters,
+        )
+        mean, cov = extract_gaussian_parameters(model)
 
         if mean is not None:
             means.append(mean.copy())

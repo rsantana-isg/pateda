@@ -912,3 +912,8 @@ def sample_binary_dbd_us_t(
     )
     
     return binary_samples
+
+
+# Public API aliases (see pateda_nn.__init__ / README).
+sample_discrete_dbd_cs = sample_binary_dbd_cs
+sample_discrete_dbd_cd = sample_binary_dbd_cd

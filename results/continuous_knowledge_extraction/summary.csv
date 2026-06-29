@@ -1,0 +1,4 @@
+EDA,best_fitness,n_edges,density,indegree_mean,outdegree_mean,degree_mean,degree_max,clustering_mean,vertex_betweenness_mean,edge_betweenness_mean,pair_distance_mean,reachability_mean,characteristic_path_length,shortcut_probability,radius,diameter,assortativity,n_components,avg_component_size,largest_component_size,max_clique_size,n_maximal_cliques,motif_number_z3,motif_number_z4,max_modularity,n_communities,participation_mean,dagdif
+Gaussian-EDA,-6.7657,3,0.107143,0.75,0.75,0.75,3,0,0.0178571,0.107143,785715,0.214286,1.5,1,1,2,-1,5,1.6,4,2,7,3,1,0,5,0,4
+Vine-EDA,-68.2498,4,0.142857,1,1,1,2,0,0.0238095,0.0982143,750000,0.25,1.57143,1,2,3,0,4,2,4,2,6,2,1,0.40625,5,0.125,2
+CVine-EDA,-129.0010,7,0.25,1.75,1.75,1.75,7,0,0.125,0.25,1.75,1,1.75,1,1,2,-1,1,8,8,2,7,21,35,1.11022e-16,1,0,0

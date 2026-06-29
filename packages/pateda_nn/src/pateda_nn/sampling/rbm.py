@@ -156,3 +156,7 @@ def sample_softmax_rbm_with_surrogate(
     population = all_samples[selected_idx]
 
     return population
+
+
+# Public API alias: generic name for the Softmax (discrete) RBM sampler.
+sample_rbm = sample_softmax_rbm

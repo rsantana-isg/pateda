@@ -550,3 +550,7 @@ def learn_nn_eda(
     }
 
     return model_data
+
+
+# Public API alias (snake_case canonical name kept; CamelCase documented in README).
+LearnNNEDA = learn_nn_eda

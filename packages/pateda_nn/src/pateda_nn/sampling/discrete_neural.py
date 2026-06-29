@@ -734,6 +734,7 @@ def sample_discrete_backdrive(
 
         # Convert logits to soft samples
         soft_samples = []
+        max_card = int(np.max(cardinality))
         for i in range(n_vars):
             card = int(cardinality[i])
             var_logits = logits[:, i, :card]
@@ -752,7 +753,13 @@ def sample_discrete_backdrive(
             hard_sample.scatter_(-1, hard_idx, 1.0)
 
             # Straight-through estimator
-            soft_samples.append((hard_sample - soft_sample).detach() + soft_sample)
+            ste = (hard_sample - soft_sample).detach() + soft_sample
+
+            # Pad to max_card so variables with different cardinalities can be
+            # stacked into a single [n_samples, n_vars, max_card] tensor.
+            if ste.shape[1] < max_card:
+                ste = F.pad(ste, (0, max_card - ste.shape[1]))
+            soft_samples.append(ste)
 
         # Stack to [n_samples, n_vars, max_card]
         soft_samples_tensor = torch.stack(soft_samples, dim=1)
@@ -1598,3 +1605,9 @@ def sample_binary_tcvae(
     modified_params['temperature'] = temperature
     
     return sample_binary_vae(model, n_samples, modified_params)
+
+
+# Public API aliases (see pateda_nn.__init__ / README).
+sample_discrete_vae = sample_binary_vae
+sample_discrete_extended_vae = sample_binary_regvae
+sample_discrete_gan = sample_binary_gan

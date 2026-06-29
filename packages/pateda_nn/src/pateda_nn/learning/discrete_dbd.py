@@ -574,6 +574,8 @@ def learn_binary_dbd(
     loss_function = params.get('loss_function', 'mse')
     use_fitness_guidance = params.get('use_fitness_guidance', False)
     fitness_weight = params.get('fitness_weight', 0.1)
+    # Print per-epoch training loss only when explicitly requested.
+    verbose = params.get('verbose', False)
 
     # Extract activation and initialization function lists
     list_act_functs = params.get('list_act_functs', None)
@@ -628,7 +630,7 @@ def learn_binary_dbd(
             epoch_loss += loss.item()
             n_batches += 1
 
-        if (epoch + 1) % 20 == 0:
+        if verbose and (epoch + 1) % 20 == 0:
             avg_loss = epoch_loss / n_batches
             print(f"Epoch {epoch+1}/{epochs}: Loss = {avg_loss:.4f}")
 
@@ -675,6 +677,8 @@ def learn_categorical_dbd(
     batch_size = params.get('batch_size', 32)
     learning_rate = params.get('learning_rate', 0.001)
     num_alpha_samples = params.get('num_alpha_samples', 10)
+    # Print per-epoch training loss only when explicitly requested.
+    verbose = params.get('verbose', False)
 
     # Create training dataset
     alpha, x_blended_onehot, x1_onehot = create_blended_categorical_samples(
@@ -714,7 +718,7 @@ def learn_categorical_dbd(
             epoch_loss += loss.item()
             n_batches += 1
 
-        if (epoch + 1) % 20 == 0:
+        if verbose and (epoch + 1) % 20 == 0:
             avg_loss = epoch_loss / n_batches
             print(f"Epoch {epoch+1}/{epochs}: Loss = {avg_loss:.4f}")
 
@@ -1547,3 +1551,8 @@ def learn_binary_dbd_us_t(
     model['conditional_probs'] = conditional_probs_p1
     
     return model
+
+
+# Public API aliases (see pateda_nn.__init__ / README).
+learn_discrete_dbd_cs = learn_binary_dbd_cs
+learn_discrete_dbd_cd = learn_binary_dbd_cd

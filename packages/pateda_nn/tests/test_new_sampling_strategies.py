@@ -9,7 +9,10 @@ Tests the three new strategies:
 This script verifies basic functionality of learning and sampling.
 """
 
+import sys
+
 import numpy as np
+import pytest
 import torch
 
 # Import learning functions
@@ -25,7 +28,7 @@ from pateda_nn.sampling.discrete_dendiff import (
 )
 
 
-def test_strategy(strategy_name, learn_fn, sample_fn, learning_params=None, sampling_params=None):
+def _run_strategy(strategy_name, learn_fn, sample_fn, learning_params=None, sampling_params=None):
     """
     Test a single sampling strategy.
     
@@ -119,6 +122,42 @@ def test_strategy(strategy_name, learn_fn, sample_fn, learning_params=None, samp
     return True
 
 
+_STRATEGY_CASES = [
+    (
+        "STE",
+        learn_discrete_dendiff_ste,
+        sample_discrete_dendiff_ste,
+        {"n_timesteps": 20, "schedule": "linear", "noise_start": 0.01,
+         "noise_end": 0.5, "epochs": 10, "batch_size": 10, "hidden_dims": [32, 16]},
+    ),
+    (
+        "HardConcrete",
+        learn_discrete_dendiff_hard_concrete,
+        sample_discrete_dendiff_hard_concrete,
+        {"n_timesteps": 20, "schedule": "linear", "beta_start": 0.0001,
+         "beta_end": 0.3, "temperature": 0.1, "epochs": 10, "batch_size": 10,
+         "hidden_dims": [32, 16]},
+    ),
+    (
+        "Deterministic",
+        learn_discrete_dendiff_deterministic,
+        sample_discrete_dendiff_deterministic,
+        {"n_timesteps": 20, "schedule": "linear", "beta_start": 0.0001,
+         "beta_end": 0.3, "epochs": 10, "batch_size": 10, "hidden_dims": [32, 16]},
+    ),
+]
+
+
+@pytest.mark.parametrize(
+    "name,learn_fn,sample_fn,learning_params",
+    _STRATEGY_CASES,
+    ids=[c[0] for c in _STRATEGY_CASES],
+)
+def test_dendiff_strategy(name, learn_fn, sample_fn, learning_params):
+    """Learning + sampling round-trips for each new Dendiff strategy."""
+    assert _run_strategy(name, learn_fn, sample_fn, learning_params=learning_params)
+
+
 def main():
     """Run tests for all new strategies."""
     print("\n" + "="*70)
@@ -128,7 +167,7 @@ def main():
     results = {}
     
     # Test 1: Straight-Through Estimator (STE)
-    results['STE'] = test_strategy(
+    results['STE'] = _run_strategy(
         "Straight-Through Estimator (STE)",
         learn_discrete_dendiff_ste,
         sample_discrete_dendiff_ste,
@@ -144,7 +183,7 @@ def main():
     )
     
     # Test 2: Hard Concrete Distribution
-    results['Hard Concrete'] = test_strategy(
+    results['Hard Concrete'] = _run_strategy(
         "Hard Concrete Distribution",
         learn_discrete_dendiff_hard_concrete,
         sample_discrete_dendiff_hard_concrete,
@@ -161,7 +200,7 @@ def main():
     )
     
     # Test 3: Deterministic Softmax
-    results['Deterministic'] = test_strategy(
+    results['Deterministic'] = _run_strategy(
         "Deterministic Softmax",
         learn_discrete_dendiff_deterministic,
         sample_discrete_dendiff_deterministic,

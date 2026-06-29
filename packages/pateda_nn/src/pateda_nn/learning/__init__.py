@@ -28,6 +28,7 @@ from pateda_nn.learning.discrete_dbd import (
     learn_discrete_dbd_cd,
 )
 from pateda_nn.learning.discrete_backdrive import learn_discrete_backdrive
+from pateda_nn.learning.categorical_dendiff import learn_categorical_dendiff
 
 __all__ = [
     "get_activation", "apply_weight_init",
@@ -39,4 +40,5 @@ __all__ = [
     "learn_discrete_gan",
     "learn_discrete_dbd_cs", "learn_discrete_dbd_cd",
     "learn_discrete_backdrive",
+    "learn_categorical_dendiff",
 ]

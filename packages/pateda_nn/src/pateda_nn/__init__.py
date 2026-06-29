@@ -23,6 +23,7 @@ from pateda_nn.learning import (
     learn_backdrive,
     learn_rbm,
     LearnNNEDA,
+    learn_categorical_dendiff,
 )
 from pateda_nn.sampling import (
     sample_vae,
@@ -36,14 +37,19 @@ from pateda_nn.sampling import (
     sample_backdrive_adaptive,
     sample_rbm,
     SampleNNEDA,
+    sample_categorical_dendiff,
+    sample_discrete_nn,
+    supported_discrete_types,
 )
 
 __all__ = [
     "learn_vae", "learn_extended_vae", "learn_conditional_extended_vae",
     "learn_gan", "learn_dbd", "learn_dae", "learn_dendiff",
     "learn_backdrive", "learn_rbm", "LearnNNEDA",
+    "learn_categorical_dendiff",
     "sample_vae", "sample_extended_vae", "sample_conditional_extended_vae",
     "sample_gan", "sample_dbd", "sample_dae", "sample_dendiff",
     "sample_backdrive", "sample_backdrive_adaptive",
-    "sample_rbm", "SampleNNEDA",
+    "sample_rbm", "SampleNNEDA", "sample_categorical_dendiff",
+    "sample_discrete_nn", "supported_discrete_types",
 ]

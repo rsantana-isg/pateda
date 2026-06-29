@@ -2459,3 +2459,7 @@ def learn_binary_gan_hybrid_vae(
     }
 
     return model
+
+
+# Public API alias (see pateda_nn.__init__ / README).
+learn_discrete_gan = learn_binary_gan

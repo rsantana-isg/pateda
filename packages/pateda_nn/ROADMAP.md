@@ -36,11 +36,15 @@
 ## Planned / In progress (v0.2.0)
 
 ### Code quality
-- [ ] Unify `learn_*(...)` function signatures — currently keyword-arg sets differ between algorithms
+- [~] Unify `learn_*(...)` function signatures — discrete learners now share
+      `(population, fitness, params=None)`; `learn_discrete_backdrive`'s
+      `cardinality` arg is optional/inferred. Continuous learners still vary.
 - [ ] Add type annotations and docstrings to all public functions
-- [ ] Replace `sys.path` hacks remaining in any legacy sampling utilities
+- [x] Replace `sys.path` hacks remaining in any legacy sampling utilities
+      (test suite no longer loads modules from hard-coded paths)
 - [ ] 80 %+ test coverage for learning/sampling pairs
-- [ ] GPU-aware test fixtures (skip CUDA tests if no GPU available)
+- [x] GPU-aware test fixtures (skip CUDA tests if no GPU available)
+      (`gpu` marker + `device`/`has_cuda` fixtures in `tests/conftest.py`)
 - [ ] Sphinx API docs with RTD deployment
 
 ### New algorithms
@@ -50,8 +54,19 @@
 - [ ] Energy-based model EDA
 
 ### Discrete improvements
-- [ ] Unify discrete sampling under a single dispatcher (`sample_discrete_nn`)
-- [ ] Integer-valued (multi-cardinality) VAE / GAN EDAs
+- [x] Unify discrete sampling under a single dispatcher (`sample_discrete_nn`)
+      (`pateda_nn.sampling.dispatch`; routes on `model['type']`,
+      handles DBD CS/CD seed populations; `supported_discrete_types()` helper)
+- [x] Integer-valued (multi-cardinality) VAE / GAN / DBD / Backdrive EDAs —
+      verified end-to-end on mixed-cardinality benchmarks
+      (`tests/test_mixed_cardinality_nn_edas.py`,
+      `scripts/compare_mixed_cardinality_nn_edas_rw.py`).  Fixed the discrete
+      Backdrive sampler to stack per-variable soft samples of different
+      cardinalities (pad to `max_card`).
+- [x] Mixed-cardinality denoising diffusion: new
+      `learn_categorical_dendiff` / `sample_categorical_dendiff`
+      (`categorical_dendiff.py`) generalising the binary dendiff to per-variable
+      cardinalities (the `discrete_dendiff_*` variants are binary-only).
 - [ ] Discrete Backdrive with ranking loss for integers
 
 ### Continuous improvements

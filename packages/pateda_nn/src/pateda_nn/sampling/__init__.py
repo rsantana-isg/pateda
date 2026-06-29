@@ -21,6 +21,11 @@ from pateda_nn.sampling.discrete_dbd import (
     sample_discrete_dbd_cs,
     sample_discrete_dbd_cd,
 )
+from pateda_nn.sampling.categorical_dendiff import sample_categorical_dendiff
+from pateda_nn.sampling.dispatch import (
+    sample_discrete_nn,
+    supported_discrete_types,
+)
 
 __all__ = [
     "sample_vae", "sample_extended_vae", "sample_conditional_extended_vae",
@@ -29,4 +34,6 @@ __all__ = [
     "sample_rbm", "SampleNNEDA",
     "sample_discrete_vae", "sample_discrete_gan", "sample_discrete_backdrive",
     "sample_discrete_dbd_cs", "sample_discrete_dbd_cd",
+    "sample_categorical_dendiff",
+    "sample_discrete_nn", "supported_discrete_types",
 ]

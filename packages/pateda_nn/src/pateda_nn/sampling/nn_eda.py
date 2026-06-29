@@ -446,3 +446,7 @@ def get_training_statistics(model_data: Dict[str, Any]) -> Dict[str, Any]:
     }
 
     return stats
+
+
+# Public API alias (snake_case canonical name kept; CamelCase documented in README).
+SampleNNEDA = sample_nn_eda

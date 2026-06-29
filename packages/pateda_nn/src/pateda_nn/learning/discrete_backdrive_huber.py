@@ -142,6 +142,8 @@ def learn_discrete_backdrive_huber(
     early_stopping = params.get('early_stopping', True)
     patience = params.get('patience', 10)
     huber_delta = params.get('huber_delta', 1.0)
+    # Print per-epoch training loss only when explicitly requested.
+    verbose = params.get('verbose', False)
 
     # Extract pretrained model for weight transfer
     pretrained_model = params.get('pretrained_model', None)
@@ -253,11 +255,11 @@ def learn_discrete_backdrive_huber(
                         break
 
             # Print progress
-            if (epoch + 1) % 20 == 0:
+            if verbose and (epoch + 1) % 20 == 0:
                 print(f"Epoch {epoch+1}/{epochs}: "
                       f"Train Loss={avg_train_loss:.4f}, Val Loss={val_loss:.4f}")
         else:
-            if (epoch + 1) % 20 == 0:
+            if verbose and (epoch + 1) % 20 == 0:
                 print(f"Epoch {epoch+1}/{epochs}: Train Loss={avg_train_loss:.4f}")
 
     # Return model

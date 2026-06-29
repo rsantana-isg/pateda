@@ -2498,3 +2498,12 @@ def learn_binary_fwvae(
     }
     
     return model
+
+
+# ---------------------------------------------------------------------------
+# Public API aliases (canonical names used by pateda_nn.__init__ and README).
+# The discrete VAE family is implemented under ``*_binary_*`` names; these
+# aliases expose the documented ``*_discrete_*`` public interface.
+# ---------------------------------------------------------------------------
+learn_discrete_vae = learn_binary_vae
+learn_discrete_extended_vae = learn_binary_regvae

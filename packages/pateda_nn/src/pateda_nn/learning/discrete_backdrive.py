@@ -254,7 +254,7 @@ class DiscreteBackdriveNet(nn.Module):
 def learn_discrete_backdrive(
     population: np.ndarray,
     fitness: np.ndarray,
-    cardinality: np.ndarray,
+    cardinality: Optional[np.ndarray] = None,
     params: Optional[Dict[str, Any]] = None
 ) -> Dict[str, Any]:
     """
@@ -268,8 +268,11 @@ def learn_discrete_backdrive(
         Population of shape (pop_size, n_vars) with discrete values
     fitness : np.ndarray
         Fitness values of shape (pop_size,) or (pop_size, 1)
-    cardinality : np.ndarray
-        Cardinality of each variable [n_vars]
+    cardinality : np.ndarray, optional
+        Cardinality of each variable [n_vars].  When omitted it is inferred
+        from the data (per-variable ``max(population) + 1``, at least 2), which
+        keeps the signature uniform with the other ``learn_*`` discrete methods
+        ``(population, fitness, params=None)``.
     params : dict, optional
         Training parameters:
         - 'hidden_layers': list of hidden layer sizes
@@ -298,6 +301,14 @@ def learn_discrete_backdrive(
 
     pop_size = population.shape[0]
     n_vars = population.shape[1]
+
+    # Infer cardinality from the data when not provided, so the signature
+    # matches the other discrete learners (population, fitness, params=None).
+    if cardinality is None:
+        cardinality = np.maximum(
+            np.asarray(population).astype(int).max(axis=0) + 1, 2
+        )
+    cardinality = np.asarray(cardinality)
 
     # Compute defaults based on input dimensions
     # Use the new backdrive-specific hidden layer computation

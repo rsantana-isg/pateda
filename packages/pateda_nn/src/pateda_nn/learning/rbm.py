@@ -364,3 +364,8 @@ def learn_softmax_rbm(
         'n_hidden': n_hidden,
         'type': 'softmax_rbm'
     }
+
+
+# Public API alias: the package exposes the Softmax (discrete) RBM learner
+# under the generic name ``learn_rbm``.
+learn_rbm = learn_softmax_rbm

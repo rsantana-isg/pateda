@@ -61,8 +61,12 @@ class TestDAEBasic:
         # Check model was created
         assert model['type'] == 'dae'
         assert model['input_dim'] == n_vars
-        # Default hidden_dim should be n_vars // 2
-        assert model['hidden_dim'] == max(n_vars // 2, 10)
+        # With no params, learn_dae uses the shared default architecture from
+        # compute_default_hidden_dims(n_vars, pop_size); hidden_dim is its first layer.
+        from pateda_nn.learning.nn_utils import compute_default_hidden_dims
+        expected = compute_default_hidden_dims(n_vars, n_samples)
+        assert model['hidden_dims'] == expected
+        assert model['hidden_dim'] == expected[0]
 
     def test_sample_dae_basic(self):
         """Test basic DAE sampling"""

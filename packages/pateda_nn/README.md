@@ -37,6 +37,23 @@
 | Discrete Backdrive | `learn_discrete_backdrive` / `sample_discrete_backdrive` | Discrete backdrive |
 | Discrete Dendiff (Gumbel, Corruption, STE, Deterministic, Hard Concrete) | `learning/discrete_dendiff_*.py` | Discrete diffusion variants |
 
+#### Unified discrete sampling
+
+`sample_discrete_nn(model, n_samples, cardinality=None, params=None, seed_pop=None)`
+dispatches to the correct sampler based on `model['type']`, so you don't need to
+remember which `sample_*` goes with which `learn_*`:
+
+```python
+from pateda_nn import sample_discrete_nn, supported_discrete_types
+from pateda_nn.learning.discrete_vae import learn_binary_vae
+
+model = learn_binary_vae(pop, fitness, params={"epochs": 20})
+new_pop = sample_discrete_nn(model, n_samples=200)
+# DBD CS/CD models additionally take a seed population:
+#   sample_discrete_nn(dbd_model, 200, seed_pop=selected_pop)
+print(supported_discrete_types())
+```
+
 ### Legacy TF module (`pateda_nn.legacy`)
 
 `pateda_nn.legacy` contains older **TensorFlow 2.x** implementations of VAE, GAN, DBD, and Diffusion EDAs for continuous problems, along with Gaussian models and GNBG benchmark utilities.  These are included for reproducibility of earlier experiments and are not actively maintained.  They require `pip install "pateda-nn[tensorflow]"`.

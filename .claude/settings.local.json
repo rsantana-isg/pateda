@@ -88,7 +88,26 @@
       "Bash(/usr/bin/python3.11 -c \"import pateda; print\\('pateda OK, exports:', len\\(pateda.__all__\\)\\); import pateda.learning, pateda.sampling, pateda.algorithms; print\\('subpkgs OK'\\)\")",
       "Bash(timeout 200 /usr/bin/python3.11 -m pytest tests/ -q)",
       "Bash(timeout 200 /usr/bin/python3.11 -m pytest tests/ -q -k \"import or umda or discrete or learning or sampling or gaussian or continuous\")",
-      "Bash(timeout 120 /usr/bin/python3.11 -m pytest \"tests/test_map_sampling.py::TestMAPSampling::test_hybrid_map_basic\" \"tests/test_map_sampling.py::TestMAPPerformanceComparison::test_compare_sampling_methods_onemax\" -q)"
+      "Bash(timeout 120 /usr/bin/python3.11 -m pytest \"tests/test_map_sampling.py::TestMAPSampling::test_hybrid_map_basic\" \"tests/test_map_sampling.py::TestMAPPerformanceComparison::test_compare_sampling_methods_onemax\" -q)",
+      "Bash(pip list *)",
+      "Bash(awk '/^def learn_dae/{f=1} f{print NR\": \"$0} /return model/{if\\(f\\)exit}' src/pateda_nn/learning/dae.py)",
+      "Bash(awk 'NR>=776 && NR<=900 && /hidden_dim/' src/pateda_nn/learning/dae.py)",
+      "Bash(awk *)",
+      "Bash(grep -vE \"return$|#\")",
+      "Bash(pkill -f 'until \\\\[ ! -d /proc')",
+      "Bash(pkill -f 'grep -qE \"\\\\[0-9\\\\]')",
+      "Bash(echo \"EXIT=$?\")",
+      "Bash(pkill -f \"pytest -p no:cacheprovider -q - ra\")",
+      "Bash(pkill -9 -f \"pytest\")",
+      "Bash(tee /tmp/pnn_clean.log)",
+      "Bash(grep -ivE \"\\\\.py$|pycache\")",
+      "Bash(grep -qE \"SAT uf20|Traceback|^\\\\s*$\" /tmp/claude-1000/-media-rsantana-ReallyCrucial1-Dropbox-Pending-Papers-N33-PATEDA-github-pateda/ee8b615d-d378-4c84-9576-248b4b9352f1/tasks/bh81oww2t.output)",
+      "Bash(tee /tmp/pnn_full3.log)",
+      "Bash(xargs -n1 basename)",
+      "Bash(PYTHONPATH=src python3.11 -m pytest -p no:cacheprovider tests/test_knowledge_extraction_discrete.py tests/test_knowledge_extraction_continuous.py -q)",
+      "Bash(PYTHONPATH=src python3.11 -m pytest -p no:cacheprovider tests/test_network_measures.py -q)",
+      "Bash(grep -vE \"^done$\" /tmp/cke2.log)",
+      "Bash(PYTHONPATH=src python3.11 -m pytest -p no:cacheprovider tests/test_continuous_knowledge_extraction_networks.py tests/test_network_measures.py tests/test_knowledge_extraction_continuous.py tests/test_knowledge_extraction_discrete.py -q)"
     ]
   }
 }
