@@ -1,23 +1,17 @@
-name: Publish packages to PyPI
+name: Publish pateda to PyPI
 
-# Release workflow for packages that live under packages/ in THIS repo.
-# Currently: pateda. (perm_pateda has its own standalone repo
-# rsantana-isg/perm_pateda; bayes_nets lives in rsantana-isg/edas_bayes_nets.)
+# Publishes the `pateda` package to PyPI whenever a version tag is pushed.
+#   git tag v0.1.0 && git push origin v0.1.0
 #
-# The tag prefix selects which package is built and published:
-#
-#   git tag pateda-v0.1.0 && git push origin pateda-v0.1.0
-#
-# Using a prefixed tag keeps room to add more packages here later
-# (e.g. pateda_nn-v*) without changing the trust configuration.
+# The pateda package lives at the ROOT of this repo (pyproject.toml + src/).
 #
 # Uses PyPI Trusted Publishing (OIDC): no API tokens are stored as secrets.
-# pateda depends on bayes_nets, which must already be on PyPI before this runs.
+# pateda depends on `bayes_nets`, which must already be on PyPI before this runs.
 
 on:
   push:
     tags:
-      - "pateda-v*"
+      - "v*"
 
 jobs:
   build-and-publish:
@@ -25,23 +19,13 @@ jobs:
     runs-on: ubuntu-latest
     environment:
       name: pypi
+      url: https://pypi.org/project/pateda/
     permissions:
       id-token: write        # required for Trusted Publishing (OIDC)
       contents: read
     steps:
       - name: Check out source
         uses: actions/checkout@v4
-
-      - name: Resolve package directory from tag
-        id: pkg
-        run: |
-          TAG="${GITHUB_REF_NAME}"
-          case "$TAG" in
-            pateda-v*) DIR="packages/pateda" ;;
-            *) echo "::error::Unrecognized tag '$TAG'"; exit 1 ;;
-          esac
-          echo "dir=$DIR" >> "$GITHUB_OUTPUT"
-          echo "Building $DIR for tag $TAG"
 
       - name: Set up Python
         uses: actions/setup-python@v5
@@ -51,13 +35,11 @@ jobs:
       - name: Build sdist and wheel
         run: |
           python -m pip install --upgrade pip build twine
-          python -m build "${{ steps.pkg.outputs.dir }}"
-          python -m twine check "${{ steps.pkg.outputs.dir }}"/dist/*
+          python -m build
+          python -m twine check dist/*
 
       - name: Publish to PyPI
         uses: pypa/gh-action-pypi-publish@release/v1
-        with:
-          packages-dir: ${{ steps.pkg.outputs.dir }}/dist
 
 # ---------------------------------------------------------------------------
 # One-time PyPI configuration (Trusted Publisher) for project "pateda":
