@@ -5,11 +5,7 @@ This script demonstrates that the weight_transfer parameter now works correctly
 for the backdrive_descriptors variant.
 """
 
-import sys
-import os
-
 # Add parent directory to path
-sys.path.insert(0, os.path.dirname(os.path.dirname(os.path.abspath(__file__))))
 
 def test_weight_transfer_fix():
     """

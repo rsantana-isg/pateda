@@ -7,14 +7,10 @@ This module validates:
 3. Tree-EDA correctness for various cardinalities (binary, ternary, quaternary, etc.)
 4. End-to-end Tree-EDA run on non-binary benchmark functions
 """
-
-import sys
 import warnings
 import numpy as np
 import pytest
 from pathlib import Path
-
-sys.path.insert(0, str(Path(__file__).parent.parent))
 
 from pateda.learning.tree import LearnTreeModel
 from pateda.sampling.fda import SampleFDA

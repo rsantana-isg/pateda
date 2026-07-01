@@ -23,12 +23,9 @@ References:
   For Functions With Unitation Constraints."
 """
 
-import sys
-import os
-
 # Add parent directory to path for running examples without installation
-sys.path.insert(0, os.path.dirname(os.path.dirname(os.path.dirname(os.path.abspath(__file__)))))
 
+import sys
 import numpy as np
 from pateda import EDA, EDAComponents
 from pateda.seeding import SeedingUnitationConstraint
@@ -299,7 +296,6 @@ def compare_factorizations():
 
 
 if __name__ == "__main__":
-    import sys
 
     if len(sys.argv) > 1 and sys.argv[1] == "compare":
         # Compare different factorizations

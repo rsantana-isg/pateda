@@ -135,7 +135,7 @@ class TestTwoPointCrossover:
 
         for gen in range(n_generations):
             # Evaluate
-            fitness = onemax(population)
+            fitness = np.array([onemax(population[i]) for i in range(len(population))])
             best_fitness_history.append(np.max(fitness))
 
             # Select best individuals
@@ -166,7 +166,7 @@ class TestTwoPointCrossover:
             )
 
         # Check convergence
-        final_fitness = onemax(population)
+        final_fitness = np.array([onemax(population[i]) for i in range(len(population))])
         assert np.mean(final_fitness) > n_vars * 0.7  # Should improve
         assert best_fitness_history[-1] > best_fitness_history[0]  # Progress
 
@@ -253,7 +253,7 @@ class TestTransposition:
 
         for gen in range(n_generations):
             # Evaluate
-            fitness = onemax(population)
+            fitness = np.array([onemax(population[i]) for i in range(len(population))])
             best_fitness_history.append(np.max(fitness))
 
             # Select best individuals
@@ -284,7 +284,7 @@ class TestTransposition:
             )
 
         # Check convergence
-        final_fitness = onemax(population)
+        final_fitness = np.array([onemax(population[i]) for i in range(len(population))])
         assert np.mean(final_fitness) > n_vars * 0.7  # Should improve
         assert best_fitness_history[-1] > best_fitness_history[0]  # Progress
 
@@ -435,7 +435,7 @@ class TestBlockCrossover:
 
         for gen in range(n_generations):
             # Evaluate
-            fitness = onemax(population)
+            fitness = np.array([onemax(population[i]) for i in range(len(population))])
             best_fitness_history.append(np.max(fitness))
 
             # Select best individuals
@@ -469,7 +469,7 @@ class TestBlockCrossover:
             )
 
         # Check convergence
-        final_fitness = onemax(population)
+        final_fitness = np.array([onemax(population[i]) for i in range(len(population))])
         assert np.mean(final_fitness) > n_vars * 0.7  # Should improve
         assert best_fitness_history[-1] > best_fitness_history[0]  # Progress
 

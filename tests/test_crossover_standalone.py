@@ -4,12 +4,9 @@ Standalone test for crossover operators
 
 This script tests the three crossover operators on the OneMax problem.
 """
-
-import sys
 import numpy as np
 
 # Add pateda to path
-sys.path.insert(0, '/home/user/pateda')
 
 from pateda.crossover.two_point import LearnTwoPointCrossover, SampleTwoPointCrossover
 from pateda.crossover.transposition import LearnTransposition, SampleTransposition

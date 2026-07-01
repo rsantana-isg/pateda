@@ -3,7 +3,6 @@ Quick test of MN-FDA, MN-FDAG, and MOA implementations
 """
 
 import numpy as np
-import sys
 
 # Test imports
 try:

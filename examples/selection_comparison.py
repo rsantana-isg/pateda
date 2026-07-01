@@ -1,16 +1,15 @@
 """
-Compare different selection methods
+Compare different selection methods on multiple benchmark functions
 
-This example demonstrates how different selection methods perform
-on the OneMax problem using UMDA.
+Demonstrates how selection pressure affects convergence on four
+problems of increasing difficulty:
+  1. OneMax        — unimodal, no deception
+  2. Deceptive3    — 3-bit non-overlapping deceptive blocks
+  3. Trap5         — 5-bit non-overlapping trap (harder deception)
+  4. MH-Decep3     — alternative 3-bit deceptive landscape (two optima)
 """
 
-import sys
-import os
-
-# Add parent directory to path for running examples without installation
-sys.path.insert(0, os.path.dirname(os.path.dirname(os.path.dirname(os.path.abspath(__file__)))))
-
+import time
 import numpy as np
 from pateda import EDA, EDAComponents
 from pateda.seeding import RandomInit
@@ -25,26 +24,69 @@ from pateda.selection import (
     BoltzmannSelection,
 )
 from pateda.stop_conditions import MaxGenerations
-from pateda.functions import onemax
 from pateda.replacement import ElitistReplacement
+from pateda.functions import onemax
+from pateda.functions.discrete.deceptive import deceptive3
+from pateda.functions.discrete.trap import trap_n
+from pateda.functions.discrete.additive_decomposable import decep3_mh
 
 
-def run_with_selection(selection_method, selection_name):
-    """Run UMDA with a specific selection method"""
+# ---------------------------------------------------------------------------
+# Problem definitions
+# ---------------------------------------------------------------------------
 
-    # Problem parameters
+def trap5(x: np.ndarray) -> float:
+    """5-bit non-overlapping trap."""
+    return trap_n(x, n_trap=5)
+
+
+PROBLEMS = [
+    {
+        "name": "OneMax",
+        "func": onemax,
+        "n_vars": 30,
+        "optimal": 30.0,
+        "cardinality": 2,
+        "max_gen": 20,
+    },
+    {
+        "name": "Deceptive3",
+        "func": deceptive3,
+        "n_vars": 30,           # 10 blocks of 3
+        "optimal": 30 / 3,      # = 10.0
+        "cardinality": 2,
+        "max_gen": 30,
+    },
+    {
+        "name": "Trap5",
+        "func": trap5,
+        "n_vars": 25,           # 5 blocks of 5
+        "optimal": 25.0,        # all blocks at max
+        "cardinality": 2,
+        "max_gen": 40,
+    },
+    {
+        "name": "MH-Decep3",
+        "func": decep3_mh,
+        "n_vars": 30,           # 10 blocks of 3
+        "optimal": 30.0,        # all blocks = 3 each (table max = 3)
+        "cardinality": 2,
+        "max_gen": 30,
+    },
+]
+
+
+# ---------------------------------------------------------------------------
+# Runner
+# ---------------------------------------------------------------------------
+
+def run_with_selection(selection_method, selection_name, problem):
+    """Run UMDA with one selection method on one problem."""
     pop_size = 200
-    n_vars = 20
-    max_gen = 15
+    n_vars = problem["n_vars"]
+    max_gen = problem["max_gen"]
+    cardinality = np.full(n_vars, int(problem["cardinality"]))
 
-    # Variable cardinalities (binary variables)
-    cardinality = np.full(n_vars, 2)
-
-    print(f"\n{'=' * 70}")
-    print(f"Selection Method: {selection_name}")
-    print(f"{'=' * 70}")
-
-    # Configure EDA components
     components = EDAComponents(
         seeding=RandomInit(),
         learning=LearnUMDA(alpha=0.1),
@@ -54,62 +96,83 @@ def run_with_selection(selection_method, selection_name):
         stop_condition=MaxGenerations(max_gen=max_gen),
     )
 
-    # Create EDA
     eda = EDA(
         pop_size=pop_size,
         n_vars=n_vars,
-        fitness_func=onemax,
+        fitness_func=problem["func"],
         cardinality=cardinality,
         components=components,
         random_seed=42,
     )
 
-    # Run optimization
-    statistics, cache = eda.run(verbose=False)
+    t0 = time.time()
+    statistics, _ = eda.run(verbose=False)
+    elapsed = time.time() - t0
 
-    # Print results
-    print(f"Best fitness: {statistics.best_fitness_overall:.0f}/{n_vars}")
-    print(f"Found at generation: {statistics.generation_found}")
-    print(f"Final mean fitness: {statistics.mean_fitness[-1]:.2f}")
+    return statistics, elapsed
 
-    return statistics
+
+SELECTION_METHODS = [
+    (lambda: TruncationSelection(ratio=0.5),                             "Truncation (50%)"),
+    (lambda: TournamentSelection(tournament_size=2, ratio=0.5),          "Tournament (k=2)"),
+    (lambda: TournamentSelection(tournament_size=5, ratio=0.5),          "Tournament (k=5)"),
+    (lambda: ProportionalSelection(ratio=0.5),                           "Proportional"),
+    (lambda: RankingSelection(ratio=0.5, selection_pressure=1.5),        "Ranking (p=1.5)"),
+    (lambda: StochasticUniversalSampling(ratio=0.5),                     "SUS"),
+    (lambda: BoltzmannSelection(ratio=0.5, temperature=2.0),             "Boltzmann (T=2)"),
+    (lambda: BoltzmannSelection(ratio=0.5, temperature=1.0),             "Boltzmann (T=1)"),
+]
+
+
+def run_problem(problem):
+    """Run all selection methods on one problem and print results."""
+    print(f"\n{'=' * 75}")
+    print(f"Problem: {problem['name']}  "
+          f"(n={problem['n_vars']}, optimal={problem['optimal']:.1f}, "
+          f"max_gen={problem['max_gen']})")
+    print(f"{'=' * 75}")
+    print(f"{'Method':<28} {'Best':>8} {'%Opt':>7} {'Gen':>6} {'Time(s)':>9}")
+    print("-" * 62)
+
+    rows = []
+    for make_method, name in SELECTION_METHODS:
+        stats, elapsed = run_with_selection(make_method(), name, problem)
+        best = stats.best_fitness_overall
+        pct = best / problem["optimal"] * 100
+        gen = stats.generation_found if stats.generation_found is not None else problem["max_gen"]
+        rows.append((name, best, pct, gen, elapsed))
+        print(f"{name:<28} {best:>8.3f} {pct:>6.1f}% {gen:>6} {elapsed:>9.3f}s")
+
+    return rows
 
 
 def main():
-    """Compare all selection methods"""
+    print("=" * 75)
+    print("Selection Method Comparison — UMDA on Four Benchmark Functions")
+    print("=" * 75)
 
-    print("=" * 70)
-    print("Comparing Selection Methods on OneMax Problem")
-    print("=" * 70)
+    all_results = {}
+    for problem in PROBLEMS:
+        all_results[problem["name"]] = run_problem(problem)
 
-    selection_methods = [
-        (TruncationSelection(ratio=0.5), "Truncation (50%)"),
-        (TournamentSelection(tournament_size=2, ratio=0.5), "Tournament (size=2)"),
-        (TournamentSelection(tournament_size=5, ratio=0.5), "Tournament (size=5)"),
-        (ProportionalSelection(ratio=0.5), "Proportional (Roulette)"),
-        (RankingSelection(ratio=0.5, selection_pressure=1.5), "Ranking (linear)"),
-        (StochasticUniversalSampling(ratio=0.5), "Stochastic Universal Sampling"),
-        (BoltzmannSelection(ratio=0.5, temperature=2.0), "Boltzmann (T=2.0)"),
-        (BoltzmannSelection(ratio=0.5, temperature=1.0), "Boltzmann (T=1.0)"),
-    ]
+    # Cross-problem summary: best-method per problem
+    print(f"\n{'=' * 75}")
+    print("Summary: best method per problem (by % optimal reached)")
+    print(f"{'=' * 75}")
+    print(f"{'Problem':<14}", end="")
+    for method_name in [name for _, name in SELECTION_METHODS]:
+        print(f"  {method_name[:8]:>8}", end="")
+    print()
+    print("-" * (14 + 10 * len(SELECTION_METHODS)))
 
-    results = []
-    for method, name in selection_methods:
-        stats = run_with_selection(method, name)
-        results.append((name, stats))
+    for problem in PROBLEMS:
+        pname = problem["name"]
+        print(f"{pname:<14}", end="")
+        for row in all_results[pname]:
+            print(f"  {row[2]:>7.1f}%", end="")
+        print()
 
-    # Summary
-    print(f"\n{'=' * 70}")
-    print("Summary")
-    print(f"{'=' * 70}")
-    print(f"{'Method':<35} {'Best':<10} {'Gen':<10}")
-    print("-" * 70)
-
-    for name, stats in results:
-        print(
-            f"{name:<35} {stats.best_fitness_overall:<10.0f} "
-            f"{stats.generation_found:<10}"
-        )
+    print()
 
 
 if __name__ == "__main__":

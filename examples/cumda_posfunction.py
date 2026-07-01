@@ -2,11 +2,8 @@
 CUMDA (Constraint UMDA) for Posfunction
 
 This example demonstrates CUMDA on the Posfunction, one of the test functions
-import sys
-import os
 
 # Add parent directory to path for running examples without installation
-sys.path.insert(0, os.path.dirname(os.path.dirname(os.path.dirname(os.path.abspath(__file__)))))
 
 from the original CUMDA paper (Santana & Ochoa).
 
@@ -26,6 +23,7 @@ References:
 - Santana, R., & Ochoa, A. "A Constraint Univariate Marginal Distribution Algorithm."
 """
 
+import sys
 import numpy as np
 from pateda import EDA, EDAComponents
 from pateda.seeding import SeedingUnitationConstraint
@@ -234,7 +232,6 @@ def compare_different_r_values():
 
 
 if __name__ == "__main__":
-    import sys
 
     if len(sys.argv) > 1 and sys.argv[1] == "compare":
         # Compare different r values

@@ -1,0 +1,70 @@
+name: Publish packages to PyPI
+
+# Release workflow for packages that live under packages/ in THIS repo.
+# Currently: pateda. (perm_pateda has its own standalone repo
+# rsantana-isg/perm_pateda; bayes_nets lives in rsantana-isg/edas_bayes_nets.)
+#
+# The tag prefix selects which package is built and published:
+#
+#   git tag pateda-v0.1.0 && git push origin pateda-v0.1.0
+#
+# Using a prefixed tag keeps room to add more packages here later
+# (e.g. pateda_nn-v*) without changing the trust configuration.
+#
+# Uses PyPI Trusted Publishing (OIDC): no API tokens are stored as secrets.
+# pateda depends on bayes_nets, which must already be on PyPI before this runs.
+
+on:
+  push:
+    tags:
+      - "pateda-v*"
+
+jobs:
+  build-and-publish:
+    name: Build and publish to PyPI
+    runs-on: ubuntu-latest
+    environment:
+      name: pypi
+    permissions:
+      id-token: write        # required for Trusted Publishing (OIDC)
+      contents: read
+    steps:
+      - name: Check out source
+        uses: actions/checkout@v4
+
+      - name: Resolve package directory from tag
+        id: pkg
+        run: |
+          TAG="${GITHUB_REF_NAME}"
+          case "$TAG" in
+            pateda-v*) DIR="packages/pateda" ;;
+            *) echo "::error::Unrecognized tag '$TAG'"; exit 1 ;;
+          esac
+          echo "dir=$DIR" >> "$GITHUB_OUTPUT"
+          echo "Building $DIR for tag $TAG"
+
+      - name: Set up Python
+        uses: actions/setup-python@v5
+        with:
+          python-version: "3.11"
+
+      - name: Build sdist and wheel
+        run: |
+          python -m pip install --upgrade pip build twine
+          python -m build "${{ steps.pkg.outputs.dir }}"
+          python -m twine check "${{ steps.pkg.outputs.dir }}"/dist/*
+
+      - name: Publish to PyPI
+        uses: pypa/gh-action-pypi-publish@release/v1
+        with:
+          packages-dir: ${{ steps.pkg.outputs.dir }}/dist
+
+# ---------------------------------------------------------------------------
+# One-time PyPI configuration (Trusted Publisher) for project "pateda":
+#   https://pypi.org/manage/account/publishing/  ->  add a pending publisher
+#     PyPI project name : pateda
+#     Owner             : rsantana-isg
+#     Repository name   : pateda
+#     Workflow filename : publish.yml
+#     Environment name  : pypi
+# ---------------------------------------------------------------------------

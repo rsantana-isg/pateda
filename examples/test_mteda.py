@@ -201,9 +201,8 @@ def run_mteda_experiment(
         sampling=sampling,
         replacement=ElitistReplacement(),
         stop_condition=MaxGenerationsOrOptimum(
-            max_generations=max_generations,
+            max_gen=max_generations,
             optimal_fitness=optimal_fitness,
-            tolerance=1e-6,
         ),
     )
 

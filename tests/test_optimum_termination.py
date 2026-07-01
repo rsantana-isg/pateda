@@ -3,10 +3,8 @@ Simple test to verify the MaxGenerationsOrOptimum stop condition works correctly
 """
 
 import numpy as np
-import sys
-sys.path.insert(0, '.')
 
-from stop_conditions.max_generations_or_optimum import MaxGenerationsOrOptimum
+from pateda.stop_conditions import MaxGenerationsOrOptimum
 
 def test_max_generations_only():
     """Test that it stops when max generations is reached"""

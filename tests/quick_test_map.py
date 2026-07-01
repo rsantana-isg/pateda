@@ -2,9 +2,6 @@
 Quick test of MAP inference functionality
 """
 
-import sys
-sys.path.insert(0, '/home/user/pateda')
-
 import numpy as np
 
 # Test MAP inference module imports

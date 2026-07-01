@@ -5,11 +5,7 @@ This example demonstrates solving a multi-objective unconstrained binary
 quadratic programming problem using Tree-based EDA.
 """
 
-import sys
-import os
-
 # Add parent directory to path for running examples without installation
-sys.path.insert(0, os.path.dirname(os.path.dirname(os.path.dirname(os.path.abspath(__file__)))))
 
 import numpy as np
 from pateda.core.eda import EDA, EDAComponents

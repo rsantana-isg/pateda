@@ -1,6 +1,0 @@
-EDA,family,best_fitness,n_edges,density,indegree_mean,outdegree_mean,degree_mean,degree_max,clustering_mean,vertex_betweenness_mean,edge_betweenness_mean,pair_distance_mean,reachability_mean,characteristic_path_length,shortcut_probability,radius,diameter,assortativity,n_components,avg_component_size,largest_component_size,max_clique_size,n_maximal_cliques,motif_number_z3,motif_number_z4,max_modularity,n_communities,participation_mean,dagdif
-MN-FDA,Factorization,5.0000,15,0.142857,2,2,2,3,0.644444,0.0021978,0.0133333,828572,0.171429,1.16667,0.133333,1,2,0.0625,5,3,4,3,8,10,2,0.72,5,0,38
-EBNA,Bayesian-net,5.0000,0,0,0,0,0,0,0,0,0,1e+06,0,0,0,0,0,0,15,1,1,1,15,0,0,0,15,0,0
-BOA,Bayesian-net,5.0000,0,0,0,0,0,0,0,0,0,1e+06,0,0,0,0,0,0,15,1,1,1,15,0,0,0,15,0,0
-AffEDA,Bayesian-net,5.0000,21,0.2,2.8,2.8,2.8,3,1,0,0.00952381,800000,0.2,1,0,1,1,1,4,3.75,4,4,4,13,3,0.734694,4,0,0
-Tree-EDA,Tree,5.0000,0,0,0,0,0,0,0,0,0,1e+06,0,0,0,0,0,0,15,1,1,1,15,0,0,0,15,0,0

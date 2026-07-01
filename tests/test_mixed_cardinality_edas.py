@@ -19,8 +19,6 @@ Specifically these tests verify:
 4. **End-to-end convergence** – a full EDA loop on the Mixed-Cardinality OneMax
    toy problem achieves a fitness close to the known optimum.
 """
-
-import sys
 from pathlib import Path
 import warnings
 
@@ -28,7 +26,6 @@ import numpy as np
 import pytest
 
 # Allow running without installing the package.
-sys.path.insert(0, str(Path(__file__).parent.parent))
 
 warnings.filterwarnings("ignore", message="pyvinecopulib not available")
 

@@ -1,6 +1,4 @@
 """Quick test to verify affinity module imports correctly"""
-
-import sys
 import numpy as np
 
 # Test basic imports

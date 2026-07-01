@@ -6,11 +6,8 @@ complete flow works correctly.
 """
 
 import numpy as np
-import sys
-import os
 
 # Add parent directory to path
-sys.path.insert(0, os.path.dirname(os.path.dirname(os.path.abspath(__file__))))
 
 from pateda.core.eda import EDA, EDAComponents
 from pateda.stop_conditions import MaxGenerations

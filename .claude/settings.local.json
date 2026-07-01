@@ -123,7 +123,9 @@
       "Bash(python3.11 packages/pateda/tests/test_multiobjective.py)",
       "Bash(python3.11 multiobjective_approaches_demo.py --problem onemax_zeromax --model umda --n_vars 16 --pop_size 100 --n_gen 12 --seed 1 --plot)",
       "Bash(pdflatex -interaction=nonstopmode pateda_user_guide.tex)",
-      "Bash(bibtex pateda_user_guide)"
+      "Bash(bibtex pateda_user_guide)",
+      "Bash(pip index *)",
+      "Bash(python3 -m pip install --user --quiet --upgrade build twine)"
     ]
   }
 }
