@@ -35,16 +35,26 @@ from perm_pateda.sampling.histogram import SampleEHM, SampleNHM
 from perm_pateda.learning.mallows import (
     LearnMallowsKendall,
     LearnMallowsCayley,
+    LearnMallowsUlam,
     LearnGeneralizedMallowsKendall,
     LearnGeneralizedMallowsCayley,
 )
 from perm_pateda.sampling.mallows import (
     SampleMallowsKendall,
     SampleMallowsCayley,
+    SampleMallowsUlam,
     SampleGeneralizedMallowsKendall,
     SampleGeneralizedMallowsCayley,
 )
 
+from perm_pateda.learning.plackett_luce import LearnPlackettLuce
+from perm_pateda.sampling.plackett_luce import SamplePlackettLuce
+
+from perm_pateda.learning.mixture_plackett_luce import LearnPlackettLuceMixture
+from perm_pateda.sampling.mixture_plackett_luce import SamplePlackettLuceMixture
+
+from perm_pateda.learning.hamming_kmm import LearnHammingKMM
+from perm_pateda.sampling.hamming_kmm import SampleHammingKMM
 
 def _dummy_cardinality(n_vars: int) -> np.ndarray:
     """Return a placeholder cardinality array for permutations."""
@@ -399,3 +409,130 @@ class GMallowsCayleyEDA(_PermEDA):
         super().__init__(n_vars, fitness_func, pop_size, n_gen, selection_ratio, elitism, random_seed)
         self._learner = LearnGeneralizedMallowsCayley()
         self._sampler = SampleGeneralizedMallowsCayley()
+
+
+# ---------------------------------------------------------------------------
+# PlackettLuceEDA
+# ---------------------------------------------------------------------------
+
+class PlackettLuceEDA(_PermEDA):
+    """
+    Plackett-Luce Model EDA.
+
+    Learns a single Plackett-Luce distribution over permutations via the
+    MM (Minorization-Maximization) algorithm. Each item i is assigned a
+    weight w[i] representing its relative preference; permutations are
+    sampled sequentially with probability proportional to remaining weights
+    (Gumbel-max trick for efficiency).
+
+    Parameters
+    ----------
+    n_vars, fitness_func, pop_size, n_gen, selection_ratio, elitism,
+    random_seed : see EHMEDA.
+    """
+
+    def __init__(
+        self,
+        n_vars: int,
+        fitness_func: Callable,
+        pop_size: int = 100,
+        n_gen: int = 50,
+        selection_ratio: float = 0.5,
+        elitism: bool = True,
+        random_seed: Optional[int] = None,
+    ):
+        super().__init__(n_vars, fitness_func, pop_size, n_gen, selection_ratio, elitism, random_seed)
+        self._learner = LearnPlackettLuce()
+        self._sampler = SamplePlackettLuce()
+
+
+# ---------------------------------------------------------------------------
+# PlackettLuceMixtureEDA
+# ---------------------------------------------------------------------------
+
+class PlackettLuceMixtureEDA(_PermEDA):
+    """
+    Mixture of Plackett-Luce Models EDA.
+
+    Learns a mixture of K Plackett-Luce models to capture heterogeneous 
+    preferences in the population using Spectral EM.
+
+    Parameters
+    ----------
+    n_vars, fitness_func, pop_size, n_gen, selection_ratio, elitism,
+    random_seed : see EHMEDA, n_components
+    """
+
+    def __init__(
+        self,
+        n_vars: int,
+        fitness_func: Callable,
+        pop_size: int = 100,
+        n_gen: int = 50,
+        selection_ratio: float = 0.5,
+        elitism: bool = True,
+        random_seed: Optional[int] = None,
+        n_components: int = 2,  # ¡Parámetro exclusivo de nuestro algoritmo!
+    ):
+        super().__init__(n_vars, fitness_func, pop_size, n_gen, selection_ratio, elitism, random_seed)
+        self.n_components = n_components
+        self._learner = LearnPlackettLuceMixture(
+            n_components=n_components,
+            random_state=random_seed,
+        )
+        self._sampler = SamplePlackettLuceMixture()
+
+
+
+# ---------------------------------------------------------------------------
+# HammingKMMEDA
+# ---------------------------------------------------------------------------
+
+class HammingKMMEDA(_PermEDA):
+    def __init__(
+        self,
+        n_vars: int,
+        fitness_func: Callable,
+        pop_size: int = 100,
+        n_gen: int = 50,
+        selection_ratio: float = 0.5,
+        elitism: bool = True,
+        random_seed: Optional[int] = None,
+        expected_dist_start: Optional[float] = None,
+        expected_dist_end: float = 0.25,
+        gamma: float = 5.14,
+    ):
+        super().__init__(n_vars, fitness_func, pop_size, n_gen,
+                         selection_ratio, elitism, random_seed)
+        self._learner = LearnHammingKMM(
+            expected_dist_start=expected_dist_start,
+            expected_dist_end=expected_dist_end,
+            gamma=gamma,
+            n_gen=n_gen,
+        )
+        self._sampler = SampleHammingKMM()
+
+
+# ---------------------------------------------------------------------------
+# MallowsUlamEDA
+# ---------------------------------------------------------------------------
+
+class MallowsUlamEDA(_PermEDA):
+
+    def __init__(
+        self,
+        n_vars: int,
+        fitness_func: Callable,
+        pop_size: int = 100,
+        n_gen: int = 50,
+        selection_ratio: float = 0.5,
+        elitism: bool = True,
+        random_seed: Optional[int] = None,
+        burn_in: int = 1000,
+        step_size: int = 100,
+    ):
+        super().__init__(
+            n_vars, fitness_func, pop_size, n_gen, selection_ratio, elitism, random_seed
+        )
+        self._learner = LearnMallowsUlam()
+        self._sampler = SampleMallowsUlam(burn_in=burn_in, step_size=step_size)

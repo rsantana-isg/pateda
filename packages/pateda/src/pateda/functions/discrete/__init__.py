@@ -48,6 +48,13 @@ from pateda.functions.discrete.ubqp import (
     create_set_packing_ubqp,
     build_ubqp_interaction_matrix,
 )
+from pateda.functions.discrete.multiobjective import (
+    mo_onemax_zeromax,
+    make_mo_onemax_zeromax,
+    make_mo_deceptive,
+    make_mubqp,
+    mo_pareto_front_onemax_zeromax,
+)
 from pateda.functions.discrete.additive_decomposable import (
     # K-Deceptive functions
     k_deceptive,
@@ -139,6 +146,12 @@ __all__ = [
     "create_max_cut_ubqp",
     "create_set_packing_ubqp",
     "build_ubqp_interaction_matrix",
+    # Multi-objective discrete functions
+    "mo_onemax_zeromax",
+    "make_mo_onemax_zeromax",
+    "make_mo_deceptive",
+    "make_mubqp",
+    "mo_pareto_front_onemax_zeromax",
     # Additive decomposable functions
     "k_deceptive",
     "gen_k_decep",

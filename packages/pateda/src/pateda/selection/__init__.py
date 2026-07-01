@@ -8,6 +8,8 @@ from pateda.selection.sus import StochasticUniversalSampling
 from pateda.selection.boltzmann import BoltzmannSelection
 from pateda.selection.non_dominated import NonDominatedSelection
 from pateda.selection.pareto_front import ParetoFrontSelection
+from pateda.selection.crowding import CrowdingDistanceSelection
+from pateda.selection.indicator_based import IndicatorBasedSelection
 
 __all__ = [
     "TruncationSelection",
@@ -18,4 +20,6 @@ __all__ = [
     "BoltzmannSelection",
     "NonDominatedSelection",
     "ParetoFrontSelection",
+    "CrowdingDistanceSelection",
+    "IndicatorBasedSelection",
 ]

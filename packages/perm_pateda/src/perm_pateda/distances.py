@@ -235,6 +235,16 @@ def hamming_distance(perm1: np.ndarray, perm2: np.ndarray) -> int:
     """
     return int(np.sum(perm1 != perm2))
 
+def compute_derangements(n: int) -> np.ndarray:
+    """D[k] = número de desarreglos de tamaño k."""
+    D = np.zeros(n + 1, dtype=object)
+    D[0] = 1
+    if n >= 1:
+        D[1] = 0
+    for k in range(2, n + 1):
+        D[k] = (k - 1) * (D[k - 1] + D[k - 2])
+    return D
+
 
 def _x_vector_cycles(perm: np.ndarray) -> np.ndarray:
     """

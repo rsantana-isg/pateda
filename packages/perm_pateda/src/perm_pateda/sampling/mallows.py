@@ -13,7 +13,7 @@ References:
 import numpy as np
 from typing import Dict, Any, Optional
 from perm_pateda.consensus import compose_permutations
-from perm_pateda.distances import _generate_perm_from_x
+from perm_pateda.distances import _generate_perm_from_x, ulam_distance
 
 
 class SampleMallowsKendall:
@@ -430,25 +430,145 @@ class SampleGeneralizedMallowsCayley:
 
         new_pop = np.zeros((sample_size, n_vars), dtype=int)
 
-        # Generate random values for all samples at once
+        
         rand_values = rng.random((sample_size, n_vars - 1))
 
         for i in range(sample_size):
-            # Sample x-vector: for each position j, x[j] = 1 with probability x_probs[j, 1]
+            
             x_vector = np.zeros(n_vars - 1, dtype=int)
             for j in range(n_vars - 1):
-                # Sample from Bernoulli distribution with parameter x_probs[j, 1]
+                
                 if rand_values[i, j] < x_probs[j, 1]:
                     x_vector[j] = 1
                 else:
                     x_vector[j] = 0
 
-            # Generate permutation from x-vector
+            
             perm = _generate_perm_from_x(x_vector, n_vars)
 
-            # Compose with consensus
+            
             new_perm = compose_permutations(perm, consensus)
 
             new_pop[i] = new_perm
 
         return new_pop
+    
+class SampleMallowsUlam:
+    """Sample from Mallows model with Ulam distance using MCMC"""
+ 
+    def __init__(self, burn_in: int = 200, step_size: int = 20):
+        self.burn_in = burn_in
+        self.step_size = step_size
+ 
+    def sample(
+        self,
+        n_vars: int,
+        model: Dict[str, Any],
+        cardinality: np.ndarray,
+        population: np.ndarray = None,
+        fitness: np.ndarray = None,
+        **kwargs
+    ) -> np.ndarray:
+        if population is None:
+            population = np.array([])
+        if fitness is None:
+            fitness = np.array([])
+ 
+        sample_size = kwargs.get('sample_size', 100)
+        rng = kwargs.get('rng', None)
+ 
+        return self.__call__(
+            n_vars=n_vars,
+            model=model,
+            cardinality=cardinality,
+            population=population,
+            fitness=fitness,
+            sample_size=sample_size,
+            rng=rng,
+        )
+ 
+    def __call__(
+        self,
+        n_vars: int,
+        model: Dict[str, Any],
+        cardinality: np.ndarray,
+        population: np.ndarray,
+        fitness: np.ndarray,
+        sample_size: int,
+        rng: Optional[np.random.Generator] = None,
+    ) -> np.ndarray:
+        if rng is None:
+            rng = np.random.default_rng()
+ 
+        consensus = model["consensus"]
+        theta = model["theta"]
+ 
+        if theta > 10.0:
+            return np.tile(consensus, (sample_size, 1))
+ 
+        new_pop = np.zeros((sample_size, n_vars), dtype=int)
+        
+        current_perm = consensus.copy()
+        current_dist = 0.0
+ 
+        
+        for _ in range(self.burn_in):
+            current_perm, current_dist = self._metropolis_step(
+                current_perm, current_dist, consensus, theta, n_vars, rng
+            )
+ 
+        for i in range(sample_size):
+            
+            for _ in range(self.step_size):
+                current_perm, current_dist = self._metropolis_step(
+                    current_perm, current_dist, consensus, theta, n_vars, rng
+                )
+            
+            new_pop[i] = current_perm.copy()
+ 
+        return new_pop
+ 
+    def _metropolis_step(
+        self, current_perm: np.ndarray, current_dist: float,
+        consensus: np.ndarray, theta: float, n_vars: int, rng: np.random.Generator
+    ):
+        # Swap de dos posiciones en lugar de delete+insert:
+        # evita crear dos arrays nuevos en cada paso (era O(n) en memoria).
+        i, j = rng.choice(n_vars, size=2, replace=False)
+        prop_perm = current_perm.copy()
+        prop_perm[i], prop_perm[j] = prop_perm[j], prop_perm[i]
+ 
+        from perm_pateda.distances import ulam_distance
+        prop_dist = ulam_distance(prop_perm, consensus)
+ 
+        delta_d = prop_dist - current_dist
+ 
+        if delta_d <= 0:
+            return prop_perm, prop_dist
+        else:
+            if rng.random() < np.exp(-theta * delta_d):
+                return prop_perm, prop_dist
+            else:
+                return current_perm, current_dist
+ 
+ 
+def sample_mallows_ulam(
+    n_vars: int,
+    model: Dict[str, Any],
+    cardinality: np.ndarray,
+    population: np.ndarray,
+    fitness: np.ndarray,
+    sample_size: int,
+    **kwargs
+) -> np.ndarray:
+    """
+    Convenience function to sample from Mallows model with Ulam distance.
+ 
+    See SampleMallowsUlam for parameter details.
+    """
+    sampler = SampleMallowsUlam()
+    
+    return sampler.sample(
+        n_vars, model, cardinality, population, fitness, sample_size=sample_size, **kwargs
+    )
+

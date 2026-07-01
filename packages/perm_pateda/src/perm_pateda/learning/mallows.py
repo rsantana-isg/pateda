@@ -19,7 +19,7 @@ from perm_pateda.distances import (
     ulam_distance,
     _x_vector_cycles,
 )
-from perm_pateda.consensus import find_consensus_borda, find_consensus_median, compose_permutations
+from perm_pateda.consensus import compose_permutations, get_consensus
 
 
 class LearnMallowsKendall:
@@ -80,10 +80,12 @@ class LearnMallowsKendall:
         n_selected = selected_pop.shape[0]
 
         # 1. Calculate consensus ranking
-        if consensus_method == "borda":
-            consensus = find_consensus_borda(selected_pop)
-        else:
-            consensus = find_consensus_median(kendall_distance, selected_pop) # type: ignore
+        consensus = get_consensus(
+            method=consensus_method,
+            population=selected_pop,
+            fitness=selected_fitness,        
+            distance_func=kendall_distance 
+        )
 
         # 2. Calculate theta parameter
         theta = self._calculate_theta(
@@ -244,10 +246,12 @@ class LearnMallowsCayley:
         n_selected = selected_pop.shape[0]
 
         # 1. Calculate consensus ranking
-        if consensus_method == "borda":
-            consensus = find_consensus_borda(selected_pop)
-        else:
-            consensus = find_consensus_median(cayley_distance, selected_pop)  # type: ignore
+        consensus = get_consensus(
+            method=consensus_method,
+            population=selected_pop,
+            fitness=selected_fitness,        
+            distance_func=cayley_distance   
+        )
 
         # 2. Calculate theta parameter
         theta = self._calculate_theta(
@@ -417,10 +421,12 @@ class LearnGeneralizedMallowsKendall:
         n_selected = selected_pop.shape[0]
 
         # 1. Calculate consensus ranking
-        if consensus_method == "borda":
-            consensus = find_consensus_borda(selected_pop)
-        else:
-            consensus = find_consensus_median(kendall_distance, selected_pop)  # type: ignore
+        consensus = get_consensus(
+            method=consensus_method,
+            population=selected_pop,
+            fitness=selected_fitness,      
+            distance_func=kendall_distance   
+        )
 
         # 2. Calculate theta parameters (vector of length n-1)
         thetas = self._calculate_thetas(
@@ -615,10 +621,12 @@ class LearnGeneralizedMallowsCayley:
         n_selected = selected_pop.shape[0]
 
         # 1. Calculate consensus ranking
-        if consensus_method == "borda":
-            consensus = find_consensus_borda(selected_pop)
-        else:
-            consensus = find_consensus_median(cayley_distance, selected_pop)  # type: ignore
+        consensus = get_consensus(
+            method=consensus_method,
+            population=selected_pop,
+            fitness=selected_fitness,        
+            distance_func=cayley_distance   
+        )
 
         # 2. Calculate theta parameters (vector of length n-1)
         thetas = self._calculate_thetas(
@@ -724,3 +732,147 @@ class LearnGeneralizedMallowsCayley:
             x_probs[j, 1] = prob_1
 
         return x_probs
+    
+class LearnMallowsUlam:
+    """Learn Mallows model with Ulam distance
+    
+    Note: Unlike Kendall and Cayley, Ulam distance does not decompose into
+    independent positional probabilities. Therefore, this learner only returns
+    the consensus and theta parameter. Sampling requires MCMC methods.
+    
+    References:
+        [1] E. Irurozki, J. Ceberio, B. Calvo, J.A. Lozano: Sampling and learning
+            the Mallows model under the Ulam distance. Tech. Rep., 2014
+    """
+
+    def learn(
+        self,
+        generation: int,
+        n_vars: int,
+        cardinality: np.ndarray,
+        population: np.ndarray,
+        fitness: np.ndarray,
+        **kwargs
+    ) -> Dict[str, Any]:
+        return self.__call__(
+            generation=generation,
+            n_vars=n_vars,
+            cardinality=cardinality,
+            selected_pop=population,
+            selected_fitness=fitness,
+            **kwargs
+        )
+
+    def __call__(
+        self,
+        generation: int,
+        n_vars: int,
+        cardinality: np.ndarray,
+        selected_pop: np.ndarray,
+        selected_fitness: np.ndarray,
+        initial_theta: float = 0.1,
+        upper_theta: float = 10.0,
+        max_iter: int = 100,
+        consensus_method: str = "borda",
+    ) -> Dict[str, Any]:
+        
+        n_selected = selected_pop.shape[0]
+
+        # 1. Calculate consensus ranking
+        consensus = get_consensus(
+            method=consensus_method,
+            population=selected_pop,
+            fitness=selected_fitness,      
+            distance_func=ulam_distance   
+        )
+
+        theta = self._calculate_theta(
+            consensus, selected_pop, initial_theta, upper_theta, max_iter, n_vars
+        )
+
+        
+        return {
+            "consensus": consensus,
+            "theta": theta,
+            "model_type": "mallows_ulam",
+        }
+
+    def _calculate_theta(
+        self,
+        consensus: np.ndarray,
+        population: np.ndarray,
+        initial_theta: float,
+        upper_theta: float,
+        max_iter: int,
+        n_vars: int,
+    ) -> float:
+        """
+        Calcula theta buscando que la distancia esperada del modelo 
+        coincida con la distancia media observada en la población.
+        """
+        
+        d_avg = np.mean([ulam_distance(p, consensus) for p in population])
+
+        if d_avg < 1e-5:
+            return upper_theta
+
+        Nd = self._get_ulam_distribution(n_vars)
+        d_values = np.arange(len(Nd))
+        
+        def expected_distance_diff(theta):
+            
+            weights = Nd * np.exp(-theta * d_values)
+            Z = np.sum(weights)
+            
+            if Z == 0 or np.isinf(Z):
+                return float('inf')
+
+            expected_d = np.sum(d_values * weights) / Z
+            return expected_d - d_avg
+
+        from scipy.optimize import fminbound
+        theta_opt = fminbound(
+            lambda t: abs(expected_distance_diff(t)), 
+            0.001, 
+            upper_theta, 
+            xtol=1e-6, 
+            maxfun=max_iter
+        )
+
+        return float(theta_opt)
+
+    def _get_ulam_distribution(self, n: int) -> np.ndarray:
+        """
+        Obtiene el número de permutaciones a cada distancia de Ulam (Nd).
+        
+        """
+        
+        import math
+        if n <= 8:
+            from itertools import permutations
+            Nd = np.zeros(n)
+            ref = np.arange(n)
+            for p in permutations(range(n)):
+                d = ulam_distance(ref, p)
+                Nd[int(d)] += 1
+            return Nd
+        else:
+
+            d_center = n - 2 * math.sqrt(n)
+            d_values = np.arange(n)
+            variance = n / 4.0 
+            approx_Nd = np.exp(-0.5 * ((d_values - d_center) ** 2) / variance)
+            return approx_Nd
+
+def learn_mallows_ulam(
+    generation: int,
+    n_vars: int,
+    cardinality: np.ndarray,
+    selected_pop: np.ndarray,
+    selected_fitness: np.ndarray,
+    **params,
+) -> Dict[str, Any]:
+    learner = LearnMallowsUlam()
+    return learner(
+        generation, n_vars, cardinality, selected_pop, selected_fitness, **params
+    )

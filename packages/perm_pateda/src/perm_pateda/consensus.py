@@ -7,7 +7,7 @@ permutation-based EDAs.
 """
 
 import numpy as np
-from typing import Callable
+from typing import Callable, Optional
 from perm_pateda.distances import kendall_distance
 
 
@@ -137,3 +137,54 @@ def compose_permutations(perm1: np.ndarray, perm2: np.ndarray) -> np.ndarray:
         array([1, 2, 0])
     """
     return perm2[perm1]
+
+def find_consensus_best(population: np.ndarray, fitness: np.ndarray) -> np.ndarray:
+    """
+    Find consensus permutation by simply selecting the best individual.
+
+    Args:
+        population: Population of permutations, shape (pop_size, n_vars)
+        fitness: Fitness values for the population. Assumes higher is better.
+
+    Returns:
+        The single permutation with the highest fitness value.
+    """
+    best_idx = np.argmax(fitness)
+    return population[best_idx].copy()
+
+
+def get_consensus(
+    method: str, 
+    population: np.ndarray, 
+    fitness: Optional[np.ndarray] = None,
+    distance_func: Optional[Callable] = None
+) -> np.ndarray:
+    """
+    Dispatcher function to get the consensus permutation using the specified method.
+
+    Args:
+        method: The consensus method ("borda", "setmedian", or "best").
+        population: Population of permutations.
+        fitness: Fitness values (required for "best" method).
+        distance_func: Distance function (required for "setmedian" method).
+
+    Returns:
+        The consensus permutation.
+    """
+    method = method.lower()
+    
+    if method == "borda":
+        return find_consensus_borda(population)
+        
+    elif method == "setmedian":
+        if distance_func is None:
+            raise ValueError("distance_func must be provided for 'setmedian' consensus")
+        return find_consensus_median(distance_func, population)
+        
+    elif method == "best":
+        if fitness is None or len(fitness) == 0:
+            raise ValueError("fitness array must be provided for 'best' consensus")
+        return find_consensus_best(population, fitness)
+        
+    else:
+        raise ValueError(f"Unknown consensus method: {method}. Use 'borda', 'setmedian', or 'best'.")

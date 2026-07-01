@@ -107,7 +107,23 @@
       "Bash(PYTHONPATH=src python3.11 -m pytest -p no:cacheprovider tests/test_knowledge_extraction_discrete.py tests/test_knowledge_extraction_continuous.py -q)",
       "Bash(PYTHONPATH=src python3.11 -m pytest -p no:cacheprovider tests/test_network_measures.py -q)",
       "Bash(grep -vE \"^done$\" /tmp/cke2.log)",
-      "Bash(PYTHONPATH=src python3.11 -m pytest -p no:cacheprovider tests/test_continuous_knowledge_extraction_networks.py tests/test_network_measures.py tests/test_knowledge_extraction_continuous.py tests/test_knowledge_extraction_discrete.py -q)"
+      "Bash(PYTHONPATH=src python3.11 -m pytest -p no:cacheprovider tests/test_continuous_knowledge_extraction_networks.py tests/test_network_measures.py tests/test_knowledge_extraction_continuous.py tests/test_knowledge_extraction_discrete.py -q)",
+      "Bash(python3 -c \"import sys; print\\(sys.executable\\)\")",
+      "Bash(PYTHONPATH=src python3 -c \"import pateda; print\\('pateda at', pateda.__file__\\)\")",
+      "Bash(python3 -m pip show pateda)",
+      "Bash(python3 -c \"import pateda; print\\(pateda.__file__\\)\")",
+      "Bash(python3.11 -c \"import pateda; print\\('OK', pateda.__file__\\)\")",
+      "Bash(PYTHONPATH=edas_bayes_nets python3.11 -c \"import pateda; print\\('OK', pateda.__file__\\)\")",
+      "Bash(python3.11 multiobjective_approaches_demo.py --problem deceptive --model umda --n_vars 20 --pop_size 200 --n_gen 25 --seed 42)",
+      "Bash(python3.11 multiobjective_approaches_demo.py --problem onemax_zeromax --model umda --n_vars 20 --pop_size 150 --n_gen 20 --seed 7)",
+      "Bash(python3.11 run_mo_eda.py 42 decomposition mubqp tree 24 120 25 tchebycheff)",
+      "Bash(python3.11 run_mo_eda.py 42 pareto mubqp umda 24 120 25)",
+      "Bash(python3.11 run_mo_eda.py 1 indicator deceptive umda 15 100 15)",
+      "Bash(python3.11 tests/test_multiobjective_extended.py)",
+      "Bash(python3.11 packages/pateda/tests/test_multiobjective.py)",
+      "Bash(python3.11 multiobjective_approaches_demo.py --problem onemax_zeromax --model umda --n_vars 16 --pop_size 100 --n_gen 12 --seed 1 --plot)",
+      "Bash(pdflatex -interaction=nonstopmode pateda_user_guide.tex)",
+      "Bash(bibtex pateda_user_guide)"
     ]
   }
 }

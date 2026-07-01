@@ -8,17 +8,17 @@ from perm_pateda.sampling.histogram import SampleEHM, SampleNHM, sample_ehm, sam
 from perm_pateda.sampling.mallows import (
     SampleMallowsKendall,
     SampleMallowsCayley,
-    SampleMallowsUlam,
     SampleGeneralizedMallowsKendall,
     SampleGeneralizedMallowsCayley,
     sample_mallows_kendall,
     sample_mallows_cayley,
-    sample_mallows_ulam,
 )
 
-from perm_pateda.sampling.plackett_luce import SamplePlackettLuce
-from perm_pateda.sampling.mixture_plackett_luce import SamplePlackettLuceMixture
-from perm_pateda.sampling.hamming_kmm import SampleHammingKMM 
+from perm_pateda.sampling.mixture_plackett_luce import (
+    SamplePlackettLuceMixture,
+    sample_plackett_luce_mixture,
+)
+
 __all__ = [
     "SampleEHM",
     "SampleNHM",
@@ -26,13 +26,10 @@ __all__ = [
     "sample_nhm",
     "SampleMallowsKendall",
     "SampleMallowsCayley",
-    "SampleMallowsUlam",
     "SampleGeneralizedMallowsKendall",
     "SampleGeneralizedMallowsCayley",
     "sample_mallows_kendall",
     "sample_mallows_cayley",
-    "sample_mallows_ulam"
-    "SamplePlackettLuce"
     "SamplePlackettLuceMixture",
-    "SampleHammingKMM",
+    "sample_plackett_luce_mixture",
 ]
