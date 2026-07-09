@@ -49,7 +49,7 @@ from pateda_nn.sampling.rbm import sample_softmax_rbm
 from pateda_nn.sampling.discrete_dbd import sample_binary_dbd
 
 # Benchmark functions
-from pateda.functions.discrete.additive_decomposable import decep3, k_deceptive
+from pateda.functions.discrete_binary.toy_functions.additive_decomposable import decep3, k_deceptive
 
 
 # ==============================================================================

@@ -279,7 +279,7 @@ class TestTreeEDASamplingWithMultivalue:
         from pateda.selection import TruncationSelection
         from pateda.stop_conditions import MaxGenerations
         from pateda.seeding import RandomInit
-        from pateda.functions.discrete.integer_functions import integer_onemax
+        from pateda.functions.discrete_non_binary.toy_functions.integer_functions import integer_onemax
 
         np.random.seed(30)
         n_vars = 9

@@ -18,7 +18,7 @@ from pateda.selection import TruncationSelection
 from pateda.replacement import ElitistReplacement
 from pateda.seeding import RandomInit
 from pateda.stop_conditions import MaxGenerations
-from pateda.functions.discrete import create_hp_objective_function
+from pateda.functions.discrete_non_binary import create_hp_objective_function
 
 
 def main():

@@ -117,7 +117,7 @@ from pateda.sampling.markov import SampleMarkovChain
 from pateda.sampling.mixture_trees import SampleMixtureTrees
 
 # Benchmark functions
-from pateda.functions.discrete.additive_decomposable import (
+from pateda.functions.discrete_binary.toy_functions.additive_decomposable import (
     k_deceptive, decep3, decep_marta3, decep_marta3_new, decep3_mh,
     two_peaks_decep3, decep_venturini, hard_decep5,
     hiff, fhtrap1,
@@ -126,8 +126,8 @@ from pateda.functions.discrete.additive_decomposable import (
 )
 
 # Real-world problem functions
-from pateda.functions.discrete.ising import load_ising, eval_ising
-from pateda.functions.discrete.ubqp import UBQPInstance
+from pateda.functions.discrete_binary.problems.ising import load_ising, eval_ising
+from pateda.functions.discrete_binary.problems.ubqp import UBQPInstance
 
 # Mutation operators
 from pateda.mutation import frequency_balance_mutation, FrequencyBalanceMutation

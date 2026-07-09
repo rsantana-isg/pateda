@@ -26,7 +26,7 @@ from pateda.multiobjective import (
     ibea_fitness, additive_epsilon_matrix, igd, reference_point_from, MOEAD,
     find_pareto_set,
 )
-from pateda.functions.discrete.multiobjective import (
+from pateda.functions.discrete_binary.multiobjective import (
     mo_onemax_zeromax, make_mo_deceptive, make_mubqp,
     mo_pareto_front_onemax_zeromax,
 )

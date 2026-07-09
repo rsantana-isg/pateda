@@ -1,0 +1,25 @@
+c Maximum Independent Set benchmark instance (synthetic)
+c 20 vertices, 22 edges, 1-indexed DIMACS edge format
+p edge 20 22
+e 1 4
+e 1 11
+e 1 18
+e 2 15
+e 2 20
+e 3 6
+e 3 15
+e 4 6
+e 4 12
+e 5 11
+e 6 7
+e 6 15
+e 6 18
+e 7 20
+e 8 12
+e 9 12
+e 10 16
+e 10 19
+e 11 16
+e 12 13
+e 15 17
+e 17 18

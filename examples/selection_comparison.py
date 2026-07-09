@@ -26,9 +26,9 @@ from pateda.selection import (
 from pateda.stop_conditions import MaxGenerations
 from pateda.replacement import ElitistReplacement
 from pateda.functions import onemax
-from pateda.functions.discrete.deceptive import deceptive3
-from pateda.functions.discrete.trap import trap_n
-from pateda.functions.discrete.additive_decomposable import decep3_mh
+from pateda.functions.discrete_binary.toy_functions.deceptive import deceptive3
+from pateda.functions.discrete_binary.toy_functions.trap import trap_n
+from pateda.functions.discrete_binary.toy_functions.additive_decomposable import decep3_mh
 
 
 # ---------------------------------------------------------------------------

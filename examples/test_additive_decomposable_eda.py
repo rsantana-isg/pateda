@@ -14,7 +14,7 @@ from pateda.stop_conditions import MaxGenerations
 from pateda.learning.umda import LearnUMDA
 from pateda.learning.tree import LearnTreeModel
 from pateda.sampling.fda import SampleFDA
-from pateda.functions.discrete.additive_decomposable import (
+from pateda.functions.discrete_binary.toy_functions.additive_decomposable import (
     create_k_deceptive_function,
     create_hiff_function,
     create_decep3_function,

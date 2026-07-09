@@ -49,7 +49,7 @@ from pateda_nn.sampling.rbm import sample_softmax_rbm
 from pateda_nn.sampling.discrete_dbd import sample_categorical_dbd
 
 # Integer benchmark functions
-from pateda.functions.discrete.integer_functions import (
+from pateda.functions.discrete_non_binary.toy_functions.integer_functions import (
     integer_onemax,
     integer_max_blocks,
     integer_multi_level_trap,

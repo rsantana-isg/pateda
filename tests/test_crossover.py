@@ -19,7 +19,7 @@ from pateda.crossover.two_point import LearnTwoPointCrossover, SampleTwoPointCro
 from pateda.crossover.transposition import LearnTransposition, SampleTransposition
 from pateda.crossover.block import LearnBlockCrossover, SampleBlockCrossover
 from pateda.mutation.bitflip import bit_flip_mutation
-from pateda.functions.discrete import onemax
+from pateda.functions.discrete_binary import onemax
 
 
 class TestTwoPointCrossover:

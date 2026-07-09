@@ -23,7 +23,7 @@ from pateda.selection import TruncationSelection
 from pateda.replacement import ElitistReplacement
 from pateda.seeding import RandomInit
 from pateda.stop_conditions import MaxGenerations
-from pateda.functions.discrete.additive_decomposable import (
+from pateda.functions.discrete_binary.toy_functions.additive_decomposable import (
     create_k_deceptive_function,
     create_hiff_function,
     create_decep3_function,

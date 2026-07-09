@@ -125,7 +125,9 @@
       "Bash(pdflatex -interaction=nonstopmode pateda_user_guide.tex)",
       "Bash(bibtex pateda_user_guide)",
       "Bash(pip index *)",
-      "Bash(python3 -m pip install --user --quiet --upgrade build twine)"
+      "Bash(python3 -m pip install --user --quiet --upgrade build twine)",
+      "Bash(git ls-tree *)",
+      "Bash(git check-ignore *)"
     ]
   }
 }

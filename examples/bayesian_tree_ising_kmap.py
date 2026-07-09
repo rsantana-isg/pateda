@@ -38,7 +38,7 @@ from pateda.sampling.kmap_sampling import SampleInsertKMAP, SampleTemplateKMAP
 from pateda.sampling.fda import SampleFDA
 
 try:
-    from pateda.functions.discrete.ising import load_ising, eval_ising
+    from pateda.functions.discrete_binary.problems.ising import load_ising, eval_ising
     ISING_AVAILABLE = True
 except ImportError:
     ISING_AVAILABLE = False

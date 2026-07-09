@@ -9,7 +9,7 @@ quadratic programming problem using Tree-based EDA.
 
 import numpy as np
 from pateda.core.eda import EDA, EDAComponents
-from pateda.functions.discrete.ubqp import generate_random_ubqp, evaluate_ubqp
+from pateda.functions.discrete_binary.problems.ubqp import generate_random_ubqp, evaluate_ubqp
 from pateda.learning import LearnTreeModel
 from pateda.sampling import SampleFDA
 from pateda.selection import TruncationSelection

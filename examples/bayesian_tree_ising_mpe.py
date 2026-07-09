@@ -43,7 +43,7 @@ from pateda.sampling.map_sampling import SampleInsertMAP
 
 # Try to import Ising model functions
 try:
-    from pateda.functions.discrete.ising import load_ising, eval_ising
+    from pateda.functions.discrete_binary.problems.ising import load_ising, eval_ising
     ISING_AVAILABLE = True
 except ImportError:
     ISING_AVAILABLE = False

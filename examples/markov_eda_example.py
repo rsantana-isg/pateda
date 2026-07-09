@@ -16,7 +16,7 @@ from pateda.selection import TournamentSelection
 from pateda.replacement import ElitistReplacement
 from pateda.stop_conditions import MaxGenerations
 from pateda.seeding import RandomInit
-from pateda.functions.discrete import onemax, deceptive3
+from pateda.functions.discrete_binary import onemax, deceptive3
 
 
 def markov_eda_onemax():

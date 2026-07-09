@@ -1,0 +1,25 @@
+Topological quantum hashing with the icosahedral group
+
+The set of programs provides an object-oriented implementation of the
+algorithm introduced in the manuscript M. Burrello, H. Xu,
+G. Mussardo, Xin Wan, arXiv:0903.1497. This is an efficient algorithm
+to hash any single qubit gate (or unitary matrix) into a braid of
+Fibonacci anyons represented by a product of icosahedral group
+elements. The algorithm relies on the structure of the icosahedral
+group, the largest finite subgroup of $SU(2)$.
+
+The codes are published under the TQC Library License; you can use,
+redistribute it and/or modify it under the terms of the license,
+either version 1 or (at your option) any later version.
+
+You should have received a copy of the TQC Library License along with
+the TQC Libraries; see the file LICENSE.txt. If not, the license is
+also available from http://sites.google.com/site/braidanyons/.
+
+THE SOFTWARE IS PROVIDED "AS IS", WITHOUT WARRANTY OF ANY KIND, EXPRESS OR 
+IMPLIED, INCLUDING BUT NOT LIMITED TO THE WARRANTIES OF MERCHANTABILITY, 
+FITNESS FOR A PARTICULAR PURPOSE, TITLE AND NON-INFRINGEMENT. IN NO EVENT 
+SHALL THE COPYRIGHT HOLDERS OR ANYONE DISTRIBUTING THE SOFTWARE BE LIABLE 
+FOR ANY DAMAGES OR OTHER LIABILITY, WHETHER IN CONTRACT, TORT OR OTHERWISE, 
+ARISING FROM, OUT OF OR IN CONNECTION WITH THE SOFTWARE OR THE USE OR OTHER 
+DEALINGS IN THE SOFTWARE.

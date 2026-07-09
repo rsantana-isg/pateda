@@ -90,8 +90,8 @@ from pateda_nn.sampling.discrete_neural import (
 )
 
 # Real-world problem functions
-from pateda.functions.discrete.ising import load_ising, eval_ising
-from pateda.functions.discrete.ubqp import UBQPInstance
+from pateda.functions.discrete_binary.problems.ising import load_ising, eval_ising
+from pateda.functions.discrete_binary.problems.ubqp import UBQPInstance
 
 # Mutation operators
 from pateda.mutation import frequency_balance_mutation

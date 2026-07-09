@@ -17,7 +17,7 @@ from pateda.seeding import RandomInit
 from pateda.selection import ProportionalSelection
 from pateda.replacement import ElitistReplacement
 from pateda.stop_conditions import MaxGenerations
-from pateda.functions.discrete import deceptive3
+from pateda.functions.discrete_binary import deceptive3
 
 
 def main():

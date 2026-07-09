@@ -32,7 +32,7 @@ from pateda.selection import TruncationSelection
 from pateda.stop_conditions import MaxGenerations
 from pateda.repairing.unitation_method import UnitationRepairing
 from pateda.local_optimization.contiguous_block_opt import ContiguousBlockOptimizer
-from pateda.functions.discrete.contiguous_block import create_contiguous_block_function
+from pateda.functions.discrete_binary.toy_functions.contiguous_block import create_contiguous_block_function
 from pateda.replacement import ElitistReplacement
 
 

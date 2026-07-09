@@ -1,21 +1,19 @@
-"""Continuous optimization test functions"""
+"""Continuous optimization test functions.
 
-from pateda.functions.continuous.benchmarks import (
-    sphere, rastrigin, rosenbrock, ackley, griewank,
-    schwefel, levy, michalewicz, zakharov, sum_function,
-    get_function, CONTINUOUS_FUNCTIONS
-)
-from pateda.functions.continuous.ab_protein import (
-    fibonacci_ab_sequence, parse_ab_sequence,
-    ab_energy_2d, make_ab_fitness,
-    F13_AB_SEQUENCE, F21_AB_SEQUENCE, F34_AB_SEQUENCE,
-)
+Split into two groups:
 
-__all__ = [
-    'sphere', 'rastrigin', 'rosenbrock', 'ackley', 'griewank',
-    'schwefel', 'levy', 'michalewicz', 'zakharov', 'sum_function',
-    'get_function', 'CONTINUOUS_FUNCTIONS',
-    'fibonacci_ab_sequence', 'parse_ab_sequence',
-    'ab_energy_2d', 'make_ab_fitness',
-    'F13_AB_SEQUENCE', 'F21_AB_SEQUENCE', 'F34_AB_SEQUENCE',
-]
+* :mod:`~pateda.functions.continuous.toy_functions` -- real-valued benchmark
+  functions (sphere, Rastrigin, ...).
+* :mod:`~pateda.functions.continuous.problems` -- continuous problems (AB
+  off-lattice protein model).
+"""
+
+from pateda.functions.continuous import toy_functions
+from pateda.functions.continuous import problems
+from pateda.functions.continuous.toy_functions import *  # noqa: F401,F403
+from pateda.functions.continuous.problems import *  # noqa: F401,F403
+
+from pateda.functions.continuous.toy_functions import __all__ as _toy_all
+from pateda.functions.continuous.problems import __all__ as _prob_all
+
+__all__ = ["toy_functions", "problems"] + list(_toy_all) + list(_prob_all)

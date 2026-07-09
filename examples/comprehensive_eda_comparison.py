@@ -51,8 +51,8 @@ from pateda.sampling.fda import SampleFDA
 from pateda.sampling.gibbs import SampleGibbs
 
 # Import test functions
-from pateda.functions.discrete.additive_decomposable import decep3 as deceptive3
-from pateda.functions.discrete.trap import trap_n as trap_k
+from pateda.functions.discrete_binary.toy_functions.additive_decomposable import decep3 as deceptive3
+from pateda.functions.discrete_binary.toy_functions.trap import trap_n as trap_k
 
 
 @dataclass
@@ -87,7 +87,7 @@ def onemax(x: np.ndarray) -> np.ndarray:
 
 def create_nk_landscape(n: int, k: int, seed: int):
     """Create NK landscape function"""
-    from pateda.functions.discrete.nk_landscape import NKLandscape
+    from pateda.functions.discrete_binary.problems.nk_landscape import NKLandscape
     nk = NKLandscape(n, k, random_seed=seed)
     return nk.evaluate
 

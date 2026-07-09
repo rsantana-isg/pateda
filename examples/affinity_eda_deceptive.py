@@ -19,7 +19,7 @@ from pateda.selection.truncation import TruncationSelection
 from pateda.replacement.generational import GenerationalReplacement
 from pateda.seeding.random_init import RandomInit
 from pateda.stop_conditions.max_generations import MaxGenerations
-from pateda.functions.discrete.additive_decomposable import decep3
+from pateda.functions.discrete_binary.toy_functions.additive_decomposable import decep3
 from pateda.replacement import ElitistReplacement
 
 

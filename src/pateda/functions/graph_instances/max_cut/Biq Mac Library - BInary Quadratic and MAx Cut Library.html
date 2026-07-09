@@ -1,0 +1,316 @@
+<!DOCTYPE html PUBLIC "-//W3C//DTD XHTML 1.0 Strict//EN" "http://www.w3.org/TR/xhtml1/DTD/xhtml1-strict.dtd">
+<html>
+  <head>
+    <title>Biq Mac Library - BInary Quadratic and MAx Cut Library</title>
+    <meta name="keywords" content="biq mac,max cut,max-cut,mc,
+    binary quadratic,0-1,boolean optimization,semidefinite,sdp,
+    semidefinite programming, branch and bound,optimization,rendl,
+    rinaldi,wiegele,klagenfurt,iasi" />  
+  </head>
+    
+  <body class="normaltext">
+    <h1> <font color="#faad67">Biq Mac</font> Library - <font color="#faad67">Bi</font>nary <font color="#faad67">q</font>uadratic 
+      and <font color="#faad67">Ma</font>x <font color="#faad67">c</font>ut
+      Library </h1>
+    <p>
+      This site offers a collection of 
+      Max-Cut instances and quadratic 0-1 programming problems of
+      medium size. Most of the instances were
+      collected while
+      developing <a href="http://biqmac.aau.at">Biq Mac</a>, an
+      SDP based Branch & Bound code (see  
+      [<a href="#ref">RRW07</a>] or [<a href="#ref">Wie06</a>]). The
+      dimension of the problems (i.e., number of variables or number
+      of vertices in the graph) ranges from 20 to 500. The instances
+      are mainly ment to be used for testing exact solution methods
+      for quadratic 0-1 programming or Max-Cut problems.
+    </p>
+    <p>Any comments or further instances to be added are welcome!
+      Please
+      contact <a
+		 href="mailto:angelika.wiegele&#64;aau.at">angelika.wiegele&#64;aau.at</a>.
+    </p>
+    <p>
+      The structure of the directories is as follows:
+      <pre>
+                                  |--- beasley
+                     |---- Biq ---|--- gka
+                     |            |--- be
+                     |
+	Biq Mac  --- |
+                     |            |--- rudy
+                     |---- Mac ---|
+				  |--- ising
+      </pre>
+    </p>
+    <p>
+      <a href="biqmaclib.pdf">Here is a pdf-file</a>
+      (<a href="biqmaclib.tex">tex-file</a>), describing all the
+      datasets, giving the optimal  
+      values (or lower/upper bounds), and the generators.
+    </p>
+    <p>The overall collection:   
+      [<a href="library/tar_files/biqmac_all.tar.gz">tar.gz-file</a>] (9.6 MB)
+      [<a href="library/">individual files</a>]
+    </p>
+    
+    
+    <h2><font color="#faad67">Biq:</font> min x'Qx s.t. x in {0,1}^n 
+      [<a
+      href="library/tar_files/biq_all.tar.gz">tar.gz-file</a>][<a
+      href="library/biq/">individual files</a>]
+    </h2>
+    
+    Matrix Q is assumed to be symmetric and indexed by the numbers
+    from 1 up to n. Most of the instances can be downloaded in two
+    different versions, as 
+    matrix or list of matrix elements (sparse format). The .mat files
+    are of the form  
+    <pre>
+      n
+      q_{1,1} q_{1,2} q_{1,3} ... q_{1,n}
+      q_{1,2} q_{2,2} q_{2,3} ... q_{2,n}
+      ...
+      q_{1,n} q_{2,n} q_{3,n} ... q_{n,n}
+    </pre>
+    The .sparse files are of the form
+    <pre>
+      n   m
+      i_1 j_1 q_{i_1,j_1}
+      i_2 j_2 q_{i_2,j_2}
+      ...
+      i_m j_m q_{i_m,j_m}
+    </pre>
+    where n is the number of variables and m the number of entries of Q
+    specified in the subsequent list. <br />
+    Note that the beasley-datasets are available in sparse format only.
+    
+    
+    <h3>Beasley instances
+      [<a
+	 href="library/tar_files/beasley_all.tar.gz">sparse.tar.gz-file</a>][<a
+	 href="library/biq/beasley/">individual files</a>]
+    </h3> 
+    The datasets can be obtained from this site or from the
+    <a href="http://people.brunel.ac.uk/~mastjjb/jeb/orlib/bqpinfo.html">OR-Library</a>. Note
+    that in the OR-library the problems are given for maximization!
+    <br />
+    The coefficients of Q are integer values from the interval [-100,100].
+    <ul>
+      <li><font face="Courier New">bqp50-i</font> Ten instances with
+	dimension n=50 and density 0.1.</li>
+      <li><font face="Courier New">bqp100-i</font> Ten instances with
+	dimension n=100 and density 0.1.</li>
+      <li><font face="Courier New">bqp250-i</font> Ten instances with
+	dimension n=250 and density 0.1.</li>
+      <li><font face="Courier New">bqp500-i</font> Ten instances with
+	dimension n=500 and density 0.1.</li>
+    </ul>
+    
+    <h3>Glover, Kochenberger and Alidaee instances [<a
+	 href="library/tar_files/gka_mat_all.tar.gz">mat.tar.gz-file</a>][<a
+	 href="library/tar_files/gka_sparse_all.tar.gz">sparse.tar.gz-file</a>][<a
+	 href="library/biq/gka/">individual files</a>] 
+    </h3> 
+    Also these datasets can be obtained from this website or from
+    the <a
+	   href="http://people.brunel.ac.uk/~mastjjb/jeb/orlib/bqpinfo.html">OR-Library</a>.  
+    Note that in the OR-library the problems are given for maximization!
+    
+    <br />
+    The coefficients of Q are integer values.
+    <ul>
+      <li><font face="Courier New">gkaia</font> Eight instances
+	with dimensions from 30 to 100, densities from 0.0625 to
+	0.5. Diagonal coefficients from [-100,100], off-diagonal
+	coefficients from [-100,100]. 
+      </li>
+      <li><font face="Courier New">gkaib</font> Ten instances
+	with dimensions from 20 to 125, density 1.
+	Diagonal coefficients from [-63,0], off-diagonal
+	coefficients from [0,100]. 
+      </li>
+      <li><font face="Courier New">gkaic</font> Seven instances
+	with dimensions from 40 to 100, densities from 0.1 to
+	0.8. Diagonal coefficients from [-100,100], off-diagonal
+	coefficients from [-50,50].
+      </li>
+      <li><font face="Courier New">gkaid</font> Ten instances
+	with dimension 100, densities from 0.1 to 1.
+	Diagonal coefficients from [-75,75], off-diagonal
+	coefficients from [-50,50]. 
+      </li>
+      <li><font face="Courier New">gkaie</font> Five instances
+	with dimension 200, densities from 0.1 to 0.5.
+	Diagonal coefficients from [-100,100], off-diagonal
+	coefficients from [-50,50]. 
+      </li>
+      <li><font face="Courier New">gkaif</font> Five instances
+	with dimension 500, densities from 0.1 to 1.
+	Diagonal coefficients from [-75,75], off-diagonal
+	coefficients from [-50,50]. 
+      </li>
+    </ul>
+    
+    <h3>Billionnet and Elloumi instances
+      [<a
+	    href="library/tar_files/be_mat_all.tar.gz">mat.tar.gz-file</a>][<a
+		 href="library/tar_files/be_sparse_all.tar.gz">sparse.tar.gz-file</a>][<a
+      href="library/biq/be/">individual files</a>] 
+    </h3> 
+    The diagonal coefficients for all these instances are 
+    from the interval [-100,100], off-diagonal coefficients from [-50,50]. All coefficients are integers.
+    
+    <ul>
+      <li><font face="Courier New">be100.i</font> Ten instances with
+	dimension n=100 and density 1.</li>
+      <li><font face="Courier New">be120.3.i</font> Ten instances with
+	dimension n=120 and density 0.3. </li>
+      <li><font face="Courier New">be120.8.i</font> Ten instances with
+	dimension n=120 and density 0.8. </li>
+      <li><font face="Courier New">be150.3.i</font> Ten instances with
+	dimension n=150 and density 0.3. </li>
+      <li><font face="Courier New">be150.8.i</font> Ten instances with
+	dimension n=150 and density 0.8. </li>
+      <li><font face="Courier New">be200.3.i</font> Ten instances with
+	dimension n=200 and density 0.3. </li>
+      <li><font face="Courier New">be200.8.i</font> Ten instances with
+	dimension n=200 and density 0.8. </li>
+      <li><font face="Courier New">be250.i</font> Ten instances with
+	dimension n=250 and density 0.1. </li>
+    </ul>
+    
+
+
+
+
+
+
+
+    <h2><font color="#faad67">Mac:</font> Max Cut
+	[<a
+      href="library/tar_files/mac_all.tar.gz">tar.gz-file</a>][<a
+      href="library/mac/">individual files</a>]
+    </h2> 
+    For each graph, there is a text-file in the following format
+    (rudy-output format):<br /> 
+    <pre>
+      n   m
+      h_1 t_1 c_{h_1,t_1}
+      h_2 t_2 c_{h_2,t_2}
+      ...
+      h_m t_m c_{h_m,t_m}
+    </pre>
+    where n is the number of nodes, m the number of edges and for each edge, h_i and
+    t_i are the end-nodes and c_{h_i,t_i} the weight.
+    Nodes are numbered from 1 up to n. 
+    
+    <h3>Max-Cut instances generated with rudy
+      [<a href="library/tar_files/rudy_all.tar.gz">tar.gz-file</a>][<a href="library/mac/rudy/">individual files</a>]
+    </h3>
+    <ul>
+      <li><font face="Courier New">g05_n.i</font> For each dimension ten unweighted graphs with edge probability 0.5. n=60,80,100.</li>
+      <li><font face="Courier New">pm1s_n.i</font> For each dimension ten
+	weighted graphs with edge weights chosen uniformly
+	from {-1,0,1} and density 0.1. n=80,100</li>
+      <li><font face="Courier New">pm1d_n.i</font> For each dimension ten
+	weighted graphs with edge weights chosen uniformly
+	from {-1,0,1} and density 0.99. n=80,100</li>
+      <li><font face="Courier New">wd_100.i</font> For each density ten graphs with integer edge weights chosen from [-10,10] and
+	density d=0.1,0.5,0.9, n=100.</li>
+      <li><font face="Courier New">pwd_100.i</font> For each density ten graphs with integer edge weights chosen from [0,10] and
+	density d=0.1,0.5,0.9, n=100.</li>
+    </ul>
+    
+    <h3>Max-Cut instances from applications in statistical physics (generated by
+      Frauke Liers [<a href="#ref">Lie04</a>], [<a href="#ref">LJRR04</a>])
+      [<a href="library/tar_files/ising_all.tar.gz">tar.gz-file</a>][<a href="library/mac/ising/">individual files</a>]
+    </h3>
+    <ul>
+      <li><font face="Courier New">t2gn_seed</font> For each dimension three two-dimensional toroidal grid graphs with
+	gaussian distributed weights and dimension n times n, n=10,15,20.</li>
+      <li><font face="Courier New">t3gn_seed</font> For each dimension three three-dimensional toroidal grid graphs with
+	gaussian distributed weights and dimension n times n times n, n=5,6,7.</li>
+      <li><font face="Courier New">ising2.5-n_seed</font> For each dimension three one-dimensional Ising chain instances.
+	n=100,150,200,250,300.</li>
+      <li><font face="Courier New">ising3.0-n_seed</font> For each dimension three one-dimensional Ising chain instances.
+	n=100,150,200,250,300.</li>
+    </ul>
+      
+
+
+
+
+
+    <h2><a name="ref">References</a></h2>
+    [Bea90] John
+    E. Beasley. <a
+		   href="http://people.brunel.ac.uk/~mastjjb/jeb/info.html">Or-library</a>,1990.<br />
+    [BE07] Alain Billionnet and Sourour Elloumi. Using a mixed integer quadratic programming
+    solver for the unconstrained quadratic 0-1 problem. Math. Programming, 109(1, Ser.
+    A):55-68,
+    2007. <a
+	   href="http://www.springerlink.com/content/gvv56p2534383006/?p=25cdda6a71e745bc9f0c6a06bbaa9b97&pi=2">Springer
+      link</a><br />
+    [BJR89] Francisco Barahona, Michael J&uuml;nger, and Gerhard Reinelt. Experiments in quadratic 0-1
+    programming. Math. Programming, 44(2, (Ser. A)):127-137,
+    1989. <a
+	    href="http://www.springerlink.com/content/vq1k06l37758107h/?p=e79c36190f474bfda78634e6a9813956&pi=10">Springer
+      link</a><br />
+    [GKA98] Fred Glover, Gary Kochenberger, and Bahram Alidaee. Adaptative memory tabu search
+    for binary quadratic programs. Management Sci., 44(3):336-345,
+    1998.<br />
+    [Lie04] Frauke Liers. Contributions to Determining Exact Ground-States of Ising Spin-Glasses
+    and to their Physics. PhD thesis, Universit&auml;t zu K&ouml;ln, 2004.<br />
+    [LJRR04] Frauke Liers, Michael J&uuml;nger, Gerhard Reinelt, and Giovanni Rinaldi. Computing exact
+    ground states of hard ising spin glass problems by branch-and-cut. In
+    Alexander Hartmann and Heiko Rieger, editors, New Optimization
+    Algorithms in Physics, pages 47-68. 
+    Wiley,
+    2004. <a
+	       href="http://www3.interscience.wiley.com/cgi-bin/summary/110517876/SUMMARY?CRETRY=1&SRETRY=0">Wiley
+      link</a><br />
+    [PR90] Panos M. Pardalos and Gregory P. Rodgers. Computational aspects of a branch and
+    bound algorithm for quadratic zero-one programming. Computing,
+    45(2):131-144,
+    1990. <a
+	       href="http://www.springerlink.com/content/p5p3h9245304j247/?p=89850be736d54951b87f9cd2e9ef36ec&pi=2">Springer
+      link</a><br />
+    [Rin] Giovanni
+    Rinaldi. <a href="http://www-user.tu-chemnitz.de/~helmberg/rudy.tar.gz">Rudy</a>.<br />
+    [RRW07] Franz Rendl, Giovanni Rinaldi, and Angelika Wiegele. A branch and bound algorithm
+    for Max-Cut based on combining semidefinite and polyhedral relaxations. In Integer
+    programming and combinatorial optimization, volume 4513 of Lecture Notes in Comput.
+    Sci., pages 295-309. Springer, Berlin,
+    2007. <a
+	  href="http://www.springerlink.com/content/u11k527t13322107/?p=b12d2a0a88054528bf5badcd97ba8596&pi=0">Springer
+      link</a><br />
+    [Wie06] Angelika Wiegele. Nonlinear optimization techniques applied to combinatorial optimization
+    problems. PhD thesis, Alpen-Adria-Universit&auml;t Klagenfurt,
+    2006. <a href="thesis_angelika.pdf">pdf-file</a>
+      
+    <hr />
+    <address>
+      <table width="100%">
+	<tr>
+	  <td>
+	    <a href="http://www.aau.at/~anwiegel">Angelika
+	      Wiegele</a>, September 2007<br /> 
+	    <a href="http://www.aau.at/mathematik">Department of Mathematics</a>,
+	    <a href="http://www.aau.at">Alpen-Adria-Universit&auml;t
+	      Klagenfurt</a>, Austria. 
+	  </td>
+	  <td align="right">
+	    <div>
+	        <img height="25" src=http://www-cgi.uni-klu.ac.at/cgi-bin/wwwcount.cgi?dd=B|df=biqmaclib.counter">
+	      </a>
+	    </div>
+	  </td>
+	</tr>
+      </table>
+    </address>  
+  </body>
+</html>
+<!-- vim:tabstop=2:shiftwidth=2:expandtab:filetype=html
+--!>
+

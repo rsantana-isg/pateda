@@ -18,7 +18,7 @@ from pateda.selection import TruncationSelection
 from pateda.replacement import ElitistReplacement
 from pateda.seeding import RandomInit
 from pateda.stop_conditions import MaxGenerations
-from pateda.functions.discrete import (
+from pateda.functions.discrete_non_binary import (
     create_fibonacci_hp_sequence,
     create_hp_objective_function
 )

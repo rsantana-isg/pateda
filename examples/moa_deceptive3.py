@@ -33,7 +33,7 @@ from pateda.replacement import ElitistReplacement
 from pateda.learning.moa import LearnMOA
 from pateda.sampling.gibbs import SampleGibbs
 from pateda.learning.utils.conversions import find_acc_card, num_convert_card
-from pateda.functions.discrete.deceptive import deceptive3
+from pateda.functions.discrete_binary.toy_functions.deceptive import deceptive3
 
 
 # ---------------------------------------------------------------------------

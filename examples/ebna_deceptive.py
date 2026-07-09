@@ -29,8 +29,8 @@ from pateda.sampling import SampleBayesianNetwork
 from pateda.selection import RankingSelection
 from pateda.replacement import ElitistReplacement
 from pateda.stop_conditions import MaxGenerations
-from pateda.functions.discrete.deceptive import deceptive3
-from pateda.functions.discrete.additive_decomposable import (
+from pateda.functions.discrete_binary.toy_functions.deceptive import deceptive3
+from pateda.functions.discrete_binary.toy_functions.additive_decomposable import (
     decep3,
     decep3_mh,
     decep_marta3,
@@ -102,7 +102,7 @@ def run_ebna(fitness_func, n_vars, optimal, label, seed=42):
 def test_deceptive3_goldberg():
     """
     1. Goldberg Deceptive-3
-    Classic non-overlapping function from pateda.functions.discrete.deceptive.
+    Classic non-overlapping function from pateda.functions.discrete_binary.toy_functions.deceptive.
     Partitions are fixed at indices [0,1,2], [3,4,5], ...
     """
     print("\n" + "=" * 65)

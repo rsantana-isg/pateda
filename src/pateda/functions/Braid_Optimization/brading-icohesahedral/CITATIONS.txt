@@ -1,0 +1,10 @@
+Any publication for which one of the following libraries are used has to
+acknowledge the use of the TQC libraries, and the papers listed below:
+
+When braid.h and/or braid.cc are used, reference the webpage 
+http://sites.google.com/site/braidanyons/.
+
+When icosahedral_group.cc and/or main.cc are used, reference the webpage 
+http://sites.google.com/site/braidanyons/ and cite the publication:
+M. Burrello, H. Xu, G. Mussardo, Xin Wan, arXiv:0903.1497.
+

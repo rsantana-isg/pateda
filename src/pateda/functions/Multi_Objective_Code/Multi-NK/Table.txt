@@ -1,0 +1,23 @@
+\begin{table} 
+\begin{center} 
+\begin{array}{c| r| r| r| r}   
+ & \multicolumn{1}{c}{\text{Alg}} & \multicolumn{1}{|c}{\text{Size}} & \multicolumn{1}{c}{\text{Diversity}}  & \multicolumn{1}{|c}{\text{Schotts Spacing}} & \multicolumn{1}{|c}{\text{C metric}} \\ \hline 
+ \text{TREE-EDA    } & 747 & 6615.89 & 0.40 & 0.04  \\ 
+ \text{EL    NoMAP } & 407 & 2725.50 & 6.41 & 0.52  \\ 
+ \text{EL       JT } & 413 & 3435.95 & 6.77 & 0.62  \\ 
+ \text{EL       BP } & 629 & 1660.74 & 1.14 & 0.55  \\ 
+ \text{EL   Dec-BP } & 465 & 3468.56 & 1.84 & 0.46  \\ 
+ \text{EL    TRWBP } & 389 & 2895.48 & 3.35 & 0.67  \\ 
+ \text{EL      FBP } & 379 & 3571.60 & 4.15 & 0.69  \\ 
+ \text{EL  Dec-FBP } & 400 & 2853.06 & 0.71 & 0.59  \\ 
+ \text{EL Dec-TRWBP} & 1046 & 18073.64 & 0.56 & 0.03  \\ 
+ \text{CX    NoMAP } & 1057 & 13035.49 & 0.77 & 0.31  \\ 
+ \text{CX       JT } & 1198 & 12815.51 & 0.85 & 0.23  \\ 
+ \text{CX       BP } & 1045 & 12120.42 & 1.39 & 0.25  \\ 
+ \text{CX   Dec-BP } & 1051 & 13033.00 & 0.92 & 0.23  \\ 
+ \text{CX    TRWBP } & 1080 & 11516.42 & 1.46 & 0.41  \\ 
+ \text{CX      FBP } & 1039 & 13010.96 & 0.72 & 0.29  \\ 
+ \text{CX  Dec-FBP } & 756 & 10581.78 & 0.94 & 0.46  \\ 
+\end{array} 
+\end{center} 
+\end{table} 

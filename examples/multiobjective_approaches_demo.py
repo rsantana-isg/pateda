@@ -35,7 +35,7 @@ from pateda.sampling import SampleFDA, SampleBayesianNetwork
 from pateda.selection import CrowdingDistanceSelection, IndicatorBasedSelection
 from pateda.stop_conditions.max_generations import MaxGenerations
 
-from pateda.functions.discrete.multiobjective import (
+from pateda.functions.discrete_binary.multiobjective import (
     make_mo_onemax_zeromax,
     make_mo_deceptive,
     make_mubqp,

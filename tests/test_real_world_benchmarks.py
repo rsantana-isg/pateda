@@ -1,15 +1,15 @@
 import numpy as np
 
 from pateda import MNFDAGR, MNFDAR, TreeEDAR
-from pateda.functions.discrete.ising import (
+from pateda.functions.discrete_binary.problems.ising import (
     build_ising_interaction_matrix,
     load_ising_benchmark_instance,
 )
-from pateda.functions.discrete.sat import (
+from pateda.functions.discrete_binary.problems.sat import (
     build_sat_interaction_matrix,
     load_sat_benchmark_instance,
 )
-from pateda.functions.discrete.ubqp import (
+from pateda.functions.discrete_binary.problems.ubqp import (
     build_ubqp_interaction_matrix,
     load_ubqp_benchmark_instance,
 )

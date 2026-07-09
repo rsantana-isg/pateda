@@ -21,7 +21,7 @@ from pateda.selection import TruncationSelection
 from pateda.replacement import ElitistReplacement
 from pateda.seeding import RandomInit
 from pateda.stop_conditions import MaxGenerations
-from pateda.functions.discrete.trap import trap_n
+from pateda.functions.discrete_binary.toy_functions.trap import trap_n
 
 
 def run_eda_variant(learning_method, method_name):

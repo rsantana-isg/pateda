@@ -1,27 +1,50 @@
-"""Test functions for optimization"""
+"""Test functions for optimization.
 
-from pateda.functions.discrete.onemax import onemax
-from pateda.functions.discrete.deceptive import deceptive3
-from pateda.functions.discrete.contiguous_block import (
+Functions are organized by representation and by kind:
+
+``discrete_binary/``      binary-string functions
+    ``toy_functions/``    pseudo-boolean academic benchmarks
+    ``problems/``         binary combinatorial optimization problems
+``discrete_non_binary/``  integer / categorical functions
+    ``toy_functions/``    integer benchmark functions
+    ``problems/``         non-binary combinatorial problems
+``continuous/``           real-valued functions
+    ``toy_functions/``    real-valued benchmark functions
+    ``problems/``         continuous problems
+
+``graph_utils`` holds shared readers for graph instance files and is used by
+both the binary graph problems and the non-binary graph problems.
+"""
+
+from typing import Callable
+
+from pateda.functions import discrete_binary
+from pateda.functions import discrete_non_binary
+from pateda.functions import continuous
+from pateda.functions import graph_utils
+
+# Commonly used callables re-exported at the top level for convenience.
+from pateda.functions.discrete_binary.toy_functions.onemax import onemax
+from pateda.functions.discrete_binary.toy_functions.deceptive import deceptive3
+from pateda.functions.discrete_binary.toy_functions.contiguous_block import (
     contiguous_block,
     contiguous_block_with_penalty,
     create_contiguous_block_function,
 )
-from typing import Callable
 
 
 def get_function(name: str) -> Callable:
     """
-    Get function by name
+    Get a simple scalar test function by name.
 
     Args:
-        name: Function name
+        name: Function name (case-insensitive). MATEDA aliases are supported.
 
     Returns:
-        Function callable
+        Function callable.
 
     Raises:
-        ValueError: If function name is unknown
+        ValueError: If function name is unknown.
     """
     functions = {
         "onemax": onemax,
@@ -38,6 +61,10 @@ def get_function(name: str) -> Callable:
 
 
 __all__ = [
+    "discrete_binary",
+    "discrete_non_binary",
+    "continuous",
+    "graph_utils",
     "onemax",
     "deceptive3",
     "contiguous_block",

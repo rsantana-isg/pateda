@@ -83,7 +83,7 @@ from pateda_nn.sampling.discrete_neural import (
 )
 
 # Benchmark functions
-from pateda.functions.discrete.additive_decomposable import (
+from pateda.functions.discrete_binary.toy_functions.additive_decomposable import (
     k_deceptive, decep3, decep_marta3, decep_marta3_new, decep3_mh,
     two_peaks_decep3, decep_venturini, hard_decep5,
     hiff, fhtrap1,

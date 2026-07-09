@@ -4,7 +4,7 @@ Tests for additively decomposable benchmark functions
 
 import numpy as np
 import pytest
-from pateda.functions.discrete.additive_decomposable import (
+from pateda.functions.discrete_binary.toy_functions.additive_decomposable import (
     # K-Deceptive functions
     k_deceptive,
     gen_k_decep,

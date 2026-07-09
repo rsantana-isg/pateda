@@ -30,8 +30,8 @@ from pateda.sampling import SampleBayesianNetwork
 from pateda.selection import TruncationSelection
 from pateda.replacement import ElitistReplacement
 from pateda.stop_conditions import MaxGenerations
-from pateda.functions.discrete.onemax import onemax
-from pateda.functions.discrete.deceptive import deceptive3
+from pateda.functions.discrete_binary.toy_functions.onemax import onemax
+from pateda.functions.discrete_binary.toy_functions.deceptive import deceptive3
 
 
 # ---------------------------------------------------------------------------

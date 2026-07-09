@@ -69,7 +69,7 @@ def find_matrix_interactions_SAT(sat_instance) -> np.ndarray:
     Parameters
     ----------
     sat_instance : SATInstance
-        A SAT problem instance from pateda.functions.discrete.sat.
+        A SAT problem instance from pateda.functions.discrete_binary.problems.sat.
         The instance must have:
         - sat_instance.n_vars: total number of variables (int)
         - sat_instance.formulas: list of formulas, each a list of clauses.
@@ -86,7 +86,7 @@ def find_matrix_interactions_SAT(sat_instance) -> np.ndarray:
 
     Examples
     --------
-    >>> from pateda.functions.discrete.sat import load_random_3sat
+    >>> from pateda.functions.discrete_binary.problems.sat import load_random_3sat
     >>> from pateda.learning.interaction_learning import find_matrix_interactions_SAT
     >>> sat = load_random_3sat(n_vars=10, n_clauses=20, seed=42)
     >>> R = find_matrix_interactions_SAT(sat)

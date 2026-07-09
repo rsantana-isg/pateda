@@ -1,0 +1,58 @@
+Quick start:
+
+To compile, simply type "make". 
+
+Type "./braid -h" for usage or "./braid" for the example included in
+M. Burrello, H. Xu, G. Mussardo, Xin Wan, arXiv:0903.1497.
+
+Detailed usage:
+
+This program implements the topological quantum hashing algorithm
+using the icosahedral group, as presented in sequence presented
+in Fig. 3 in arXiv:0903.1497. The sequence is
+
+{2,2,1,1,2,2,2,2,-2,-2,1,1,-2,-2,-1,-1,2,2,1,1,-2,-2,-2,-2,
+ -1,-1,-1,-1,-2,-2,-1,-1,-2,-2,1,1,1,1,-2,-2,1,1,-2,-2,-1,-1,2,2,
+ 1,1,2,2,2,2,2,2,1,1,-2,-2,-2,-2,-1,-1,-1,-1,2,2,1,1,-2,-2,
+ 2,2,1,1,-2,-2,1,1,1,1,1,1,-2,-2,1,1,2,2,-1,-1,2,2,2,2,
+ -2,-2,-2,-2,-2,-2,-1,-1,2,2,1,1,1,1,1,1,-2,-2,1,1,1,1,-2,-2}
+
+where 1,2 denote sigma_{1,2} and -1,-2 denote sigma_{1,2}^{-1}
+
+The targeted gate (iZ) has a unitary matrix representation
+                              i    0
+                              0   -i
+The searching result (up to a pure phase) is
+    -0.00040257 + i               -0.000729767 - 0.000534672i
+     0.000729767 - 0.000534672i   -0.00040257 - i
+The distance to the targeted gate is 0.0009902
+
+We define a unitary matrix U(x, y, z; theta) by a rotation 
+axis R = (x, y, z), which does not have to be normalized, and
+the rotating angle theta (in units of 2 pi). The unitary matrix
+is then given by
+    cos(theta pi / 2.0) I - i sin(theta pi / 2.0) (R dot Sigma)
+where Sigma_{x,y,z} are Pauli matrices.
+
+Usage: ./braid -h -i braidLength -l level -s braidSequence -u x,y,z,theta
+
+Examples:
+(1) Th default example (as for Fig.3 of arXiv:0903.1497)
+    ./braid
+
+(2) Involve an additional processor with an L = 44 braid
+representation of the icosahedral group. 
+    ./braid -l 3
+
+(3) Construct braid to approach U(x, y, z; theta)
+    ./braid -u 1.0,2.0,3.0,0.3
+The unitary matrix rotates an angle of (0.3 pi) about the axis
+(1.0, 2.0, 3.0).
+
+(4) Search for the braid representation for the icosahedral
+group with a fixed length L = 8.
+    ./braid -i 8
+
+(5) Print out the unitary matrix representation of a braid
+sequence, e.g., {1,1,2,2,-1,-1,-1,-1}.
+    ./braid -s 1,1,2,2,-1,-1,-1,-1

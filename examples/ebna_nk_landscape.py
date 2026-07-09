@@ -36,7 +36,7 @@ from pateda.sampling.bayesian_network import SampleBayesianNetwork
 
 # Import NK landscape if available
 try:
-    from pateda.functions.discrete.nk_landscape import NKLandscape
+    from pateda.functions.discrete_binary.problems.nk_landscape import NKLandscape
     NK_AVAILABLE = True
 except ImportError:
     NK_AVAILABLE = False

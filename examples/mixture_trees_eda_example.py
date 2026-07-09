@@ -16,7 +16,7 @@ from pateda.selection.tournament import TournamentSelection
 from pateda.replacement.generational import GenerationalReplacement
 from pateda.seeding import RandomInit
 from pateda.stop_conditions import MaxGenerations
-from pateda.functions.discrete import onemax, deceptive3
+from pateda.functions.discrete_binary import onemax, deceptive3
 from pateda.replacement import ElitistReplacement
 
 

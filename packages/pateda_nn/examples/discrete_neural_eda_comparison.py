@@ -50,8 +50,8 @@ from pateda.sampling.fda import SampleFDA
 from pateda.sampling.bayesian_network import SampleBayesianNetwork
 
 # Benchmark functions
-from pateda.functions.discrete.additive_decomposable import decep3, k_deceptive
-from pateda.functions.discrete.trap import trap_n
+from pateda.functions.discrete_binary.toy_functions.additive_decomposable import decep3, k_deceptive
+from pateda.functions.discrete_binary.toy_functions.trap import trap_n
 
 
 # ==============================================================================

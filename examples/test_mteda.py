@@ -52,7 +52,7 @@ from pateda.learning.mixture_trees import LearnMixtureTrees
 from pateda.sampling.mixture_trees import SampleMixtureTrees
 
 # Benchmark functions
-from pateda.functions.discrete.additive_decomposable import (
+from pateda.functions.discrete_binary.toy_functions.additive_decomposable import (
     k_deceptive, decep3, hard_decep5, hiff
 )
 

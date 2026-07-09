@@ -9,7 +9,7 @@ using UMDA with Pareto ranking for selection.
 
 import numpy as np
 from pateda.core.eda import EDA
-from pateda.functions.discrete.sat import load_random_3sat, evaluate_sat
+from pateda.functions.discrete_binary.problems.sat import load_random_3sat, evaluate_sat
 from pateda.learning import LearnUMDA
 from pateda.sampling.fda import SampleFDA
 
