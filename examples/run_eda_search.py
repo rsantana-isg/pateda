@@ -139,8 +139,8 @@ def _subfunctions_fhtrap1(n_vars: int) -> List[List[int]]:
         block = list(range(start, min(start + 3, n_vars)))
         if len(block) == 3:
             subfs.append(block)
-    # Higher levels (follow the same binary grouping used inside fhtrap1)
-    level_size = 9
+    # Higher levels: 3^2=9, 3^3=27, ... (power-of-3 hierarchy)
+    level_size = 3 ** 2
     while level_size <= n_vars:
         for start in range(0, n_vars, level_size):
             block = list(range(start, min(start + level_size, n_vars)))
@@ -247,6 +247,7 @@ def parse_problem(obj_func: str, n: int):
     if obj_func == "Deceptive3":
         if n_vars % 3 != 0:
             raise ValueError("n must be a multiple of 3 for Deceptive3")
+        # Optimal per block is 1.0 (all-ones); there are n_vars // 3 blocks.
         return _wrap(lambda x: decep3(x, overlap=False)), n_vars, float(n_vars // 3)
 
     if obj_func == "Deceptive3Overlap":
