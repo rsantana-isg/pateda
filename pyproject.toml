@@ -74,7 +74,14 @@ version = { attr = "pateda.__version__" }
 where = ["src"]
 
 [tool.setuptools.package-data]
-"pateda.functions" = ["**/*.mat", "**/*.cnf", "**/*.dat", "**/*.txt"]
+# Benchmark instance files shipped inside the wheel.  ``.clq``/``.col``/``.mis``
+# are graph-instance formats (MaxClique and graph-colouring problems); ``.npz``
+# holds precomputed instance arrays.  Without these, e.g. MaxClique_* problems
+# fail with FileNotFoundError on an installed pateda.
+"pateda.functions" = [
+    "**/*.mat", "**/*.cnf", "**/*.dat", "**/*.txt",
+    "**/*.clq", "**/*.col", "**/*.mis", "**/*.npz",
+]
 
 [tool.pytest.ini_options]
 testpaths = ["tests"]

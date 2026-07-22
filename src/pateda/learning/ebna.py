@@ -65,12 +65,49 @@ References:
 
 from typing import Any, Optional
 import numpy as np
+import networkx as nx
 
 from bayes_nets import BayesianNetwork
 
 from pateda.core.components import LearningMethod
 from pateda.core.models import BayesianNetworkModel
 from pateda.learning.utils.weights import normalize_probabilities
+
+
+def _acyclic_orientation(adjacency: np.ndarray) -> np.ndarray:
+    """Break cycles in *adjacency*, returning a valid DAG.
+
+    Constraint-based structure learners (e.g. ``pc``, ``stable_pc``) can return a
+    CPDAG whose adjacency matrix contains bidirected/undirected edges or directed
+    cycles, which cannot be sampled from directly.  This keeps a single direction
+    for each connected pair and greedily drops the edge that closes any remaining
+    directed cycle, yielding a DAG in the neighbourhood of the learned structure.
+    The caller must re-estimate the parameters on the returned structure so the
+    CPDs match the (possibly reduced) parent sets.
+    """
+    A = (np.asarray(adjacency) != 0).astype(int)
+    n = A.shape[0]
+    G = nx.DiGraph()
+    G.add_nodes_from(range(n))
+    for i in range(n):
+        for j in range(n):
+            if i == j or not A[i, j]:
+                continue
+            # collapse a bidirected pair i<->j to a single edge i->j (i < j)
+            if A[j, i] and j < i:
+                continue
+            G.add_edge(i, j)
+    while True:
+        try:
+            cycle = nx.find_cycle(G)          # directed cycle on a DiGraph
+        except nx.NetworkXNoCycle:
+            break
+        u, v = cycle[-1][0], cycle[-1][1]
+        G.remove_edge(u, v)
+    out = np.zeros((n, n), dtype=int)
+    for u, v in G.edges():
+        out[u, v] = 1
+    return out
 
 
 class LearnEBNA(LearningMethod):
@@ -160,6 +197,13 @@ class LearnEBNA(LearningMethod):
                 limit_table_size=self.limit_joint_table_size,
                 sample_weights=sample_weights,
             )
+
+        # Guarantee a samplable DAG.  Constraint-based learners (pc, stable_pc)
+        # can occasionally return a cyclic CPDAG; break the cycles and re-estimate
+        # the parameters on the repaired structure so the CPDs stay consistent.
+        if not bn.is_dag():
+            bn.set_structure(_acyclic_orientation(bn.to_adjacency_matrix()))
+            bn.learn_parameters(data, alpha=self.alpha, sample_weights=sample_weights)
 
         # Adapt to the pateda BayesianNetworkModel contract.
         adjacency = bn.to_adjacency_matrix()
