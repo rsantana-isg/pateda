@@ -19,12 +19,18 @@
 | BMDA      | `LearnBMDA`               | Binary |
 | EBNA      | `LearnEBNA`               | Binary |
 | BOA       | `LearnBOA`                | Binary |
+| HBOA      | `LearnHBOA`               | Binary |
+| LFDA      | `LearnLFDA`               | Binary |
+| PADA      | `LearnPADA`               | Binary |
 | MN-FDA    | `LearnMNFDA` / `LearnMNFDAG` | Binary / integer |
 | Tree-EDA  | `LearnTreeModel`          | Binary / integer |
+| Tree-EDA-M | `LearnTreeModelM`        | Binary / integer (malign interactions only) |
+| Int_FDA   | `LearnIntFDA` / `SampleIntFDA` | Integer (high cardinality) |
 | Mixture Trees | `LearnMixtureTrees`   | Binary |
 | MIMIC     | `LearnMIMIC`              | Binary |
 | BSC       | `LearnBSC`                | Binary |
 | MOA       | `LearnMOA`                | Multi-objective |
+| MkRg-EDA  | `LearnRegularizedMarkov` / `SampleRegularizedMarkov` | Binary / integer (regularized k-order Markov) |
 | Affinity  | `LearnAffinityFactorization` | Binary |
 | Markov    | `LearnMarkovChain`        | Sequences |
 
@@ -50,10 +56,13 @@
 | Selection | `pateda.selection` | Truncation, tournament, Boltzmann, SUS, proportional, ranking, non-dominated |
 | Mutation  | `pateda.mutation`  | Bit-flip, frequency-balance |
 | Crossover | `pateda.crossover` | Block, two-point, transposition |
+| Structure-guided | `SampleNetworkCrossover`, `SubstructuralLocalSearch` | Network crossover & substructural search exploiting the learned model structure |
+| Pipelines | `pateda.pipelines` | Model operators (MODMOD/MODCONV) + a grammar that generates feasible EDA pipelines |
 | Seeding   | `pateda.seeding`   | Random, biased, constrained |
 | Replacement | `pateda.replacement` | Elitist, generational |
 | Repairing | `pateda.repairing` | Unitation, trigonometric, bounds |
 | Local Opt | `pateda.local_optimization` | Greedy search, simulated annealing, scipy wrapper |
+| Memetic Local Opt | `DeterministicHillClimber`, `FirstImprovementHillClimber`, `StochasticHillClimber`, `SimulatedAnnealing`, `VariableNeighborhoodSearch`, `ReducedVariableNeighborhoodSearch` | Budget- & subset-aware local search (binary/integer) |
 | Stop cond.| `pateda.stop_conditions` | Max generations, optimum found |
 | Statistics | `pateda.statistics` | Per-generation tracking, population stats |
 | Knowledge  | `pateda.knowledge_extraction` | Dependency analysis, MI, model visualization |

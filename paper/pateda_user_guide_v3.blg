@@ -1,0 +1,49 @@
+This is BibTeX, Version 0.99d (TeX Live 2022/dev/Debian)
+Capacity: max_strings=200000, hash_size=200000, hash_prime=170003
+The top-level auxiliary file: pateda_user_guide_v3.aux
+The style file: abbrv.bst
+Database file #1: pateda.bib
+Warning--can't use both author and editor fields in Larranhaga:2002a
+Warning--can't use both volume and number fields in Marinescu_et_al:2021
+You've used 94 entries,
+            2118 wiz_defined-function locations,
+            1141 strings with 24027 characters,
+and the built_in function-call counts, 38207 in all, are:
+= -- 3898
+> -- 1693
+< -- 68
++ -- 659
+- -- 549
+* -- 2602
+:= -- 5984
+add.period$ -- 323
+call.type$ -- 94
+change.case$ -- 519
+chr.to.int$ -- 0
+cite$ -- 96
+duplicate$ -- 1603
+empty$ -- 2977
+format.name$ -- 549
+if$ -- 8382
+int.to.chr$ -- 0
+int.to.str$ -- 94
+missing$ -- 94
+newline$ -- 476
+num.names$ -- 225
+pop$ -- 586
+preamble$ -- 1
+purify$ -- 436
+quote$ -- 0
+skip$ -- 1203
+stack$ -- 0
+substring$ -- 2520
+swap$ -- 556
+text.length$ -- 68
+text.prefix$ -- 0
+top$ -- 0
+type$ -- 354
+warning$ -- 2
+while$ -- 382
+width$ -- 96
+write$ -- 1118
+(There were 2 warnings)

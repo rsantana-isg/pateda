@@ -120,7 +120,7 @@ class LearnMixtureTrees(LearningMethod):
         self,
         n_components: int = 3,
         component_learning: str = "tree",
-        alpha: float = 0.0,
+        alpha: float = 1.0,
         weight_learning: str = "uniform",
         em_iterations: int = 10,
         random_seed: Optional[int] = None,

@@ -89,7 +89,7 @@ class LearnMarkovChain(LearningMethod):
     previous variable. For k>1, dependencies extend to k previous variables.
     """
 
-    def __init__(self, k: int = 1, alpha: float = 0.0):
+    def __init__(self, k: int = 1, alpha: float = 1.0):
         """
         Initialize k-order Markov Chain learning
 

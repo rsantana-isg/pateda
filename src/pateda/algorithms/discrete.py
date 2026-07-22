@@ -49,7 +49,6 @@ from pateda.learning.moa import LearnMOA
 from pateda.learning.cumda import LearnCUMDA
 from pateda.learning.cfda import LearnCFDA
 from pateda.learning.fda import LearnFDA
-from pateda.learning.bsc import LearnBSC
 
 from pateda.sampling.fda import SampleFDA
 from pateda.sampling.bayesian_network import SampleBayesianNetwork
@@ -61,19 +60,6 @@ from pateda.sampling.cfda import SampleCFDA
 
 from pateda.core.components import LearningMethod
 from pateda.algorithms.base import _BaseEDA
-
-
-class _BSCLearnerAdapter(LearningMethod):
-    """Flatten (N,1) fitness arrays to 1-D before delegating to LearnBSC."""
-
-    def __init__(self, alpha: float, normalize_fitness: bool):
-        self._inner = LearnBSC(alpha=alpha, normalize_fitness=normalize_fitness)
-
-    def learn(self, generation, n_vars, cardinality, population, fitness, **params):
-        fit = np.asarray(fitness)
-        if fit.ndim > 1:
-            fit = fit.reshape(-1)
-        return self._inner.learn(generation, n_vars, cardinality, population, fit, **params)
 
 
 def _to_cardinality(cardinality, n_vars: int) -> np.ndarray:
@@ -147,7 +133,7 @@ class UMDA(_BaseEDA):
         n_gen: int = 50,
         selection_ratio: float = 0.5,
         elitism: bool = True,
-        alpha: float = 0.0,
+        alpha: float = 1.0,
         random_seed: Optional[int] = None,
     ):
         card = _to_cardinality(cardinality, n_vars)
@@ -186,7 +172,7 @@ class BMDA(_BaseEDA):
         n_gen: int = 50,
         selection_ratio: float = 0.5,
         elitism: bool = True,
-        alpha: float = 0.0,
+        alpha: float = 1.0,
         random_seed: Optional[int] = None,
     ):
         card = _to_cardinality(cardinality, n_vars)
@@ -225,7 +211,7 @@ class TreeEDA(_BaseEDA):
         n_gen: int = 50,
         selection_ratio: float = 0.5,
         elitism: bool = True,
-        alpha: float = 0.0,
+        alpha: float = 1.0,
         random_seed: Optional[int] = None,
     ):
         card = _to_cardinality(cardinality, n_vars)
@@ -261,7 +247,7 @@ class TreeEDAR(_BaseEDA):
         n_gen: int = 50,
         selection_ratio: float = 0.5,
         elitism: bool = True,
-        alpha: float = 0.0,
+        alpha: float = 1.0,
         interaction_matrix: Optional[np.ndarray] = None,
         random_seed: Optional[int] = None,
     ):
@@ -306,7 +292,7 @@ class MIMIC(_BaseEDA):
         n_gen: int = 50,
         selection_ratio: float = 0.5,
         elitism: bool = True,
-        alpha: float = 0.0,
+        alpha: float = 1.0,
         random_seed: Optional[int] = None,
     ):
         card = _to_cardinality(cardinality, n_vars)
@@ -397,7 +383,7 @@ class EBNA(_BaseEDA):
         n_gen: int = 50,
         selection_ratio: float = 0.5,
         elitism: bool = True,
-        alpha: float = 0.0,
+        alpha: float = 1.0,
         random_seed: Optional[int] = None,
     ):
         card = _to_cardinality(cardinality, n_vars)
@@ -475,7 +461,7 @@ class AffEDA(_BaseEDA):
         selection_ratio: float = 0.5,
         elitism: bool = True,
         max_clique_size: int = 5,
-        alpha: float = 0.0,
+        alpha: float = 1.0,
         random_seed: Optional[int] = None,
     ):
         card = _to_cardinality(cardinality, n_vars)
@@ -517,7 +503,7 @@ class MKEDA(_BaseEDA):
         selection_ratio: float = 0.5,
         elitism: bool = True,
         k: int = 1,
-        alpha: float = 0.0,
+        alpha: float = 1.0,
         random_seed: Optional[int] = None,
     ):
         card = _to_cardinality(cardinality, n_vars)
@@ -570,7 +556,7 @@ class MTED(_BaseEDA):
         selection_ratio: float = 0.5,
         elitism: bool = True,
         n_trees: int = 5,
-        alpha: float = 0.0,
+        alpha: float = 1.0,
         weight_learning: str = "uniform",
         use_priors: bool = False,
         use_adaptive: bool = False,
@@ -836,7 +822,7 @@ class CUMDA(_BaseEDA):
         n_gen: int = 50,
         selection_ratio: float = 0.5,
         elitism: bool = True,
-        alpha: float = 0.0,
+        alpha: float = 1.0,
         random_seed: Optional[int] = None,
     ):
         card = _to_cardinality(cardinality, n_vars)
@@ -953,54 +939,6 @@ class FDA(_BaseEDA):
     ):
         card = _to_cardinality(cardinality, n_vars)
         learner = LearnFDA(cliques=cliques, alpha=alpha)
-        sampler = SampleFDA(n_samples=pop_size)
-        components = _make_components(learner, sampler, pop_size, selection_ratio, n_gen, elitism)
-        eda = EDA(pop_size, n_vars, fitness_func, card, components, random_seed=random_seed)
-        super().__init__(eda)
-
-
-# ---------------------------------------------------------------------------
-# BSC (Bisection / fitness-weighted univariate EDA)
-# ---------------------------------------------------------------------------
-
-class BSC(_BaseEDA):
-    """
-    Bisection EDA (BSC).
-
-    BSC estimates univariate marginals using a fitness-weighted scheme:
-    ``P(X_i = k) = sum(fitness of individuals with X_i = k) / sum(all fitness)``.
-    Variables that appear in high-fitness individuals get higher
-    probabilities, biasing the search toward fitter regions but potentially
-    reducing diversity.
-
-    Originally introduced in MATEDA-1.0 (Inza et al. 2000) as part of an
-    EDA-based approach to feature subset selection.
-
-    Parameters
-    ----------
-    n_vars, cardinality, fitness_func, pop_size, n_gen, selection_ratio,
-    elitism, random_seed : see UMDA.
-    alpha : float, default 0.0
-        Laplace smoothing pseudo-count (0 means no smoothing).
-    normalize_fitness : bool, default True
-        If True, fitness values are min-max normalised before weighting.
-    """
-
-    def __init__(
-        self,
-        n_vars: int,
-        cardinality: Union[int, np.ndarray],
-        fitness_func: Callable,
-        pop_size: int = 100,
-        n_gen: int = 50,
-        selection_ratio: float = 0.5,
-        elitism: bool = True,
-        alpha: float = 0.0,
-        normalize_fitness: bool = True,
-        random_seed: Optional[int] = None,
-    ):
-        card = _to_cardinality(cardinality, n_vars)
-        learner = _BSCLearnerAdapter(alpha=alpha, normalize_fitness=normalize_fitness)
         sampler = SampleFDA(n_samples=pop_size)
         components = _make_components(learner, sampler, pop_size, selection_ratio, n_gen, elitism)
         eda = EDA(pop_size, n_vars, fitness_func, card, components, random_seed=random_seed)

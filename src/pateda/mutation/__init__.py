@@ -25,6 +25,7 @@ References:
 """
 
 from pateda.mutation.bitflip import bit_flip_mutation
+from pateda.mutation.random_reset import random_reset_mutation, RandomResetMutation
 from pateda.mutation.frequency_balance import frequency_balance_mutation
 from pateda.mutation.frequency_balance_component import FrequencyBalanceMutation
 from pateda.mutation.frequency_balance_multivalue import (
@@ -36,6 +37,8 @@ from pateda.mutation.frequency_balance_multivalue_component import (
 
 __all__ = [
     "bit_flip_mutation",
+    "random_reset_mutation",
+    "RandomResetMutation",
     "frequency_balance_mutation",
     "FrequencyBalanceMutation",
     "frequency_balance_multivalue_mutation",

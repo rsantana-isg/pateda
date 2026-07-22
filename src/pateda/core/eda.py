@@ -289,15 +289,22 @@ class EDA:
                 # Evaluate fitness
                 self.fitness = self.evaluate_fitness(self.population)
 
-                # Local optimization if requested
+                # Local optimization if requested.  The current model is made
+                # available so structure-aware local searches (e.g. substructural
+                # neighborhood search) can exploit the learned dependency graph;
+                # methods that ignore it simply absorb it into **params.
                 if self.components.local_opt is not None:
-                    self.population, self.fitness = self.components.local_opt.optimize(
+                    lo_params = dict(self.components.local_opt_params)
+                    lo_params.setdefault("model", self.model)
+                    lo_result = self.components.local_opt.optimize(
                         self.population,
                         self.fitness,
                         self.fitness_func,
                         self.cardinality,
-                        **self.components.local_opt_params,
+                        **lo_params,
                     )
+                    # optimizers may return (pop, fitness) or (pop, fitness, n_evals)
+                    self.population, self.fitness = lo_result[0], lo_result[1]
 
             else:
                 # Subsequent generations: sample from model
@@ -333,15 +340,20 @@ class EDA:
                 # Evaluate fitness
                 new_fitness = self.evaluate_fitness(new_pop)
 
-                # Local optimization if requested
+                # Local optimization if requested.  self.model is the model that
+                # produced this population; structure-aware local searches use it.
                 if self.components.local_opt is not None:
-                    new_pop, new_fitness = self.components.local_opt.optimize(
+                    lo_params = dict(self.components.local_opt_params)
+                    lo_params.setdefault("model", self.model)
+                    lo_result = self.components.local_opt.optimize(
                         new_pop,
                         new_fitness,
                         self.fitness_func,
                         self.cardinality,
-                        **self.components.local_opt_params,
+                        **lo_params,
                     )
+                    # optimizers may return (pop, fitness) or (pop, fitness, n_evals)
+                    new_pop, new_fitness = lo_result[0], lo_result[1]
 
                 # Replacement
                 if self.components.replacement is not None:

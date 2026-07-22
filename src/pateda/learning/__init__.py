@@ -12,9 +12,15 @@ from pateda.learning.cfda import (
 from pateda.learning.bmda import LearnBMDA
 from pateda.learning.ebna import LearnEBNA
 from pateda.learning.boa import LearnBOA
+from pateda.learning.hboa import LearnHBOA
+from pateda.learning.lfda import LearnLFDA
+from pateda.learning.pada import LearnPADA
 from pateda.learning.markov import LearnMarkovChain
+from pateda.learning.regularized_markov import LearnRegularizedMarkov
 from pateda.learning.mixture_trees import LearnMixtureTrees
 from pateda.learning.tree import LearnTreeModel
+from pateda.learning.tree_m import LearnTreeModelM
+from pateda.learning.int_fda import LearnIntFDA
 from pateda.learning.mnfda import LearnMNFDA
 from pateda.learning.mnfdag import LearnMNFDAG
 from pateda.learning.mnfda_r import LearnMNFDAR
@@ -33,7 +39,6 @@ from pateda.learning.affinity import (
     LearnAffinityFactorizationElim,
 )
 from pateda.learning.pbil import LearnPBIL
-from pateda.learning.bsc import LearnBSC
 from pateda.learning.mimic import LearnMIMIC
 from pateda.learning.basic_gaussian import (
     learn_gaussian_univariate,
@@ -67,16 +72,18 @@ __all__ = [
     "LearnFDA", "LearnUMDA", "LearnCUMDA", "LearnCFDA",
     "create_pairwise_chain_cliques", "create_block_cliques",
     "create_overlapping_windows_cliques",
-    "LearnBMDA", "LearnEBNA", "LearnBOA", "LearnMarkovChain",
+    "LearnBMDA", "LearnEBNA", "LearnBOA",
+    "LearnHBOA", "LearnLFDA", "LearnPADA", "LearnMarkovChain",
     "LearnMixtureTrees", "LearnTreeModel",
     "LearnMNFDA", "LearnMNFDAG", "LearnMNFDAR", "LearnMNFDAGR",
-    "LearnTreeModelR", "LearnMOA",
+    "LearnTreeModelR", "LearnTreeModelM", "LearnMOA", "LearnIntFDA",
+    "LearnRegularizedMarkov",
     "find_matrix_interactions_SAT", "find_matrix_interactions_ising",
     "find_matrix_interactions_nk",
     "find_matrix_interactions_additive_decomposable",
     "find_matrix_interactions_RNA_design",
     "LearnAffinityFactorization", "LearnAffinityFactorizationElim",
-    "LearnPBIL", "LearnBSC", "LearnMIMIC",
+    "LearnPBIL", "LearnMIMIC",
     "learn_gaussian_univariate", "learn_gaussian_full",
     "LearnGaussianUnivariate", "LearnGaussianFull",
     "learn_mixture_gaussian_univariate", "learn_mixture_gaussian_full",

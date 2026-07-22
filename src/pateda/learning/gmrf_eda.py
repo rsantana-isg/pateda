@@ -27,7 +27,7 @@ from sklearn.linear_model import Lasso, ElasticNet, Lars, LassoLars
 def _compute_regularized_weights(
     population: np.ndarray,
     regularization: str = 'lasso',
-    alpha: float = 0.01,
+    alpha: float = 1.01,
     l1_ratio: float = 0.5
 ) -> np.ndarray:
     """

@@ -50,7 +50,7 @@ class LearnMIMIC(LearningMethod):
     where each variable has exactly one parent (except the root).
     """
 
-    def __init__(self, alpha: float = 0.0, epsilon: float = 1e-10):
+    def __init__(self, alpha: float = 1.0, epsilon: float = 1e-10):
         """
         Initialize MIMIC learning
 

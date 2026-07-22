@@ -1,0 +1,22 @@
+/usr/local/lib/python3.11/dist-packages/pgmpy/estimators/__init__.py:4: FutureWarning: `pgmpy.estimators.StructureScore` is deprecated and will be removed in v1.3.0. Use `pgmpy.structure_score` instead.
+  from .StructureScore import (
+======================================================================
+EDA Search
+======================================================================
+  Function   : EqualProducts (n=64)
+  EDA        : UMDA
+  Pop size   : 1000
+  Generations: 30
+  Repetitions: 5
+  SAMP       : 3000
+  Base seed  : 1
+======================================================================
+Structure saved to './EqualProducts_64_structure.dat'  (2016 edges)
+  Rep 1/5: best fitness = -60141.271284  (31 generations)
+  Rep 2/5: best fitness = -5762.277570  (31 generations)
+  Rep 3/5: best fitness = -144167.127149  (31 generations)
+  Rep 4/5: best fitness = -49630.527417  (31 generations)
+  Rep 5/5: best fitness = -34385.882090  (31 generations)
+  Distinct solutions per third: [45500, 45500, 50000]
+Samples saved to  './EqualProducts_64_UMDA_samples.dat'  (3000 rows; per third [1000, 1000, 1000])
+Done.

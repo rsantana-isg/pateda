@@ -44,7 +44,7 @@ class LearnAffinityFactorization(LearningMethod):
         damping: float = 0.5,
         max_iter: int = 200,
         convergence_iter: int = 15,
-        alpha: float = 0.0,
+        alpha: float = 1.0,
         recursive: bool = True,
         max_recursion_depth: int = 10,
     ):
@@ -431,7 +431,7 @@ class LearnAffinityFactorizationElim(LearningMethod):
         damping: float = 0.9,
         max_iter: int = 200,
         convergence_iter: int = 15,
-        alpha: float = 0.0,
+        alpha: float = 1.0,
         max_recursion_depth: int = 10,
         max_convergence_retries: int = 10,
     ):

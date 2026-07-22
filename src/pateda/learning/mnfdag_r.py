@@ -78,7 +78,7 @@ class LearnMNFDAGR(LearningMethod):
         interaction_matrix: np.ndarray,
         max_clique_size: int = 3,
         max_n_cliques: Optional[int] = None,
-        alpha: float = 0.05,
+        alpha: float = 1.05,
         prior: bool = True,
         return_factorized: bool = True,
         max_neighborhood: Optional[int] = 8,

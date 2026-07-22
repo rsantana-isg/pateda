@@ -68,7 +68,7 @@ class LearnCUMDA(LearningMethod):
         alpha: Smoothing parameter for Laplace smoothing (default 0.0)
     """
 
-    def __init__(self, alpha: float = 0.0):
+    def __init__(self, alpha: float = 1.0):
         """
         Initialize CUMDA learning
 

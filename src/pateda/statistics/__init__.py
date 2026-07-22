@@ -25,6 +25,9 @@ from pateda.statistics.population_stats import (
 # Statistics tracker
 from pateda.statistics.tracker import StatisticsTracker
 
+# Multi-objective indicator tracker (StatisticsMethod component)
+from pateda.statistics.mo_tracker import MultiObjectiveTracker
+
 # Analysis utilities
 from pateda.statistics.analysis import (
     analyze_multiple_runs,
@@ -42,6 +45,7 @@ __all__ = [
     "compute_convergence_metrics",
     # Tracker
     "StatisticsTracker",
+    "MultiObjectiveTracker",
     # Analysis
     "analyze_multiple_runs",
     "compute_statistical_tests",

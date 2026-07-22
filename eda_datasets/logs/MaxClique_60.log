@@ -1,0 +1,22 @@
+/usr/local/lib/python3.11/dist-packages/pgmpy/estimators/__init__.py:4: FutureWarning: `pgmpy.estimators.StructureScore` is deprecated and will be removed in v1.3.0. Use `pgmpy.structure_score` instead.
+  from .StructureScore import (
+======================================================================
+EDA Search
+======================================================================
+  Function   : MaxClique (n=60)
+  EDA        : UMDA
+  Pop size   : 1000
+  Generations: 30
+  Repetitions: 5
+  SAMP       : 3000
+  Base seed  : 1
+======================================================================
+Structure saved to './MaxClique_60_structure.dat'  (1060 edges)
+  Rep 1/5: best fitness = 9.000000  (31 generations)
+  Rep 2/5: best fitness = 8.000000  (31 generations)
+  Rep 3/5: best fitness = 8.000000  (31 generations)
+  Rep 4/5: best fitness = 7.000000  (31 generations)
+  Rep 5/5: best fitness = 9.000000  (31 generations)
+  Distinct solutions per third: [44962, 16227, 7519]
+Samples saved to  './MaxClique_60_UMDA_samples.dat'  (3000 rows; per third [1000, 1000, 1000])
+Done.

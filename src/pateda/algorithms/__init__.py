@@ -32,7 +32,6 @@ from pateda.algorithms.discrete import (
     CUMDA,
     CFDA,
     FDA,
-    BSC,
 )
 
 from pateda.algorithms.continuous import (
@@ -66,7 +65,6 @@ __all__ = [
     "CUMDA",
     "CFDA",
     "FDA",
-    "BSC",
     # Continuous
     "GaussianUMDA",
     "GaussianEDA",

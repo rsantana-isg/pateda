@@ -74,7 +74,7 @@ class LearnUMDA(LearningMethod):
     where |Vᵢ| is the cardinality (number of possible values) of variable i.
     """
 
-    def __init__(self, alpha: float = 0.0):
+    def __init__(self, alpha: float = 1.0):
         """
         Initialize UMDA learning
 

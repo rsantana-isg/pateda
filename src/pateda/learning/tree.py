@@ -100,7 +100,7 @@ class LearnTreeModel(LearningMethod):
 
     def __init__(
         self,
-        alpha: float = 0.0,
+        alpha: float = 1.0,
         mi_threshold: float = 1e-4,
     ):
         """

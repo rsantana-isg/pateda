@@ -48,6 +48,16 @@ from pateda.knowledge_extraction.eda_strategies import (
     compare_eda_runs
 )
 
+from pateda.knowledge_extraction.model_structure import (
+    model_to_linkage_graph,
+    model_to_substructures,
+)
+from pateda.knowledge_extraction.transfer import (
+    aggregate_edge_frequencies,
+    structure_to_interaction_matrix,
+    TransferredStructure,
+    warm_start_population,
+)
 from pateda.knowledge_extraction.network_measures import (
     model_to_adjacency,
     cliques_to_adjacency,
@@ -138,6 +148,8 @@ __all__ = [
 
     # Network measures (structural analysis of learned PGMs)
     'model_to_adjacency',
+    'model_to_linkage_graph',
+    'model_to_substructures',
     'cliques_to_adjacency',
     'tree_to_adjacency',
     'compute_network_measures',
@@ -184,6 +196,12 @@ __all__ = [
     'tau_matrix',
     'analyze_vine',
     'vine_evolution',
+
+    # Transfer learning
+    'aggregate_edge_frequencies',
+    'structure_to_interaction_matrix',
+    'TransferredStructure',
+    'warm_start_population',
 
     # Continuous-EDA visualizations
     'plot_gaussian_parameter_evolution',

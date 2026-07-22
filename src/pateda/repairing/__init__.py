@@ -21,6 +21,10 @@ from pateda.repairing.bounds import (
     set_in_bounds_repairing,
     set_within_bounds_repairing,
 )
+from pateda.repairing.hp_backtracking import (
+    HPBacktrackingRepair,
+    repair_hp_self_avoiding,
+)
 
 __all__ = [
     "unitation_repairing",
@@ -28,4 +32,6 @@ __all__ = [
     "trigonometric_repairing",
     "set_in_bounds_repairing",
     "set_within_bounds_repairing",
+    "HPBacktrackingRepair",
+    "repair_hp_self_avoiding",
 ]

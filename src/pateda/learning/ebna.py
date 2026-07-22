@@ -92,7 +92,7 @@ class LearnEBNA(LearningMethod):
         self,
         max_parents: int = 2,
         score_metric: str = "bic",
-        alpha: float = 0.0,
+        alpha: float = 1.0,
         structure: Optional[np.ndarray] = None,
         limit_joint_table_size: bool = True,
     ):

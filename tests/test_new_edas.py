@@ -3,14 +3,12 @@ Comprehensive tests for newly implemented EDAs from C++.
 
 This test suite covers:
 - PBIL (Population-Based Incremental Learning)
-- BSC (Bisection)
 - MIMIC (Mutual Information Maximization for Input Clustering)
 """
 
 import pytest
 import numpy as np
 from pateda.learning.pbil import LearnPBIL
-from pateda.learning.bsc import LearnBSC
 from pateda.learning.mimic import LearnMIMIC
 from pateda.sampling.fda import SampleFDA
 
@@ -163,123 +161,6 @@ class TestPBIL:
         assert len(model.parameters) == n_vars
 
 
-class TestBSC:
-    """Test Bisection (BSC)"""
-
-    def test_learn_bsc_basic(self):
-        """Test basic BSC learning"""
-        np.random.seed(42)
-        n_vars = 10
-        population = np.random.randint(0, 2, (100, n_vars))
-        cardinality = np.array([2] * n_vars)
-        fitness = np.sum(population, axis=1).astype(float)
-
-        learner = LearnBSC()
-        model = learner.learn(
-            generation=0,
-            n_vars=n_vars,
-            cardinality=cardinality,
-            population=population,
-            fitness=fitness,
-        )
-
-        assert model is not None
-        assert model.structure.shape[0] == n_vars
-        assert len(model.parameters) == n_vars
-
-    def test_bsc_requires_fitness(self):
-        """Test that BSC requires fitness values"""
-        np.random.seed(42)
-        n_vars = 10
-        population = np.random.randint(0, 2, (100, n_vars))
-        cardinality = np.array([2] * n_vars)
-
-        learner = LearnBSC()
-
-        with pytest.raises(ValueError, match="BSC requires fitness values"):
-            model = learner.learn(
-                generation=0,
-                n_vars=n_vars,
-                cardinality=cardinality,
-                population=population,
-                fitness=None,
-            )
-
-    def test_bsc_fitness_weighting(self):
-        """Test that BSC properly weights probabilities by fitness"""
-        np.random.seed(42)
-        n_vars = 5
-        cardinality = np.array([2] * n_vars)
-
-        # Create a population where high fitness individuals all have value 1
-        # and low fitness individuals all have value 0
-        population = np.array(
-            [
-                [1, 1, 1, 1, 1],  # High fitness
-                [1, 1, 1, 1, 1],  # High fitness
-                [1, 1, 1, 1, 1],  # High fitness
-                [0, 0, 0, 0, 0],  # Low fitness
-                [0, 0, 0, 0, 0],  # Low fitness
-            ]
-        )
-        fitness = np.array([10.0, 10.0, 10.0, 1.0, 1.0])
-
-        learner = LearnBSC(normalize_fitness=False)
-        model = learner.learn(
-            generation=0,
-            n_vars=n_vars,
-            cardinality=cardinality,
-            population=population,
-            fitness=fitness,
-        )
-
-        # Probability of value 1 should be weighted toward high fitness
-        # Total fitness for value 1: 30, Total fitness for value 0: 2
-        # P(1) should be approximately 30/32 = 0.9375
-        for i in range(n_vars):
-            prob_1 = model.parameters[i][1]
-            assert prob_1 > 0.85  # Should be heavily biased toward 1
-
-    def test_bsc_on_onemax(self):
-        """Test BSC on OneMax problem"""
-        np.random.seed(42)
-
-        def onemax(x):
-            return np.sum(x, axis=1).astype(float)
-
-        n_vars = 20
-        pop_size = 100
-        cardinality = np.array([2] * n_vars)
-        population = np.random.randint(0, 2, (pop_size, n_vars))
-
-        learner = LearnBSC()
-
-        # Run BSC
-        for gen in range(30):
-            fitness = onemax(population)
-
-            # Select best 30%
-            idx = np.argsort(-fitness)[:30]
-            selected = population[idx]
-
-            # Learn model
-            model = learner.learn(
-                generation=gen,
-                n_vars=n_vars,
-                cardinality=cardinality,
-                population=selected,
-                fitness=fitness[idx],
-            )
-
-            # Sample new population
-            sampler = SampleFDA(n_samples=pop_size)
-            population = sampler.sample(n_vars=n_vars, model=model, cardinality=cardinality)
-
-        final_fitness = onemax(population)
-        # Should converge reasonably well
-        assert np.mean(final_fitness) > n_vars * 0.80
-
-
 class TestMIMIC:
     """Test Mutual Information Maximization for Input Clustering (MIMIC)"""
 
@@ -421,7 +302,7 @@ class TestComparison:
     """Compare the three new EDAs on standard problems"""
 
     def test_all_edas_on_onemax(self):
-        """Compare PBIL, BSC, and MIMIC on OneMax"""
+        """Compare PBIL and MIMIC on OneMax"""
         np.random.seed(42)
 
         def onemax(x):
@@ -436,7 +317,6 @@ class TestComparison:
 
         for name, learner in [
             ("PBIL", LearnPBIL(alpha=0.1)),
-            ("BSC", LearnBSC()),
             ("MIMIC", LearnMIMIC()),
         ]:
             np.random.seed(42)  # Same initial population for fair comparison

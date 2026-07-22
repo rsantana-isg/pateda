@@ -29,7 +29,7 @@ class LearnBMDA(LearningMethod):
         self,
         structure: Optional[np.ndarray] = None,
         structure_learning: str = "tree",
-        alpha: float = 0.0,
+        alpha: float = 1.0,
     ):
         """
         Initialize BMDA learning
