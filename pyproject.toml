@@ -38,9 +38,9 @@ dependencies = [
     "seaborn>=0.11",
     # Bayesian-network EDAs (BOA, EBNA) delegate structure/parameter learning
     # and sampling to the bayes_nets library (replaces the former pgmpy use).
-    # In-development package: install from the local checkout with
-    #   pip install -e edas_bayes_nets
-    "bayes_nets>=0.1.0",
+    # pateda 0.2.0 uses the expanded structure-learning API of bayes_nets 0.2.0
+    # (fit(method=...) with the full set of learners); require that version.
+    "bayes_nets>=0.2.0",
     "typing-extensions>=4.0",
 ]
 
