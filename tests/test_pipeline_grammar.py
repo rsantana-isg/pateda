@@ -141,7 +141,8 @@ def test_model_blocks_are_type_consistent():
            "LearnMNFDAG", "LearnTreeModel", "LearnTreeModelM",
            "LearnAffinityFactorization", "LearnAffinityFactorizationElim",
            "LearnMarkovChain"]},
-        **{n: "bn" for n in ["LearnEBNA", "LearnBOA", "LearnHBOA", "LearnLFDA", "LearnPADA"]},
+        **{n: "bn" for n in ["LearnEBNA", "LearnBOA", "LearnHBOA", "LearnLFDA", "LearnPADA",
+           "LearnSARTRE", "LearnBINOTEARS", "LearnPCBN", "LearnHSARTRE", "LearnHBINOTEARS"]},
         "LearnMOA": "markovnet", "LearnIntFDA": "intfda",
         "LearnRegularizedMarkov": "regmarkov",
     }

@@ -202,9 +202,15 @@ class LearnHBOA(LearningMethod):
         method = "dt" if self.local_structure in ("dt", "decision_tree") else "dg"
 
         bn = BayesianNetwork(n_vars=n_vars, cardinality=cardinality)
+        # Use the decision tree/graph both to *score* the structure search and
+        # to *represent and sample* the local CPDs (``local_structure=method``),
+        # so the compact context-specific structure is exploited at sampling
+        # time by SampleLocalStructureBN -- the faithful hBOA of Pelikan (2005),
+        # rather than flattening the CPDs to dense tables.
         bn.fit(
             data,
             method=method,
+            local_structure=method,
             max_parents=self.max_parents,
             alpha=self.alpha,
             limit_table_size=self.limit_joint_table_size,

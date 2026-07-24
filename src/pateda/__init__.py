@@ -4,7 +4,7 @@ PATEDA - Python Algorithms for Estimation of Distribution Algorithms
 A Python port of MATEDA-3.0
 """
 
-__version__ = "0.2.1"
+__version__ = "0.2.2"
 __author__ = "Roberto Santana (original MATEDA), Claude (Python port)"
 
 from pateda.core.eda import EDA
@@ -27,6 +27,13 @@ from pateda.algorithms.discrete import (
     PBIL,
     EBNA,
     BOA,
+    HBOA,
+    LFDA,
+    SARTRE_EDA,
+    BINOTEARS_EDA,
+    PCBN_EDA,
+    HSARTRE_EDA,
+    HBINOTEARS_EDA,
     AffEDA,
     MKEDA,
     MTED,
@@ -68,6 +75,13 @@ __all__ = [
     "PBIL",
     "EBNA",
     "BOA",
+    "HBOA",
+    "LFDA",
+    "SARTRE_EDA",
+    "BINOTEARS_EDA",
+    "PCBN_EDA",
+    "HSARTRE_EDA",
+    "HBINOTEARS_EDA",
     "AffEDA",
     "MKEDA",
     "MTED",

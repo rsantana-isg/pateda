@@ -28,6 +28,7 @@ from pateda.seeding.random_init import RandomInit
 from pateda.seeding.seeding_unitation_constraint import SeedingUnitationConstraint
 from pateda.selection.truncation import TruncationSelection
 from pateda.replacement.elitist import ElitistReplacement
+from pateda.replacement.niching import RestrictedTournamentReplacement
 from pateda.stop_conditions.max_generations import MaxGenerations
 
 from pateda.learning.umda import LearnUMDA
@@ -38,6 +39,15 @@ from pateda.learning.mimic import LearnMIMIC
 from pateda.learning.pbil import LearnPBIL
 from pateda.learning.ebna import LearnEBNA
 from pateda.learning.boa import LearnBOA
+from pateda.learning.lfda import LearnLFDA
+from pateda.learning.hboa import LearnHBOA
+from pateda.learning.bn_extra import (
+    LearnSARTRE,
+    LearnBINOTEARS,
+    LearnPCBN,
+    LearnHSARTRE,
+    LearnHBINOTEARS,
+)
 from pateda.learning.affinity import LearnAffinityFactorization
 from pateda.learning.markov import LearnMarkovChain
 from pateda.learning.mixture_trees import LearnMixtureTrees
@@ -51,7 +61,7 @@ from pateda.learning.cfda import LearnCFDA
 from pateda.learning.fda import LearnFDA
 
 from pateda.sampling.fda import SampleFDA
-from pateda.sampling.bayesian_network import SampleBayesianNetwork
+from pateda.sampling.bayesian_network import SampleBayesianNetwork, SampleLocalStructureBN
 from pateda.sampling.gibbs import SampleGibbs
 from pateda.sampling.markov import SampleMarkovChain
 from pateda.sampling.mixture_trees import SampleMixtureTrees
@@ -384,10 +394,11 @@ class EBNA(_BaseEDA):
         selection_ratio: float = 0.5,
         elitism: bool = True,
         alpha: float = 1.0,
+        max_parents: int = 2,
         random_seed: Optional[int] = None,
     ):
         card = _to_cardinality(cardinality, n_vars)
-        learner = LearnEBNA(alpha=alpha)
+        learner = LearnEBNA(max_parents=max_parents, alpha=alpha)
         sampler = SampleBayesianNetwork(n_samples=pop_size)
         components = _make_components(learner, sampler, pop_size, selection_ratio, n_gen, elitism)
         eda = EDA(pop_size, n_vars, fitness_func, card, components, random_seed=random_seed)
@@ -420,12 +431,244 @@ class BOA(_BaseEDA):
         n_gen: int = 50,
         selection_ratio: float = 0.5,
         elitism: bool = True,
+        max_parents: int = 3,
         random_seed: Optional[int] = None,
     ):
         card = _to_cardinality(cardinality, n_vars)
-        learner = LearnBOA()
+        learner = LearnBOA(max_parents=max_parents)
         sampler = SampleBayesianNetwork(n_samples=pop_size)
         components = _make_components(learner, sampler, pop_size, selection_ratio, n_gen, elitism)
+        eda = EDA(pop_size, n_vars, fitness_func, card, components, random_seed=random_seed)
+        super().__init__(eda)
+
+
+class LFDA(_BaseEDA):
+    """
+    Learning Factorized Distribution Algorithm (LFDA).
+
+    A BN-based EDA that scores structures with the Bayesian Information
+    Criterion and searches greedily, with an explicit bound on the number of
+    parents and a weight on the BIC complexity penalty (``bic_weight``).  Like
+    EBNA and BOA it is a score-and-search learner.
+
+    Parameters
+    ----------
+    n_vars, cardinality, fitness_func, pop_size, n_gen, selection_ratio,
+    elitism, random_seed : see :class:`UMDA`.
+    max_parents : int
+        Maximum parents per variable.
+    bic_weight : float
+        Multiplier on the BIC complexity penalty (>1 sparser, <1 denser).
+    alpha : float
+        Laplace smoothing pseudo-count.
+    """
+
+    def __init__(self, n_vars, cardinality, fitness_func, pop_size=100, n_gen=50,
+                 selection_ratio=0.5, elitism=True, max_parents=4,
+                 bic_weight=1.0, alpha=1.0, random_seed=None):
+        card = _to_cardinality(cardinality, n_vars)
+        learner = LearnLFDA(max_parents=max_parents, bic_weight=bic_weight, alpha=alpha)
+        sampler = SampleBayesianNetwork(n_samples=pop_size)
+        components = _make_components(learner, sampler, pop_size, selection_ratio, n_gen, elitism)
+        eda = EDA(pop_size, n_vars, fitness_func, card, components, random_seed=random_seed)
+        super().__init__(eda)
+
+
+# ---------------------------------------------------------------------------
+# BN-based EDAs with alternative (non score-and-search) structure learners
+# ---------------------------------------------------------------------------
+
+def _make_niching_components(learner, sampler, pop_size, selection_ratio,
+                             n_gen, window_size):
+    """Standard components but with restricted-tournament (niching) replacement,
+    the diversity-preserving replacement used by hBOA."""
+    return EDAComponents(
+        seeding=RandomInit(),
+        selection=TruncationSelection(ratio=selection_ratio),
+        learning=learner,
+        sampling=sampler,
+        stop_condition=MaxGenerations(n_gen),
+        replacement=RestrictedTournamentReplacement(window_size=window_size),
+    )
+
+
+class SARTRE_EDA(_BaseEDA):
+    """
+    SARTRE-EDA: a BN-based EDA (structured like EBNA) that learns the network
+    with SARTRE -- an order-based method that prunes spurious edges with a
+    sparse additive / group-lasso model.  Different learning paradigm from
+    EBNA/BOA/LFDA, fast, and scales to large ``n``.
+
+    Parameters
+    ----------
+    n_vars, cardinality, fitness_func, pop_size, n_gen, selection_ratio,
+    elitism, random_seed : see :class:`UMDA`.
+    max_parents : int
+        Maximum parents per variable.
+    alpha : float
+        Laplace smoothing pseudo-count.
+    """
+
+    def __init__(self, n_vars, cardinality, fitness_func, pop_size=100, n_gen=50,
+                 selection_ratio=0.5, elitism=True, max_parents=4, alpha=1.0,
+                 random_seed=None):
+        card = _to_cardinality(cardinality, n_vars)
+        learner = LearnSARTRE(max_parents=max_parents, alpha=alpha)
+        sampler = SampleBayesianNetwork(n_samples=pop_size)
+        components = _make_components(learner, sampler, pop_size, selection_ratio, n_gen, elitism)
+        eda = EDA(pop_size, n_vars, fitness_func, card, components, random_seed=random_seed)
+        super().__init__(eda)
+
+
+class BINOTEARS_EDA(_BaseEDA):
+    """
+    BINOTEARS-EDA: a BN-based EDA (structured like EBNA) that learns the network
+    with BINOTEARS, a differentiable continuous-optimization structure learner
+    with an acyclicity constraint.
+
+    .. note:: BINOTEARS supports **binary variables only**.
+
+    Parameters
+    ----------
+    n_vars, cardinality, fitness_func, pop_size, n_gen, selection_ratio,
+    elitism, random_seed : see :class:`UMDA`.
+    max_parents, alpha : see :class:`SARTRE_EDA`.
+    """
+
+    def __init__(self, n_vars, cardinality, fitness_func, pop_size=100, n_gen=50,
+                 selection_ratio=0.5, elitism=True, max_parents=4, alpha=1.0,
+                 random_seed=None):
+        card = _to_cardinality(cardinality, n_vars)
+        learner = LearnBINOTEARS(max_parents=max_parents, alpha=alpha)
+        sampler = SampleBayesianNetwork(n_samples=pop_size)
+        components = _make_components(learner, sampler, pop_size, selection_ratio, n_gen, elitism)
+        eda = EDA(pop_size, n_vars, fitness_func, card, components, random_seed=random_seed)
+        super().__init__(eda)
+
+
+class PCBN_EDA(_BaseEDA):
+    """
+    PCBN-EDA: a BN-based EDA (structured like EBNA) that learns the network with
+    the constraint-based PC-Stable algorithm in a **bounded conditioning-order**
+    form (a hard cap on the conditioning-set size), which is what lets the
+    constraint-based paradigm scale to ``n >= 100``.
+
+    Parameters
+    ----------
+    n_vars, cardinality, fitness_func, pop_size, n_gen, selection_ratio,
+    elitism, random_seed : see :class:`UMDA`.
+    max_cond_set_size : int
+        Order limit of the PC independence tests (2--3 recommended).
+    max_parents, alpha : see :class:`SARTRE_EDA`.
+    """
+
+    def __init__(self, n_vars, cardinality, fitness_func, pop_size=100, n_gen=50,
+                 selection_ratio=0.5, elitism=True, max_cond_set_size=3,
+                 max_parents=4, alpha=1.0, random_seed=None):
+        card = _to_cardinality(cardinality, n_vars)
+        learner = LearnPCBN(max_cond_set_size=max_cond_set_size,
+                            max_parents=max_parents, alpha=alpha)
+        sampler = SampleBayesianNetwork(n_samples=pop_size)
+        components = _make_components(learner, sampler, pop_size, selection_ratio, n_gen, elitism)
+        eda = EDA(pop_size, n_vars, fitness_func, card, components, random_seed=random_seed)
+        super().__init__(eda)
+
+
+class HSARTRE_EDA(_BaseEDA):
+    """
+    HSARTRE-EDA: the hBOA-style upgrade of :class:`SARTRE_EDA`.  SARTRE discovers
+    the skeleton, a decision graph learns the local (context-specific) structure
+    restricted to that skeleton, and **restricted-tournament (niching)
+    replacement** preserves diversity -- the two ingredients hBOA adds to BOA.
+
+    Parameters
+    ----------
+    n_vars, cardinality, fitness_func, pop_size, n_gen, selection_ratio,
+    random_seed : see :class:`UMDA`.
+    max_parents : int
+        Maximum parents in the decision-graph refinement (larger than the plain
+        variant, since local structure controls the parameter growth).
+    window_size : int
+        Window size of the restricted-tournament (niching) replacement.
+    local_structure : str
+        "dg" (decision graph, default) or "dt" (decision tree).
+    alpha : float
+        Laplace smoothing pseudo-count.
+    """
+
+    def __init__(self, n_vars, cardinality, fitness_func, pop_size=100, n_gen=50,
+                 selection_ratio=0.5, max_parents=6, window_size=20,
+                 local_structure="dg", alpha=1.0, random_seed=None):
+        card = _to_cardinality(cardinality, n_vars)
+        learner = LearnHSARTRE(max_parents=max_parents,
+                               local_structure=local_structure, alpha=alpha)
+        sampler = SampleLocalStructureBN(n_samples=pop_size)
+        components = _make_niching_components(learner, sampler, pop_size,
+                                              selection_ratio, n_gen, window_size)
+        eda = EDA(pop_size, n_vars, fitness_func, card, components, random_seed=random_seed)
+        super().__init__(eda)
+
+
+class HBINOTEARS_EDA(_BaseEDA):
+    """
+    HBINOTEARS-EDA: the hBOA-style upgrade of :class:`BINOTEARS_EDA` (decision
+    graph over the BINOTEARS skeleton + restricted-tournament niching).
+
+    .. note:: Binary variables only (inherited from BINOTEARS).
+
+    Parameters
+    ----------
+    See :class:`HSARTRE_EDA`.
+    """
+
+    def __init__(self, n_vars, cardinality, fitness_func, pop_size=100, n_gen=50,
+                 selection_ratio=0.5, max_parents=6, window_size=20,
+                 local_structure="dg", alpha=1.0, random_seed=None):
+        card = _to_cardinality(cardinality, n_vars)
+        learner = LearnHBINOTEARS(max_parents=max_parents,
+                                  local_structure=local_structure, alpha=alpha)
+        sampler = SampleLocalStructureBN(n_samples=pop_size)
+        components = _make_niching_components(learner, sampler, pop_size,
+                                              selection_ratio, n_gen, window_size)
+        eda = EDA(pop_size, n_vars, fitness_func, card, components, random_seed=random_seed)
+        super().__init__(eda)
+
+
+class HBOA(_BaseEDA):
+    """
+    Hierarchical Bayesian Optimization Algorithm (hBOA) as a plug-and-play EDA.
+
+    Learns a Bayesian network whose local conditional distributions are
+    represented with decision trees/graphs (so many parents can be afforded),
+    samples them directly through :class:`SampleLocalStructureBN` (the compact
+    structure is exploited at sampling, never materialising the dense table),
+    and preserves diversity with restricted-tournament (niching) replacement --
+    the complete hBOA of Pelikan (2005).
+
+    Parameters
+    ----------
+    n_vars, cardinality, fitness_func, pop_size, n_gen, selection_ratio,
+    random_seed : see :class:`UMDA`.
+    max_parents : int
+        Maximum parents per variable (larger than BOA, since the local
+        structure controls the parameter growth).
+    local_structure : str
+        "dg" (decision graph, default) or "dt" (decision tree).
+    window_size : int
+        Window size of the restricted-tournament (niching) replacement.
+    alpha : float
+        Laplace/Dirichlet smoothing pseudo-count.
+    """
+
+    def __init__(self, n_vars, cardinality, fitness_func, pop_size=100, n_gen=50,
+                 selection_ratio=0.5, max_parents=6, local_structure="dg",
+                 window_size=20, alpha=1.0, random_seed=None):
+        card = _to_cardinality(cardinality, n_vars)
+        learner = LearnHBOA(max_parents=max_parents, local_structure=local_structure,
+                            alpha=alpha)
+        sampler = SampleLocalStructureBN(n_samples=pop_size)
+        components = _make_niching_components(learner, sampler, pop_size,
+                                              selection_ratio, n_gen, window_size)
         eda = EDA(pop_size, n_vars, fitness_func, card, components, random_seed=random_seed)
         super().__init__(eda)
 

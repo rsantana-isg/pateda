@@ -54,48 +54,38 @@ from scipy.stats import spearmanr
 # ---------------------------------------------------------------------------
 # Make pateda (src/), the problem registry (examples/) and bayes_nets importable
 # ---------------------------------------------------------------------------
-def _find_repo_root(start):
-    """Walk up from *start* to the pateda repo root.
+def _setup_paths():
+    """Make the vendored problem registry and pateda importable.
 
-    The root is the first ancestor that contains both the package
-    (``src/pateda/__init__.py``) and the problem registry
-    (``examples/run_eda_search.py``).  Searching by markers keeps this working
-    regardless of where the script is placed (``scripts/`` at the repo root, or
-    the original ``bn_edas_analysis/scripts/``).
+    * The problem registry (``bn_eda_problems.py``) lives next to this script.
+    * ``pateda`` / ``bayes_nets`` are expected to be **installed** (this is the
+      normal case on the cluster).  As a dev convenience, if a source checkout of
+      pateda (``.../src/pateda``) is found in an ancestor directory it is put
+      first on ``sys.path`` so the local sources are used; otherwise nothing is
+      added and the installed packages are used.
     """
-    d = os.path.abspath(start)
+    here = os.path.dirname(os.path.abspath(__file__))
+    if here not in sys.path:
+        sys.path.insert(0, here)          # so `import bn_eda_problems` works
+
+    d = here
     for _ in range(8):
-        if (os.path.isfile(os.path.join(d, "src", "pateda", "__init__.py"))
-                and os.path.isfile(os.path.join(d, "examples", "run_eda_search.py"))):
+        src = os.path.join(d, "src")
+        if os.path.isfile(os.path.join(src, "pateda", "__init__.py")):
+            if src not in sys.path:
+                sys.path.insert(0, src)
             return d
         parent = os.path.dirname(d)
         if parent == d:
             break
         d = parent
-    return None
-
-
-def _setup_paths():
-    here = os.path.dirname(os.path.abspath(__file__))
-    repo = _find_repo_root(here)
-    if repo is None:                       # fall back to the old fixed layout
-        repo = os.path.dirname(os.path.dirname(here))
-    candidates = [
-        os.path.join(repo, "src"),          # pateda package (src layout)
-        os.path.join(repo, "examples"),     # run_eda_search.parse_problem
-        repo,                               # a bayes_nets/ folder at repo root
-        os.path.dirname(repo),              # bayes_nets one level up
-    ]
-    for c in candidates:
-        if c and c not in sys.path and os.path.isdir(c):
-            sys.path.insert(0, c)
-    return repo
+    return os.path.dirname(here)          # project root (parent of scripts/)
 
 
 _REPO = _setup_paths()
 
 import numpy as np  # noqa: E402  (after path setup)
-from run_eda_search import parse_problem                       # noqa: E402
+from bn_eda_problems import parse_problem                      # noqa: E402
 from pateda.core.eda import EDA                                # noqa: E402
 from pateda.core.components import EDAComponents, LearningMethod, StatisticsMethod  # noqa: E402
 from pateda.seeding import RandomInit                          # noqa: E402

@@ -135,3 +135,69 @@ class SampleBayesianNetwork(SamplingMethod):
                     new_pop[i, var] = rng.choice(k, p=probs)
 
         return new_pop
+
+
+class SampleLocalStructureBN(SampleBayesianNetwork):
+    """Sample a Bayesian network whose CPDs may carry a *local structure*
+    (decision tree / decision graph), as produced by ``bayes_nets`` when a model
+    is learned with ``fit(..., local_structure="dt"|"dg")`` or
+    ``learn_local_structure(...)``.
+
+    For each variable this sampler routes the (already sampled) parent
+    configurations directly through the compact ``LocalStructureCPD`` stored in
+    ``model.parameters[var]["local"]`` (via its vectorised ``sample_rows``),
+    so the decision graph is exploited *at sampling time* and the dense
+    conditional table is never materialised -- the point of hBOA-style local
+    structure.  Variables without a ``"local"`` entry (e.g. a plain EBNA model)
+    fall back to the tabular CPD, so this sampler is a drop-in superset of
+    :class:`SampleBayesianNetwork`.
+    """
+
+    def sample(
+        self,
+        n_vars: int,
+        model: Model,
+        cardinality: np.ndarray,
+        aux_pop: Optional[np.ndarray] = None,
+        aux_fitness: Optional[np.ndarray] = None,
+        rng: Optional[np.random.Generator] = None,
+        **params: Any,
+    ) -> np.ndarray:
+        if rng is None:
+            rng = np.random.default_rng()
+        if not isinstance(model, BayesianNetworkModel):
+            raise TypeError(f"Expected BayesianNetworkModel, got {type(model)}")
+
+        n_samples = params.get("n_samples", self.n_samples)
+        cardinality = np.asarray(cardinality, dtype=int)
+        cpds = model.parameters
+        order = self._topological_sort(model.structure)
+        new_pop = np.zeros((n_samples, n_vars), dtype=int)
+
+        for var in order:
+            info = cpds[var]
+            parents = list(info["parents"])
+            k = int(cardinality[var])
+            local = info.get("local") if isinstance(info, dict) else None
+
+            if not parents:
+                # Marginal distribution (1-D CPD).
+                p = np.asarray(info["cpd"], dtype=float).ravel()
+                new_pop[:, var] = rng.choice(k, size=n_samples, p=p)
+            elif local is not None:
+                # Route parent configurations through the decision tree/graph.
+                parent_values = new_pop[:, parents]           # (n_samples, |Pa|)
+                new_pop[:, var] = np.asarray(
+                    local.sample_rows(parent_values, rng), dtype=int)
+            else:
+                # Tabular fallback (vectorised inverse-CDF sampling).
+                cpd = np.asarray(info["cpd"], dtype=float)
+                parent_card = [int(cardinality[p]) for p in parents]
+                mult = np.cumprod([1] + parent_card[:-1])
+                config = (new_pop[:, parents] * mult).sum(axis=1).astype(int)
+                probs = cpd[config]                            # (n_samples, k)
+                cdf = np.cumsum(probs, axis=1)
+                u = rng.random(n_samples)[:, None]
+                new_pop[:, var] = (u < cdf).argmax(axis=1)
+
+        return new_pop

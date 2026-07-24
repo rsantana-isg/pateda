@@ -132,24 +132,32 @@ class LearnEBNA(LearningMethod):
         alpha: float = 1.0,
         structure: Optional[np.ndarray] = None,
         limit_joint_table_size: bool = True,
+        model_type: str = "EBNA",
     ):
         """
         Initialize EBNA learning
 
         Args:
             max_parents: Maximum number of parents per variable
-            score_metric: Scoring metric for structure learning ("bic", "aic", "k2")
+            score_metric: Scoring metric / structure-learning method passed to
+                ``bayes_nets`` (e.g. "bic", "aic", "k2", "sartre", "binotears",
+                "pc", "stable_pc", ...).  This class is a thin, generic adapter
+                over any ``bayes_nets`` method that returns a DAG.
             alpha: Smoothing parameter for probability estimation
             structure: Pre-defined structure (DAG as adjacency matrix)
                       If provided, structure learning is skipped
             limit_joint_table_size: If True, only allow parent sets whose
                 conditional-table size (variable + parents) is <= n_samples
+            model_type: Label recorded in the model metadata (lets subclasses
+                such as :class:`~pateda.learning.bn_extra.LearnSARTRE` identify
+                themselves while reusing this learner's machinery).
         """
         self.max_parents = max_parents
         self.score_metric = score_metric
         self.alpha = alpha
         self.structure = structure
         self.limit_joint_table_size = limit_joint_table_size
+        self.model_type = model_type
 
     def learn(
         self,
@@ -214,7 +222,7 @@ class LearnEBNA(LearningMethod):
             parameters=cpds,
             metadata={
                 "generation": generation,
-                "model_type": "EBNA",
+                "model_type": self.model_type,
                 "max_parents": self.max_parents,
                 "score_metric": self.score_metric,
             },

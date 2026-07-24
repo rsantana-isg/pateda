@@ -11,7 +11,7 @@ from pateda.sampling.cfda import (
     SampleCFDARange,
     SampleCFDAWeighted,
 )
-from pateda.sampling.bayesian_network import SampleBayesianNetwork
+from pateda.sampling.bayesian_network import SampleBayesianNetwork, SampleLocalStructureBN
 from pateda.sampling.markov import SampleMarkovChain, SampleMarkovChainForward
 from pateda.sampling.mixture_trees import SampleMixtureTrees, SampleMixtureTreesDirect
 from pateda.sampling.gibbs import SampleGibbs
@@ -54,7 +54,7 @@ __all__ = [
     "SampleRegularizedMarkov",
     "SamplePartialFDA", "SampleCUMDA", "SampleCUMDARange",
     "SampleCFDA", "SampleCFDARange", "SampleCFDAWeighted",
-    "SampleBayesianNetwork", "SampleMarkovChain", "SampleMarkovChainForward",
+    "SampleBayesianNetwork", "SampleLocalStructureBN", "SampleMarkovChain", "SampleMarkovChainForward",
     "SampleMixtureTrees", "SampleMixtureTreesDirect", "SampleGibbs",
     "SampleInsertMAP", "SampleTemplateMAP", "SampleHybridMAP",
     "SampleInsertKMAP", "SampleTemplateKMAP",

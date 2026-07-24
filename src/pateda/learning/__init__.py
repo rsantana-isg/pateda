@@ -14,6 +14,13 @@ from pateda.learning.ebna import LearnEBNA
 from pateda.learning.boa import LearnBOA
 from pateda.learning.hboa import LearnHBOA
 from pateda.learning.lfda import LearnLFDA
+from pateda.learning.bn_extra import (
+    LearnSARTRE,
+    LearnBINOTEARS,
+    LearnPCBN,
+    LearnHSARTRE,
+    LearnHBINOTEARS,
+)
 from pateda.learning.pada import LearnPADA
 from pateda.learning.markov import LearnMarkovChain
 from pateda.learning.regularized_markov import LearnRegularizedMarkov
@@ -74,6 +81,8 @@ __all__ = [
     "create_overlapping_windows_cliques",
     "LearnBMDA", "LearnEBNA", "LearnBOA",
     "LearnHBOA", "LearnLFDA", "LearnPADA", "LearnMarkovChain",
+    "LearnSARTRE", "LearnBINOTEARS", "LearnPCBN",
+    "LearnHSARTRE", "LearnHBINOTEARS",
     "LearnMixtureTrees", "LearnTreeModel",
     "LearnMNFDA", "LearnMNFDAG", "LearnMNFDAR", "LearnMNFDAGR",
     "LearnTreeModelR", "LearnTreeModelM", "LearnMOA", "LearnIntFDA",

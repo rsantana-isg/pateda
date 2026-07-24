@@ -52,7 +52,7 @@ _CSV = os.path.join(_ROOT, "eda_cluster_results.csv")
 SBATCH_SCRIPT = "slurm/slurm_bn_eda.sh"
 
 # ---- knobs -----------------------------------------------------------------
-SEEDS = [int(s) for s in os.environ.get("BN_EDA_SEEDS", "1,2,3,4,5").split(",")]
+SEEDS = [int(s) for s in os.environ.get("BN_EDA_SEEDS", "1,2,3,4,5,6,7,8,9,10,11,12,13,14,15,16,17,18,19,20").split(",")]
 N_GEN = 100
 POP_MULT = 10                       # pop_size = POP_MULT * n; selected = 5 * n
 BENCH_SAMPLES = 800                 # training-set size used in the offline benchmark

@@ -123,13 +123,23 @@ def _fac_learners():
 
 
 def _bn_learners():
-    from pateda.learning import LearnEBNA, LearnBOA, LearnHBOA, LearnLFDA, LearnPADA
+    from pateda.learning import (
+        LearnEBNA, LearnBOA, LearnHBOA, LearnLFDA, LearnPADA,
+        LearnSARTRE, LearnBINOTEARS, LearnPCBN, LearnHSARTRE, LearnHBINOTEARS,
+    )
     return {
         "LearnEBNA": lambda c: LearnEBNA(max_parents=3),
         "LearnBOA": lambda c: LearnBOA(max_parents=3),
         "LearnHBOA": lambda c: LearnHBOA(max_parents=4),
         "LearnLFDA": lambda c: LearnLFDA(max_parents=3),
         "LearnPADA": lambda c: LearnPADA(),
+        # Alternative (non score-and-search) BN structure learners.  All return
+        # a BayesianNetworkModel, so they pair with SampleBN exactly like EBNA.
+        "LearnSARTRE": lambda c: LearnSARTRE(max_parents=4),
+        "LearnBINOTEARS": lambda c: LearnBINOTEARS(max_parents=4),
+        "LearnPCBN": lambda c: LearnPCBN(max_cond_set_size=3, max_parents=4),
+        "LearnHSARTRE": lambda c: LearnHSARTRE(max_parents=6),
+        "LearnHBINOTEARS": lambda c: LearnHBINOTEARS(max_parents=6),
     }
 
 
@@ -162,10 +172,17 @@ def _other_learners():
 
 
 def _replacement():
-    from pateda.replacement import ElitistReplacement, GenerationalReplacement
+    from pateda.replacement import (
+        ElitistReplacement, GenerationalReplacement,
+        RestrictedTournamentReplacement,
+    )
     return {
         "Elitist": (lambda c: ElitistReplacement(), "ElitistReplacement"),
         "Generational": (lambda c: GenerationalReplacement(), "GenerationalReplacement"),
+        # Niching replacement (hBOA-style); enables HSARTRE/HBINOTEARS-like
+        # pipelines (BN learner + decision graph + niching) to be searched.
+        "RTR": (lambda c: RestrictedTournamentReplacement(window_size=20),
+                "RestrictedTournamentReplacement"),
     }
 
 
