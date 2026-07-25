@@ -39,6 +39,7 @@ sel_ratio = SEL_RATIO
 # f23 N-Queens).  625 omitted on purpose.
 fids = list(range(1, 26))
 dims = [16, 64, 100]
+dims = [625]
 
 algorithms = list(ALGORITHM_NAMES)
 selections = list(SELECTION_ORDER)

@@ -37,16 +37,34 @@ Figures carry no titles (captions live in the LaTeX document) and use large,
 paper-ready fonts; each is saved as both ``.pdf`` and ``.eps``.
 
 Usage (all arguments optional, positional):
-    python scripts/analyze_weighted_pbo_results.py [data_root] [output_dir]
+    python scripts/analyze_weighted_pbo_results.py [data_root] [output_dir] [selection]
 
     data_root   folder with one IOH data folder per (algorithm, selection method)
                 (default: results/pbo_weighted_data)
     output_dir  where figures and tables are written
                 (default: results/pbo_weighted_analysis)
+    selection   optional: FP, BZ or RTS -- analyse ONLY that selection method
+                (loads only its folders, writes only its outputs, no cross-method
+                summary).  Omit to analyse all three together (per-method subdirs
+                FP/, BZ/, RTS/ plus a cross-method summary/).
+
+Examples:
+    # all three selection methods in one run (subdirs FP/ BZ/ RTS/ + summary/)
+    python scripts/analyze_weighted_pbo_results.py pbo_weighted_data_cluster \\
+        results/pbo_weighted_analysis
+
+    # three independent, lighter analyses (one selection each, no clutter)
+    python scripts/analyze_weighted_pbo_results.py pbo_weighted_data_cluster \\
+        results/pbo_analysis_FP  FP
+    python scripts/analyze_weighted_pbo_results.py pbo_weighted_data_cluster \\
+        results/pbo_analysis_BZ  BZ
+    python scripts/analyze_weighted_pbo_results.py pbo_weighted_data_cluster \\
+        results/pbo_analysis_RTS RTS
 """
 
 import os
 import sys
+import glob
 
 import numpy as np
 import pandas as pd
@@ -97,25 +115,71 @@ def save_figure(fig, output_dir, stem):
     print(f"  figure: {os.path.relpath(os.path.join(output_dir, stem))}.pdf / .eps")
 
 
-def load_manager(data_root):
-    """Create a DataManager over every (algorithm, selection) folder."""
+def _folder_selection(basename):
+    """Selection method encoded in a data-folder name.
+
+    Folders are named ``{ALG}__{SEL}`` (local) or ``{ALG}__{SEL}_f..dim..s..``
+    (cluster); the selection is the token right after ``__``.
+    """
+    if "__" not in basename:
+        return None
+    return basename.split("__", 1)[1].split("_", 1)[0]
+
+
+def load_manager(data_root, sel_filter=None):
+    """Create a DataManager over the (algorithm, selection) folders.
+
+    When ``sel_filter`` is given (``FP``/``BZ``/``RTS``) only that selection
+    method's folders are loaded, so each selection can be analysed
+    independently and far more cheaply than loading all of them.
+    """
     folders = [
         os.path.join(data_root, d)
         for d in sorted(os.listdir(data_root))
         if os.path.isdir(os.path.join(data_root, d))
+        and (sel_filter is None or _folder_selection(d) == sel_filter)
     ]
     if not folders:
-        raise SystemExit(f"No data folders found in {data_root}")
+        raise SystemExit(
+            f"No data folders found in {data_root}"
+            + (f" for selection method {sel_filter!r}" if sel_filter else ""))
+
+    # Skip incomplete/crashed runs: a valid IOH ``Analyzer`` folder has a
+    # finalized ``IOHprofiler_f*.json`` at its top level.  Jobs that were killed
+    # mid-run (e.g. the prohibitive n=625 model-building EDAs) leave only a
+    # ``data_f*/`` subdir with no json, which would otherwise abort the load.
     manager = DataManager()
-    manager.add_folders(folders)
+    skipped = []
+    added = 0
+    for folder in folders:
+        if not glob.glob(os.path.join(folder, "*.json")):
+            skipped.append(os.path.basename(folder))
+            continue
+        try:
+            manager.add_folder(folder)
+            added += 1
+        except Exception as exc:                      # malformed/partial json
+            skipped.append(f"{os.path.basename(folder)} ({type(exc).__name__})")
+    if added == 0:
+        raise SystemExit(
+            f"No valid IOH data folders in {data_root}"
+            + (f" for selection {sel_filter!r}" if sel_filter else "")
+            + f" ({len(skipped)} folders had no json).")
+    if skipped:
+        print(f"  note: skipped {len(skipped)} incomplete/invalid run folders "
+              f"(no finalized json), e.g. {skipped[:3]}")
     return manager
 
 
 def _base_alg(name):
+    if not isinstance(name, str):
+        return "NA"
     return name.split("__")[0]
 
 
 def _sel_method(name):
+    if not isinstance(name, str):
+        return "NA"
     parts = name.split("__")
     return parts[1] if len(parts) > 1 else "NA"
 
@@ -249,7 +313,7 @@ def write_statistical_tests(overview_pd, out_dir, dims, sel):
 # AOCC (loaded once per (fid,dim), split per method + cross-method table)
 # ---------------------------------------------------------------------------
 def write_aocc_tables(manager, overview_pd, out_root, dims, sel_methods,
-                      algorithms):
+                      algorithms, write_summary=True):
     for dim in dims:
         eval_max = int(overview_pd[overview_pd["dimension"] == dim]["evals"].max())
         fids = sorted(overview_pd[overview_pd["dimension"] == dim]
@@ -306,6 +370,8 @@ def write_aocc_tables(manager, overview_pd, out_root, dims, sel_methods,
             print(f"  [{sel}] aocc_dim{dim}.csv / table_aocc_dim{dim}.tex")
 
         # ---- cross-method AOCC table (algorithms x selection methods) ----
+        if not write_summary:
+            continue
         summary_dir = os.path.join(out_root, "summary")
         by_method = aocc.pivot_table(index="algorithm", columns="selection",
                                      values="AOCC", aggfunc="mean")
@@ -399,12 +465,24 @@ def _ecdf_parts(manager, overview_pd, dim):
     return parts
 
 
-def make_ecdf_figures(manager, overview_pd, out_root, dims, sel_methods):
+def make_ecdf_figures(manager, overview_pd, out_root, dims, sel_methods,
+                      cross_method=True):
     for dim in dims:
         parts = _ecdf_parts(manager, overview_pd, dim)
         if not parts:
             continue
         ecdf = pd.concat(parts, ignore_index=True)
+        # get_data_ecdf can emit rows with a null algorithm_name (aggregate/pad
+        # rows, seen on dims with partial algorithm coverage such as n=625 where
+        # some jobs were skipped).  They carry no algorithm identity, so drop
+        # them before mapping instead of crashing.
+        n_before = len(ecdf)
+        ecdf = ecdf[ecdf["algorithm_name"].notna()].copy()
+        if len(ecdf) < n_before:
+            print(f"  note: dropped {n_before - len(ecdf)} ECDF rows with null "
+                  f"algorithm_name (dim={dim})")
+        if ecdf.empty:
+            continue
         ecdf["algorithm"] = ecdf["algorithm_name"].map(_base_alg)
         ecdf["selection"] = ecdf["algorithm_name"].map(_sel_method)
 
@@ -425,6 +503,8 @@ def make_ecdf_figures(manager, overview_pd, out_root, dims, sel_methods):
             ax.legend(ncol=2, frameon=False)
             save_figure(fig, os.path.join(out_root, sel), f"ecdf_dim{dim}")
 
+        if not cross_method:
+            continue
         # ---- cross-method ECDF (one line per selection method) ----
         agg = (ecdf.groupby(["evaluations", "selection"])["eaf"]
                .mean().reset_index())
@@ -474,11 +554,16 @@ def write_method_kruskal(overview_pd, out_root, dims, sel_methods):
 def main():
     data_root = sys.argv[1] if len(sys.argv) > 1 else DEFAULT_DATA_ROOT
     output_dir = sys.argv[2] if len(sys.argv) > 2 else DEFAULT_OUTPUT_DIR
+    sel_filter = sys.argv[3].upper() if len(sys.argv) > 3 else None
+    if sel_filter is not None and sel_filter not in SELECTION_ORDER:
+        raise SystemExit(f"selection must be one of {SELECTION_ORDER} (got "
+                         f"{sel_filter!r}); omit it to analyse all together.")
 
     print(f"Data root:   {data_root}")
     print(f"Output dir:  {output_dir}")
+    print(f"Selection:   {sel_filter or 'all (per-method subdirs + summary)'}")
 
-    manager = load_manager(data_root)
+    manager = load_manager(data_root, sel_filter)
     overview = add_split_columns(manager.overview)
     overview_pd = overview.to_pandas()
 
@@ -492,10 +577,13 @@ def main():
     print(f"  algorithms: {algorithms}")
     print(f"  selection : {sel_methods}\n")
 
+    cross_method = len(sel_methods) > 1
+
     # Output directory tree.
     for sel in sel_methods:
         os.makedirs(os.path.join(output_dir, sel), exist_ok=True)
-    os.makedirs(os.path.join(output_dir, "summary"), exist_ok=True)
+    if cross_method:
+        os.makedirs(os.path.join(output_dir, "summary"), exist_ok=True)
 
     print("Per-selection-method tables:")
     for sel in sel_methods:
@@ -504,16 +592,19 @@ def main():
         write_statistical_tests(overview_pd, os.path.join(output_dir, sel),
                                 dims, sel)
 
-    print("AOCC tables (per method + cross-method summary):")
+    print("AOCC tables" + (" (per method + cross-method summary):" if cross_method
+                           else " (per method):"))
     write_aocc_tables(manager, overview_pd, output_dir, dims, sel_methods,
-                      algorithms)
+                      algorithms, write_summary=cross_method)
 
-    print("Cross-method statistics:")
-    write_method_kruskal(overview_pd, output_dir, dims, sel_methods)
+    if cross_method:
+        print("Cross-method statistics:")
+        write_method_kruskal(overview_pd, output_dir, dims, sel_methods)
 
     print("Figures:")
     make_fixed_budget_figures(manager, overview_pd, output_dir, dims, sel_methods)
-    make_ecdf_figures(manager, overview_pd, output_dir, dims, sel_methods)
+    make_ecdf_figures(manager, overview_pd, output_dir, dims, sel_methods,
+                      cross_method=cross_method)
 
     print(f"\nDone.  Output in {output_dir}")
 

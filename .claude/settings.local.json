@@ -189,7 +189,18 @@
       "Bash(PYTHONPATH=src timeout 115 python3.11 -m pytest tests/test_pipeline_grammar.py tests/test_bn_edas_bayes_nets.py -q)",
       "Bash(PYTHONPATH=src timeout 115 python3.11 -m pytest tests/test_pipeline_grammar.py::test_model_blocks_are_type_consistent -q)",
       "Bash(echo \"EXIT $?\")",
-      "Bash(tee /tmp/launch_all.txt)"
+      "Bash(tee /tmp/launch_all.txt)",
+      "Bash(ps -o time= -p 16252)",
+      "Bash(echo \"STILL RUNNING \\(cpu: $\\(ps -o time= -p 16252\\)\\)\")",
+      "Bash(pkill -TERM -P 16252)",
+      "Bash(kill -TERM 16252)",
+      "Bash(pkill -KILL -P 16252)",
+      "Bash(kill -KILL 16252)",
+      "Bash(echo \"PID $!\")",
+      "Bash(ps -o time= -p 23553)",
+      "Bash(echo \"STILL RUNNING \\(cpu: $\\(ps -o time= -p 23553\\)\\)\")",
+      "Bash(pkill -f \"time_weighted_edas\")",
+      "Bash(grep -E \"\\\\.tex$|\\\\.csv$\")"
     ]
   }
 }

@@ -40,7 +40,7 @@ from pateda.learning.pbil import LearnPBIL
 from pateda.learning.ebna import LearnEBNA
 from pateda.learning.boa import LearnBOA
 from pateda.learning.lfda import LearnLFDA
-from pateda.learning.hboa import LearnHBOA
+from pateda.learning.hboa import LearnHBOA, LearnHBOALight
 from pateda.learning.bn_extra import (
     LearnSARTRE,
     LearnBINOTEARS,
@@ -376,12 +376,34 @@ class EBNA(_BaseEDA):
 
     Learns a Bayesian network structure using a score-and-search approach.
 
+    This class is the *flexible* EBNA of Larranaga et al. (2000, "Combinatorial
+    Optimization by Learning and Simulation of Bayesian Networks", UAI): the
+    ``score_metric`` argument selects one of the three structure-learning
+    paradigms of the original proposal, exposed individually as the
+    :class:`EBNA_BIC`, :class:`EBNA_K2` and :class:`EBNA_PC` convenience classes:
+
+    * ``"bic"`` -- penalized maximum likelihood (Bayesian Information Criterion)
+      with greedy add-only arc search (the classic ``EBNA_BIC``; default).
+    * ``"k2"``  -- Bayesian marginal likelihood, the K2/Cooper-Herskovits metric
+      (``EBNA_K2``; the paper's ``EBNA_K2+pen`` adds an explicit complexity
+      penalty on top -- see :class:`EBNA_K2`).
+    * ``"pc"`` / ``"stable_pc"`` -- constraint-based structure learning by
+      detecting conditional independencies with the PC algorithm (``EBNA_PC``).
+
     Parameters
     ----------
     n_vars, cardinality, fitness_func, pop_size, n_gen, selection_ratio,
     elitism, random_seed : see UMDA.
     alpha : float
-        Laplace smoothing pseudo-count (0 = no smoothing).
+        Laplace smoothing pseudo-count (0 = no smoothing).  For the
+        constraint-based metrics ``"pc"``/``"stable_pc"`` it is also the source
+        of the conditional-independence significance level in ``bayes_nets``
+        (``alpha_ci = alpha`` when ``0 < alpha < 1``, else 0.05).
+    max_parents : int
+        Maximum number of parents per variable.
+    score_metric : str
+        Structure-learning method passed to ``bayes_nets`` (see above and
+        :meth:`LearnEBNA`).  Default ``"bic"``.
     """
 
     def __init__(
@@ -394,15 +416,112 @@ class EBNA(_BaseEDA):
         selection_ratio: float = 0.5,
         elitism: bool = True,
         alpha: float = 1.0,
-        max_parents: int = 2,
+        max_parents: Optional[int] = 2,
+        score_metric: str = "bic",
+        warm_start: bool = False,
+        penalty: Optional[Union[str, float]] = None,
         random_seed: Optional[int] = None,
     ):
         card = _to_cardinality(cardinality, n_vars)
-        learner = LearnEBNA(max_parents=max_parents, alpha=alpha)
+        learner = LearnEBNA(max_parents=max_parents, score_metric=score_metric,
+                            alpha=alpha, warm_start=warm_start, penalty=penalty)
         sampler = SampleBayesianNetwork(n_samples=pop_size)
         components = _make_components(learner, sampler, pop_size, selection_ratio, n_gen, elitism)
         eda = EDA(pop_size, n_vars, fitness_func, card, components, random_seed=random_seed)
         super().__init__(eda)
+
+
+# ---------------------------------------------------------------------------
+# Flexible EBNA family (Larranaga et al., 2000): one class per score metric
+# ---------------------------------------------------------------------------
+
+class EBNA_BIC(EBNA):
+    """
+    EBNA with the **penalized maximum likelihood** (BIC) score -- the original
+    ``EBNA_BIC`` of Etxeberria & Larranaga (1999), with the paper's
+    **warm-started search** that makes it depart from ``LFDA``.
+
+    Faithful to Larranaga et al. (2000): the first generation learns the network
+    from an arc-less graph with **Algorithm B** (greedy add-only BIC search);
+    every subsequent generation runs an **add/delete/reverse local search
+    warm-started from the previous generation's DAG**.  ``LFDA``, by contrast,
+    relearns add-only from scratch each generation with a tunable penalty weight
+    -- so the two now differ genuinely in *search strategy*, not just defaults.
+    Set ``warm_start=False`` to recover the plain from-scratch add-only search.
+
+    Parameters
+    ----------
+    See :class:`EBNA`.  ``score_metric`` is fixed to ``"bic"``; ``warm_start``
+    defaults to ``True``.
+    """
+
+    def __init__(self, n_vars, cardinality, fitness_func, pop_size=100, n_gen=50,
+                 selection_ratio=0.5, elitism=True, alpha=1.0, max_parents=2,
+                 warm_start=True, random_seed=None):
+        super().__init__(n_vars, cardinality, fitness_func, pop_size, n_gen,
+                         selection_ratio, elitism, alpha, max_parents,
+                         score_metric="bic", warm_start=warm_start,
+                         random_seed=random_seed)
+
+
+class EBNA_K2(EBNA):
+    """
+    EBNA with the **penalized Bayesian marginal likelihood** -- the
+    ``EBNA_K2+pen`` of Larranaga et al. (2000).
+
+    The K2/Cooper-Herskovits marginal likelihood ``log p(D | S)`` (Dirichlet
+    prior) already penalizes complexity *implicitly*; ``EBNA_K2+pen`` adds an
+    **explicit penalty** ``- f(N) dim(S)`` on top and, via the Etxeberria et al.
+    (1997) theorem, an **automatic per-variable parent bound** (used when
+    ``max_parents=None``).  This maps to the ``bayes_nets`` ``method="k2_pen"``.
+
+    Parameters
+    ----------
+    See :class:`EBNA`.  ``score_metric`` is fixed to ``"k2_pen"``.
+    penalty : {"bic", "aic"} or float
+        Explicit-penalty weight ``f(N)``: ``"bic"`` -> ``0.5 log N`` (default),
+        ``"aic"`` -> 1, or a float constant.  ``penalty=0`` recovers plain K2.
+    max_parents : int or None
+        ``None`` (default) uses the automatic Etxeberria per-variable bound.
+    """
+
+    def __init__(self, n_vars, cardinality, fitness_func, pop_size=100, n_gen=50,
+                 selection_ratio=0.5, elitism=True, alpha=1.0, max_parents=None,
+                 penalty="bic", random_seed=None):
+        super().__init__(n_vars, cardinality, fitness_func, pop_size, n_gen,
+                         selection_ratio, elitism, alpha, max_parents,
+                         score_metric="k2_pen", penalty=penalty,
+                         random_seed=random_seed)
+
+
+class EBNA_PC(EBNA):
+    """
+    EBNA with **constraint-based** structure learning -- the ``EBNA_PC`` of
+    Larranaga et al. (2000), which recovers the network by *detecting
+    conditional independencies* with the PC algorithm rather than by
+    score-and-search.
+
+    The original paper uses the PC algorithm with chi-square independence tests
+    at significance ``alpha_ci = 0.01``.  Here the (order-independent) PC-Stable
+    of ``bayes_nets`` is used by default; the CI significance level is taken from
+    ``alpha`` when ``0 < alpha < 1`` (otherwise the ``bayes_nets`` default of
+    0.05).  Set ``score_metric="pc"`` for the plain (order-dependent) PC.
+
+    Parameters
+    ----------
+    See :class:`EBNA`.  ``score_metric`` is restricted to ``"pc"`` /
+    ``"stable_pc"`` (default ``"stable_pc"``).
+    """
+
+    def __init__(self, n_vars, cardinality, fitness_func, pop_size=100, n_gen=50,
+                 selection_ratio=0.5, elitism=True, alpha=1.0, max_parents=2,
+                 score_metric="stable_pc", random_seed=None):
+        if score_metric not in ("pc", "stable_pc"):
+            raise ValueError("EBNA_PC requires score_metric in {'pc', 'stable_pc'}, "
+                             f"got {score_metric!r}")
+        super().__init__(n_vars, cardinality, fitness_func, pop_size, n_gen,
+                         selection_ratio, elitism, alpha, max_parents,
+                         score_metric=score_metric, random_seed=random_seed)
 
 
 # ---------------------------------------------------------------------------
@@ -450,6 +569,13 @@ class LFDA(_BaseEDA):
     Criterion and searches greedily, with an explicit bound on the number of
     parents and a weight on the BIC complexity penalty (``bic_weight``).  Like
     EBNA and BOA it is a score-and-search learner.
+
+    ``bic_weight`` **is** the LFDA penalty weight ``alpha`` of Muehlenbein &
+    Mahnig (1999): ``bic_weight=1`` is standard Schwarz BIC (the paper's
+    ``alpha=0.5`` in bit form), ``>1`` yields sparser networks, ``<1`` denser
+    ones -- the tunable complexity penalization that is LFDA's defining
+    ingredient.  See ``docs/LFDA_departure_from_EBNA.md`` for how ``LFDA`` and
+    ``EBNA``/``EBNA_BIC`` relate and how to make them depart further.
 
     Parameters
     ----------
@@ -670,6 +796,124 @@ class HBOA(_BaseEDA):
         components = _make_niching_components(learner, sampler, pop_size,
                                               selection_ratio, n_gen, window_size)
         eda = EDA(pop_size, n_vars, fitness_func, card, components, random_seed=random_seed)
+        super().__init__(eda)
+
+
+# ---------------------------------------------------------------------------
+# HBOA-Light family (A1-A5): faster decision-tree/graph local structure
+# ---------------------------------------------------------------------------
+
+def _make_hboa_light(n_vars, cardinality, fitness_func, pop_size, n_gen,
+                     selection_ratio, window_size, max_parents, alpha,
+                     random_seed, **learn_kwargs):
+    """Assemble an HBOA-Light EDA (compact local-structure BN + niching)."""
+    card = _to_cardinality(cardinality, n_vars)
+    learner = LearnHBOALight(max_parents=max_parents, alpha=alpha, **learn_kwargs)
+    sampler = SampleLocalStructureBN(n_samples=pop_size)
+    components = _make_niching_components(learner, sampler, pop_size,
+                                          selection_ratio, n_gen, window_size)
+    return EDA(pop_size, n_vars, fitness_func, card, components,
+               random_seed=random_seed)
+
+
+class HBOA_Light_A1(_BaseEDA):
+    """
+    HBOA-Light **A1** -- decision-*tree* CPDs instead of decision graphs.
+
+    Drops the (expensive, combinatorial) decision-graph leaf-merging step of
+    hBOA and keeps context-specific decision-*tree* CPDs (Boutilier et al.,
+    1996).  ~4-5x cheaper structure search than the ``dg`` build while retaining
+    most of the context-specific-independence benefit.  See
+    ``docs/Fast_DG_Learning.md`` (A1).
+    """
+
+    def __init__(self, n_vars, cardinality, fitness_func, pop_size=100, n_gen=50,
+                 selection_ratio=0.5, max_parents=6, window_size=20, alpha=1.0,
+                 random_seed=None):
+        eda = _make_hboa_light(n_vars, cardinality, fitness_func, pop_size, n_gen,
+                               selection_ratio, window_size, max_parents, alpha,
+                               random_seed, method="dt", local_structure="dt")
+        super().__init__(eda)
+
+
+class HBOA_Light_A2(_BaseEDA):
+    """
+    HBOA-Light **A2** -- decision graphs with **top-k mutual-information
+    candidate-parent pruning**.
+
+    Restricts each variable's parent search to its ``top_k`` highest-MI
+    neighbours (de Campos & Ji, 2011 style constraint), turning the O(n)
+    candidate loop into O(k) while keeping the full ``dg`` local structure.  See
+    ``docs/Fast_DG_Learning.md`` (A2).
+    """
+
+    def __init__(self, n_vars, cardinality, fitness_func, pop_size=100, n_gen=50,
+                 selection_ratio=0.5, max_parents=6, window_size=20, alpha=1.0,
+                 top_k=10, random_seed=None):
+        eda = _make_hboa_light(n_vars, cardinality, fitness_func, pop_size, n_gen,
+                               selection_ratio, window_size, max_parents, alpha,
+                               random_seed, method="dg", local_structure="dg",
+                               candidate_parents=f"mi:{int(top_k)}")
+        super().__init__(eda)
+
+
+class HBOA_Light_A3(_BaseEDA):
+    """
+    HBOA-Light **A3** -- decision graphs with **cached sufficient statistics**
+    (naive-Bayes "independent information gain") split scoring.
+
+    Scores candidate splits from precomputed statistics instead of rescanning
+    the selected set (Su & Zhang, 2006), giving the same score at lower per-split
+    cost.  See ``docs/Fast_DG_Learning.md`` (A3).
+    """
+
+    def __init__(self, n_vars, cardinality, fitness_func, pop_size=100, n_gen=50,
+                 selection_ratio=0.5, max_parents=6, window_size=20, alpha=1.0,
+                 random_seed=None):
+        eda = _make_hboa_light(n_vars, cardinality, fitness_func, pop_size, n_gen,
+                               selection_ratio, window_size, max_parents, alpha,
+                               random_seed, method="dg", local_structure="dg",
+                               fast_local_scoring=True)
+        super().__init__(eda)
+
+
+class HBOA_Light_A4(_BaseEDA):
+    """
+    HBOA-Light **A4** -- **bounded** decision graphs grown with the cheaper
+    **MDL** split score.
+
+    Caps the local structure at ``max_leaves`` and grows it with the MDL/BIC
+    split gain instead of the more expensive (and denser) K2 gain (Muehlenbein &
+    Mahnig).  See ``docs/Fast_DG_Learning.md`` (A4).
+    """
+
+    def __init__(self, n_vars, cardinality, fitness_func, pop_size=100, n_gen=50,
+                 selection_ratio=0.5, max_parents=6, window_size=20, alpha=1.0,
+                 max_leaves=32, split_score="mdl", random_seed=None):
+        eda = _make_hboa_light(n_vars, cardinality, fitness_func, pop_size, n_gen,
+                               selection_ratio, window_size, max_parents, alpha,
+                               random_seed, method="dg", local_structure="dg",
+                               max_leaves=max_leaves, split_score=split_score)
+        super().__init__(eda)
+
+
+class HBOA_Light_A5(_BaseEDA):
+    """
+    HBOA-Light **A5** -- **non-search** decision-graph construction (Tree-in-Tree
+    / Naive Decision Graph).
+
+    Builds the decision graph in a single constructive pass (grow a tree, then
+    merge leaves; Zhu & Shoaran, 2021) instead of a combinatorial hill-climb,
+    the decisive win that keeps decision-graph EDAs tractable at ``n = 64/100``.
+    See ``docs/Fast_DG_Learning.md`` (A5).
+    """
+
+    def __init__(self, n_vars, cardinality, fitness_func, pop_size=100, n_gen=50,
+                 selection_ratio=0.5, max_parents=6, window_size=20, alpha=1.0,
+                 random_seed=None):
+        eda = _make_hboa_light(n_vars, cardinality, fitness_func, pop_size, n_gen,
+                               selection_ratio, window_size, max_parents, alpha,
+                               random_seed, method="dg_ndg", local_structure="dg")
         super().__init__(eda)
 
 

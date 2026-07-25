@@ -127,22 +127,27 @@ class LearnEBNA(LearningMethod):
 
     def __init__(
         self,
-        max_parents: int = 2,
+        max_parents: Optional[int] = 2,
         score_metric: str = "bic",
         alpha: float = 1.0,
         structure: Optional[np.ndarray] = None,
         limit_joint_table_size: bool = True,
         model_type: str = "EBNA",
+        warm_start: bool = False,
+        penalty: Optional[Any] = None,
     ):
         """
         Initialize EBNA learning
 
         Args:
-            max_parents: Maximum number of parents per variable
+            max_parents: Maximum number of parents per variable.  ``None`` lets
+                ``bayes_nets`` choose the bound automatically -- for the
+                penalized-K2 metric ``"k2_pen"`` this is the Etxeberria et al.
+                (1997) per-variable bound of the paper's ``EBNA_K2+pen``.
             score_metric: Scoring metric / structure-learning method passed to
-                ``bayes_nets`` (e.g. "bic", "aic", "k2", "sartre", "binotears",
-                "pc", "stable_pc", ...).  This class is a thin, generic adapter
-                over any ``bayes_nets`` method that returns a DAG.
+                ``bayes_nets`` (e.g. "bic", "aic", "k2", "k2_pen", "sartre",
+                "binotears", "pc", "stable_pc", ...).  This class is a thin,
+                generic adapter over any ``bayes_nets`` method that returns a DAG.
             alpha: Smoothing parameter for probability estimation
             structure: Pre-defined structure (DAG as adjacency matrix)
                       If provided, structure learning is skipped
@@ -151,6 +156,19 @@ class LearnEBNA(LearningMethod):
             model_type: Label recorded in the model metadata (lets subclasses
                 such as :class:`~pateda.learning.bn_extra.LearnSARTRE` identify
                 themselves while reusing this learner's machinery).
+            warm_start: If True, reproduce the *original* EBNA search of
+                Larranaga et al. (2000): the first generation learns from an
+                arc-less network with ``score_metric`` (Algorithm B, greedy
+                add-only), and **every subsequent generation warm-starts an
+                add/delete/reverse local search (``stable_hc``) from the DAG
+                learned in the previous generation**.  This is what makes
+                ``EBNA_BIC`` depart from ``LFDA`` (which relearns add-only from
+                scratch every generation).  Requires ``bayes_nets`` >= the
+                release exposing ``initial_structure=`` on the stable/tabu
+                hill-climbers.
+            penalty: Explicit-penalty control forwarded to ``bayes_nets`` for the
+                ``"k2_pen"`` metric (``EBNA_K2+pen``): ``"bic"`` -> ``0.5 log N``,
+                ``"aic"`` -> 1, or a float ``f(N)``.  ``None`` = not forwarded.
         """
         self.max_parents = max_parents
         self.score_metric = score_metric
@@ -158,6 +176,10 @@ class LearnEBNA(LearningMethod):
         self.structure = structure
         self.limit_joint_table_size = limit_joint_table_size
         self.model_type = model_type
+        self.warm_start = bool(warm_start)
+        self.penalty = penalty
+        # Cache of the previous generation's DAG for the warm-started search.
+        self._prev_structure: Optional[np.ndarray] = None
 
     def learn(
         self,
@@ -196,15 +218,23 @@ class LearnEBNA(LearningMethod):
             bn.set_structure(np.asarray(self.structure, dtype=int))
             bn.learn_parameters(data, alpha=self.alpha, sample_weights=sample_weights)
         else:
-            # Learn structure and parameters with the requested scoring metric.
-            bn.fit(
-                data,
-                method=self.score_metric,
+            common = dict(
                 max_parents=self.max_parents,
                 alpha=self.alpha,
                 limit_table_size=self.limit_joint_table_size,
                 sample_weights=sample_weights,
             )
+            if self.warm_start and self._prev_structure is not None:
+                # EBNA departure from LFDA: add/delete/reverse local search
+                # warm-started from the previous generation's DAG.
+                bn.fit(data, method="stable_hc",
+                       initial_structure=self._prev_structure, **common)
+            else:
+                # First generation (or non-warm-start): learn with the requested
+                # metric.  For "bic" this is Algorithm B (greedy add-only).
+                if self.penalty is not None:
+                    common["penalty"] = self.penalty
+                bn.fit(data, method=self.score_metric, **common)
 
         # Guarantee a samplable DAG.  Constraint-based learners (pc, stable_pc)
         # can occasionally return a cyclic CPDAG; break the cycles and re-estimate
@@ -212,6 +242,10 @@ class LearnEBNA(LearningMethod):
         if not bn.is_dag():
             bn.set_structure(_acyclic_orientation(bn.to_adjacency_matrix()))
             bn.learn_parameters(data, alpha=self.alpha, sample_weights=sample_weights)
+
+        # Cache the DAG so the next generation can warm-start its local search.
+        if self.warm_start:
+            self._prev_structure = bn.to_adjacency_matrix().copy()
 
         # Adapt to the pateda BayesianNetworkModel contract.
         adjacency = bn.to_adjacency_matrix()

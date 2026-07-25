@@ -109,6 +109,128 @@ from bayes_nets import BayesianNetwork
 from pateda.core.components import LearningMethod
 from pateda.core.models import BayesianNetworkModel
 from pateda.learning.utils.weights import normalize_probabilities
+from pateda.learning.ebna import _acyclic_orientation
+
+
+class LearnHBOALight(LearningMethod):
+    """Fast local-structure BN learner behind the HBOA-Light variants (A1-A5).
+
+    hBOA's cost is the *combinatorial search in decision-graph space*.  This
+    learner keeps hBOA's compact, context-specific local CPDs (sampled directly
+    by :class:`~pateda.sampling.bayesian_network.SampleLocalStructureBN`) but
+    lets each acceleration of ``docs/Fast_DG_Learning.md`` be selected through
+    the corresponding ``bayes_nets`` knob, so the five variants share one code
+    path and differ only by construction arguments:
+
+    =====  ==========================================================  ====================================
+    A1     decision *tree* CPDs (no leaf-merging)                       ``method="dt"``
+    A2     top-k mutual-information candidate-parent pruning            ``method="dg", candidate_parents="mi:k"``
+    A3     cached sufficient statistics / naive-Bayes split scoring     ``method="dg", fast_local_scoring=True``
+    A4     bounded leaves + cheaper MDL split score                     ``method="dg", split_score="mdl", max_leaves=..``
+    A5     non-search decision-graph construction (Tree-in-Tree/NDG)    ``method="dg_ndg"``
+    =====  ==========================================================  ====================================
+
+    Args:
+        method: ``bayes_nets`` structure method -- ``"dt"``, ``"dg"`` or
+            ``"dg_ndg"``.
+        local_structure: Local-CPD representation stored for sampling
+            (``"dt"`` or ``"dg"``).  Defaults to match ``method``.
+        max_parents: Maximum parents per variable.
+        alpha: Dirichlet/Laplace smoothing.
+        candidate_parents: ``None`` or ``"mi:<k>"`` to restrict the parent
+            search to each variable's top-``k`` mutual-information neighbours (A2).
+        fast_local_scoring: Use the cached-statistics fast scorers (A3).
+        max_leaves: Cap on the local-structure leaf count (A4).
+        split_score: ``{"mdl","bic","k2"}`` split-gain for ``dg``/``dg_ndg`` (A4).
+        limit_joint_table_size: Passed through to ``bayes_nets`` (kept ``False``
+            for hBOA-style local structure, as in :class:`LearnHBOA`).
+        model_type: Label recorded in the model metadata.
+    """
+
+    def __init__(
+        self,
+        method: str = "dg",
+        local_structure: Optional[str] = None,
+        max_parents: int = 6,
+        alpha: float = 1.0,
+        candidate_parents: Optional[str] = None,
+        fast_local_scoring: bool = False,
+        max_leaves: Optional[int] = None,
+        split_score: Optional[str] = None,
+        limit_joint_table_size: bool = False,
+        model_type: str = "HBOA-Light",
+    ):
+        if method not in ("dt", "dg", "dg_ndg"):
+            raise ValueError("method must be 'dt', 'dg' or 'dg_ndg', got "
+                             f"{method!r}")
+        self.method = method
+        # dg_ndg produces a decision graph; store/sample it as "dg".
+        self.local_structure = (local_structure
+                                if local_structure is not None
+                                else ("dt" if method == "dt" else "dg"))
+        self.max_parents = int(max_parents)
+        self.alpha = float(alpha)
+        self.candidate_parents = candidate_parents
+        self.fast_local_scoring = bool(fast_local_scoring)
+        self.max_leaves = max_leaves
+        self.split_score = split_score
+        self.limit_joint_table_size = bool(limit_joint_table_size)
+        self.model_type = model_type
+
+    def learn(self, generation: int, n_vars: int, cardinality: np.ndarray,
+              population: np.ndarray, fitness: np.ndarray,
+              **params: Any) -> BayesianNetworkModel:
+        cardinality = np.asarray(cardinality, dtype=int)
+        data = np.asarray(population, dtype=int)
+        sample_weights = normalize_probabilities(params.get("p"), data.shape[0])
+
+        bn = BayesianNetwork(n_vars=n_vars, cardinality=cardinality)
+        fit_kwargs: dict = dict(
+            method=self.method,
+            local_structure=self.local_structure,
+            max_parents=self.max_parents,
+            alpha=self.alpha,
+            limit_table_size=self.limit_joint_table_size,
+            sample_weights=sample_weights,
+        )
+        if self.candidate_parents is not None:
+            fit_kwargs["candidate_parents"] = self.candidate_parents
+        if self.fast_local_scoring:
+            fit_kwargs["fast_local_scoring"] = True
+        if self.max_leaves is not None:
+            fit_kwargs["max_leaves"] = self.max_leaves
+        if self.split_score is not None:
+            fit_kwargs["split_score"] = self.split_score
+
+        bn.fit(data, **fit_kwargs)
+
+        # The dt/dg/dg_ndg learners return DAGs; guard anyway and re-fit the
+        # local CPDs on the repaired skeleton so sampling stays consistent.
+        if not bn.is_dag():
+            bn.set_structure(_acyclic_orientation(bn.to_adjacency_matrix()))
+            ls_kwargs: dict = dict(structure=self.local_structure,
+                                   sample_weights=sample_weights)
+            if self.max_leaves is not None:
+                ls_kwargs["max_leaves"] = self.max_leaves
+            if self.split_score is not None:
+                ls_kwargs["split_score"] = self.split_score
+            bn.learn_local_structure(data, **ls_kwargs)
+
+        return BayesianNetworkModel(
+            structure=bn.to_adjacency_matrix(),
+            parameters=bn.cpds,
+            metadata={
+                "generation": generation,
+                "model_type": self.model_type,
+                "method": self.method,
+                "local_structure": self.local_structure,
+                "max_parents": self.max_parents,
+                "candidate_parents": self.candidate_parents,
+                "fast_local_scoring": self.fast_local_scoring,
+                "max_leaves": self.max_leaves,
+                "split_score": self.split_score,
+            },
+        )
 
 
 class LearnHBOA(LearningMethod):
