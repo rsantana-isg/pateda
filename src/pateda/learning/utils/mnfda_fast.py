@@ -28,6 +28,7 @@ Heterogeneous cardinalities
 """
 
 from typing import List, Optional
+from collections import defaultdict
 import numpy as np
 from scipy import stats as scipy_stats
 
@@ -187,6 +188,76 @@ def remove_subsumed_cliques(cliques):
         kept_sets.append(s)
         kept.append(np.asarray(cliques[idx], dtype=int))
     return kept
+
+
+# ---------------------------------------------------------------------------
+# Running-intersection forest (MN-FDA-F / MN-FDA-P): a junction forest with
+# bounded treewidth, built from the clique set.
+# ---------------------------------------------------------------------------
+def build_running_intersection_forest(cliques, rng=None):
+    """Build a factorized structure that is a **junction forest** satisfying the
+    running-intersection property (scenario 2).
+
+    Each clique is added to the growing forest attached to the SINGLE already-in
+    clique with which it has maximum variable overlap (ties broken randomly).
+    Its separator (``overlap``) is the intersection with *that one parent*; its
+    ``new`` variables are those not yet introduced by any clique.  Variables the
+    clique shares with *other* (non-parent) cliques are dropped from it, so every
+    variable's occurrences form a connected subtree -> running intersection holds
+    and the induced treewidth never exceeds ``max_clique_size - 1``.  A clique
+    that overlaps nothing starts a new tree of the forest.
+
+    Returns a FactorizedModel ``structure`` array (rows
+    ``[n_overlap, n_new, overlap..., new...]``); every row has ``n_new >= 1``.
+    """
+    if rng is None:
+        rng = np.random.default_rng()
+    # Largest cliques first (introduce more variables early); stable by index.
+    order = sorted(range(len(cliques)), key=lambda i: (-len(cliques[i]), i))
+
+    sampled = set()
+    var_to_tree = defaultdict(list)      # variable -> indices of kept cliques
+    kept_varsets = []                    # variable set actually used per kept clique
+    rows = []                            # (overlap_sorted, new_sorted)
+    for idx in order:
+        c_set = set(int(v) for v in cliques[idx])
+        new = c_set - sampled
+        if not new:                      # introduces no new variable -> skip
+            continue
+        already = c_set & sampled
+        if not already:
+            overlap = set()              # root of a new tree in the forest
+        else:
+            candidates = set()
+            for v in already:
+                candidates.update(var_to_tree[v])
+            candidates = list(candidates)
+            rng.shuffle(candidates)      # random tie-break
+            best_p, best_ov = None, -1
+            for p in candidates:
+                ov = len(c_set & kept_varsets[p])
+                if ov > best_ov:
+                    best_ov, best_p = ov, p
+            overlap = c_set & kept_varsets[best_p]   # separator with ONE parent
+
+        kept = overlap | new             # clique as used (<= original clique)
+        pos = len(kept_varsets)
+        kept_varsets.append(kept)
+        for v in kept:
+            var_to_tree[v].append(pos)
+        rows.append((sorted(overlap), sorted(new)))
+        sampled |= new
+
+    if not rows:
+        return np.zeros((0, 2), dtype=int)
+    max_w = max(len(o) + len(n) for o, n in rows)
+    structure = np.zeros((len(rows), 2 + max_w), dtype=int)
+    for i, (o, n) in enumerate(rows):
+        structure[i, 0] = len(o)
+        structure[i, 1] = len(n)
+        structure[i, 2:2 + len(o)] = o
+        structure[i, 2 + len(o):2 + len(o) + len(n)] = n
+    return structure
 
 
 # ---------------------------------------------------------------------------

@@ -32,6 +32,7 @@ from pateda.learning.mnfda import LearnMNFDA
 from pateda.learning.mnfda_sparse import LearnMNFDASparse
 from pateda.learning.mnfda_s import LearnMNFDAS
 from pateda.learning.mnfda_s_sparse import LearnMNFDASSparse
+from pateda.learning.mnfda_forest import LearnMNFDAForest
 from pateda.learning.mnfdag import LearnMNFDAG
 from pateda.learning.mnfda_r import LearnMNFDAR
 from pateda.learning.mnfdag_r import LearnMNFDAGR
@@ -89,7 +90,7 @@ __all__ = [
     "LearnSARTRE", "LearnBINOTEARS", "LearnPCBN",
     "LearnHSARTRE", "LearnHBINOTEARS",
     "LearnMixtureTrees", "LearnTreeModel",
-    "LearnMNFDA", "LearnMNFDASparse", "LearnMNFDAS", "LearnMNFDASSparse",
+    "LearnMNFDA", "LearnMNFDASparse", "LearnMNFDAS", "LearnMNFDASSparse", "LearnMNFDAForest",
     "LearnMNFDAG",
     "LearnMNFDAR", "LearnMNFDAGR", "LearnMNEDAG",
     "LearnTreeModelR", "LearnTreeModelM", "LearnMOA", "LearnIntFDA",

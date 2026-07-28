@@ -204,7 +204,8 @@ def max_product_mpc(
     tables: List[np.ndarray],
     cardinality: np.ndarray,
     order_method: str = "min_degree",
-    max_table_size: int = 1 << 24,
+    max_table_size: int = 1 << 22,
+    max_total_entries: int = 1 << 24,
 ) -> Tuple[np.ndarray, float]:
     """Exact most-probable configuration of an MN-FDA factorized model.
 
@@ -213,11 +214,14 @@ def max_product_mpc(
             ``[n_overlap, n_new, overlap..., new...]``.
         tables: per-clique probability tables.
         cardinality: variable cardinalities (length = n_vars).
-        order_method: elimination order heuristic, ``"min_fill"`` (default,
-            usually lowest treewidth) or ``"min_degree"`` (cheaper ordering).
-        max_table_size: cap on the number of entries of any intermediate cluster
-            table; exceeding it raises ``MPCIntractable`` (exact MAP would need a
-            table larger than this — the model's treewidth is too high).
+        order_method: elimination order heuristic, ``"min_degree"`` (default,
+            cheaper ordering) or ``"min_fill"`` (usually lowest treewidth).
+        max_table_size: cap on the number of entries of any single intermediate
+            cluster table (checked BEFORE allocation).
+        max_total_entries: cap on the cumulative number of entries across the
+            per-variable argmax back-tracking tables.  Either cap being exceeded
+            raises ``MPCIntractable`` — the model treewidth is too high for
+            exact max-product; callers should fall back to an approximation.
 
     Returns:
         ``(x_star, log_pstar)`` — the MAP configuration and its model log-prob.
@@ -226,7 +230,8 @@ def max_product_mpc(
     factors = [_factor_from_clique(structure[c], tables[c], cardinality)
                for c in range(structure.shape[0])]
     return _eliminate_and_backtrack(
-        factors, len(cardinality), cardinality, order_method, max_table_size)
+        factors, len(cardinality), cardinality, order_method, max_table_size,
+        max_total_entries)
 
 
 def max_product_mpc_cliques(
@@ -234,7 +239,8 @@ def max_product_mpc_cliques(
     tables: List[np.ndarray],
     cardinality: np.ndarray,
     order_method: str = "min_degree",
-    max_table_size: int = 1 << 24,
+    max_table_size: int = 1 << 22,
+    max_total_entries: int = 1 << 24,
 ) -> Tuple[np.ndarray, float]:
     """Exact MPC from a plain ``(cliques, tables)`` representation.
 
@@ -248,29 +254,55 @@ def max_product_mpc_cliques(
     factors = [_factor_from_clique_table(cliques[c], tables[c], cardinality)
                for c in range(len(cliques))]
     return _eliminate_and_backtrack(
-        factors, len(cardinality), cardinality, order_method, max_table_size)
+        factors, len(cardinality), cardinality, order_method, max_table_size,
+        max_total_entries)
 
 
 def _eliminate_and_backtrack(factors, n_vars, cardinality, order_method,
-                             max_table_size):
+                             max_table_size, max_total_entries):
     """Max-product variable elimination (inward pass) + argmax back-tracking
-    (outward pass) — the two-pass junction-tree max-propagation."""
+    (outward pass) — the two-pass junction-tree max-propagation.
+
+    Two independent memory guards keep this from OOM-killing on dense /
+    high-treewidth models (whose moral graph is expensive even though the model
+    itself is acyclic): ``max_table_size`` bounds any single intermediate
+    cluster table, and ``max_total_entries`` bounds the *cumulative* size of the
+    per-variable argmax back-tracking tables, which are all retained until the
+    backward pass.
+    """
     order = _ORDERINGS[order_method](factors)
 
     active = list(factors)
     back = {}                                # var -> (remaining_vars, argmax_table)
+    total_back = 0                           # cumulative entries in `back`
     for v in order:
         relevant = [f for f in active if v in f.vars]
         if not relevant:
             continue
         active = [f for f in active if v not in f.vars]
+        # Size guard BEFORE any allocation: the product factor spans the union of
+        # the relevant factors' variables; its table has prod(cardinalities)
+        # entries.  Checking here (rather than after building it) is essential —
+        # otherwise `_multiply` would allocate a possibly many-GB array and get
+        # OOM-killed before the guard could fire (dense / high-treewidth models).
+        union_vars = set().union(*(set(f.vars) for f in relevant))
+        cluster_entries = 1
+        for u in union_vars:
+            cluster_entries *= int(cardinality[u])
+            if cluster_entries > max_table_size:
+                raise MPCIntractable(
+                    f"exact MPC intractable: eliminating variable {v} needs a "
+                    f"cluster over {len(union_vars)} variables (> "
+                    f"{max_table_size} table entries); the model treewidth is "
+                    f"too high for exact max-product.")
         prod = _multiply(relevant, cardinality)
-        if prod.log.size > max_table_size:
-            raise MPCIntractable(
-                f"exact MPC intractable: a cluster table would need "
-                f"{prod.log.size} entries (> max_table_size={max_table_size}); "
-                f"the model treewidth is too high for exact max-product.")
         reduced, rem_vars, argmax = _max_eliminate(prod, v)
+        total_back += int(argmax.size)
+        if total_back > max_total_entries:
+            raise MPCIntractable(
+                f"exact MPC intractable: the back-tracking tables exceed "
+                f"{max_total_entries} entries; the model treewidth is too high "
+                f"for exact max-product.")
         back[v] = (rem_vars, argmax)
         active.append(reduced)
 

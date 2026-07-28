@@ -80,19 +80,24 @@ def compute_mpc(n_vars, model, cardinality, method="max_product"):
 
     ``method="max_product"`` (default) computes the *exact* MPC by junction-tree
     max-product (:func:`max_product_mpc`), trying the efficient ``min_degree``
-    elimination order first and falling back to ``min_fill`` (lower width) only
-    if the safety cap is hit.  ``method="single_pass"`` uses the greedy
-    single-forward-pass approximation.
+    elimination order first and falling back to ``min_fill`` (lower width) if the
+    memory cap is hit.  If the model is genuinely too dense for exact
+    max-product (both orderings exceed the treewidth caps — which would otherwise
+    exhaust memory), it degrades gracefully to the greedy single-forward-pass
+    approximation rather than raising / OOM-killing the run.  ``method=
+    "single_pass"`` selects that greedy approximation directly.
     """
     if method == "single_pass":
         return compute_mpc_factorized(n_vars, model, cardinality)
-    try:
-        x, _ = max_product_mpc(model.structure, model.parameters, cardinality,
-                               order_method="min_degree")
-    except MPCIntractable:
-        x, _ = max_product_mpc(model.structure, model.parameters, cardinality,
-                               order_method="min_fill")
-    return x
+    for order in ("min_degree", "min_fill"):
+        try:
+            x, _ = max_product_mpc(model.structure, model.parameters,
+                                   cardinality, order_method=order)
+            return x
+        except MPCIntractable:
+            continue
+    # Too dense for exact max-product -> greedy single-pass fallback.
+    return compute_mpc_factorized(n_vars, model, cardinality)
 
 
 class SampleFDAWithMPC(SamplingMethod):

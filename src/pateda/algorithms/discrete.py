@@ -57,6 +57,7 @@ from pateda.learning.mnfda_r import LearnMNFDAR
 from pateda.learning.mnfda_sparse import LearnMNFDASparse
 from pateda.learning.mnfda_s import LearnMNFDAS
 from pateda.learning.mnfda_s_sparse import LearnMNFDASSparse
+from pateda.learning.mnfda_forest import LearnMNFDAForest
 from pateda.learning.mnfdag import LearnMNFDAG
 from pateda.learning.mnfdag_r import LearnMNFDAGR
 from pateda.learning.mnedag import LearnMNEDAG
@@ -1253,15 +1254,16 @@ class MNEDAG(_BaseEDA):
 # MNFDAP (MN-FDA + most-probable configuration inserted)
 # ---------------------------------------------------------------------------
 
-class MNFDAP(_BaseEDA):
+class MNFDAF(_BaseEDA):
     """
-    MN-FDA-P: MN-FDA that also inserts the most-probable configuration.
+    MN-FDA-F: MN-FDA restricted to a running-intersection forest.
 
-    Identical to MN-FDA (same chi-square dependency graph, maximal cliques, PLS
-    factorization) except that each generation the most-probable configuration
-    (MPC) of the learned junction tree / factorized model is computed and added
-    to the new population; the remaining ``pop_size - 1`` individuals are sampled
-    with PLS exactly as MN-FDA.
+    Same clique discovery as MN-FDA (chi-square graph -> maximal cliques bounded
+    by ``max_clique_size``), but the cliques are assembled into a **junction
+    forest** satisfying the running-intersection property: each clique attaches
+    to the single already-in clique of maximum overlap (random tie-break), so the
+    induced treewidth never exceeds ``max_clique_size - 1``.  Every solution is
+    sampled with PLS (``SampleFDA``), exactly as MN-FDA.
 
     Parameters
     ----------
@@ -1282,7 +1284,49 @@ class MNFDAP(_BaseEDA):
         random_seed: Optional[int] = None,
     ):
         card = _to_cardinality(cardinality, n_vars)
-        learner = LearnMNFDA(max_clique_size=max_clique_size, return_factorized=True)
+        learner = LearnMNFDAForest(max_clique_size=max_clique_size,
+                                   return_factorized=True,
+                                   random_state=random_seed)
+        sampler = SampleFDA(n_samples=pop_size)
+        components = _make_components(learner, sampler, pop_size, selection_ratio, n_gen, elitism)
+        eda = EDA(pop_size, n_vars, fitness_func, card, components, random_seed=random_seed)
+        super().__init__(eda)
+
+
+class MNFDAP(_BaseEDA):
+    """
+    MN-FDA-P: MN-FDA-F that also inserts the most-probable configuration.
+
+    Identical to MN-FDA-F — the learned model is a running-intersection forest
+    (treewidth <= max_clique_size - 1) — except that each generation the exact
+    most-probable configuration (MPC) of that forest is computed by junction-tree
+    max-product and added to the new population; the remaining ``pop_size - 1``
+    individuals are sampled with PLS.  Because the forest has bounded treewidth,
+    the exact MPC is always tractable (it cannot exhaust memory as it could on the
+    unconstrained high-treewidth clique model).
+
+    Parameters
+    ----------
+    n_vars, cardinality, fitness_func, pop_size, n_gen, selection_ratio,
+    elitism, max_clique_size, random_seed : see MNFDA.
+    """
+
+    def __init__(
+        self,
+        n_vars: int,
+        cardinality: Union[int, np.ndarray],
+        fitness_func: Callable,
+        pop_size: int = 100,
+        n_gen: int = 50,
+        selection_ratio: float = 0.5,
+        elitism: bool = True,
+        max_clique_size: int = 3,
+        random_seed: Optional[int] = None,
+    ):
+        card = _to_cardinality(cardinality, n_vars)
+        learner = LearnMNFDAForest(max_clique_size=max_clique_size,
+                                   return_factorized=True,
+                                   random_state=random_seed)
         sampler = SampleFDAWithMPC(n_samples=pop_size)
         components = _make_components(learner, sampler, pop_size, selection_ratio, n_gen, elitism)
         eda = EDA(pop_size, n_vars, fitness_func, card, components, random_seed=random_seed)

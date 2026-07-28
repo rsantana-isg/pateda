@@ -471,7 +471,8 @@ Table~\ref{tab:discrete_algs} summarizes the discrete algorithm classes. While s
 \texttt{MNFDASparse} & MN-FDA-sparse & MN-FDA with a multiple-testing-corrected, degree-bounded dependency graph (scales to large $n$) \citep{Santana:2003c} \\
 \texttt{MNFDAS} & MN-FDA-S & Simplified MN-FDA: one clique per variable, no maximal-clique enumeration (scales to large $n$) \citep{Santana:2003c} \\
 \texttt{MNFDASSparse} & MN-FDA-S-Sparse & MN-FDA-S cliques built on the MN-FDA-sparse (FDR-corrected, degree-bounded) dependency graph \citep{Santana:2003c} \\
-\texttt{MNFDAP} & MN-FDA-P & MN-FDA that also inserts the model's most-probable configuration (exact junction-tree max-product) into the PLS-sampled population \citep{Santana:2003c} \\
+\texttt{MNFDAF} & MN-FDA-F & MN-FDA restricted to a running-intersection forest (bounded treewidth $\le$ max\_clique$-1$), PLS sampling \citep{Santana:2003c} \\
+\texttt{MNFDAP} & MN-FDA-P & MN-FDA-F that also inserts the forest's exact most-probable configuration (junction-tree max-product) into the PLS-sampled population \citep{Santana:2003c} \\
 \texttt{MNFDAG} & MN-FDAg & MN-FDA using the $G$-test instead of $\chi^2$ (same PLS sampling) \citep{Santana:2005} \\
 \texttt{MNFDAGR} & MN-FDAg\_r & MN-FDAg restricted to an a-priori interaction matrix \citep{Santana:2005} \\
 \texttt{MNEDAG} & MN-EDAg & Markov network EDA from $G$-test dependency tests, Gibbs sampling \citep{Santana:2005} \\
@@ -858,6 +859,25 @@ where $\mathcal{C}$ is the set of maximal cliques and $Z$ is the partition funct
     quality is small and usually beneficial. The factorization machinery and PLS
     sampling are exactly those of MN-FDA.
     Learning: \texttt{LearnMNFDASparse}. Sampling: \texttt{SampleFDA}.
+
+  \item[MN-FDA-F / MNFDAF] \citep{Santana:2003c}.
+    MN-FDA whose cliques are assembled into a \emph{junction forest} satisfying
+    the running-intersection property: each clique is attached to the single
+    already-in clique of maximum overlap (ties broken at random), its separator
+    is the intersection with that one parent, and variables shared with other
+    cliques are dropped.  The induced treewidth is therefore bounded by
+    ``max\_clique\_size'' $-1$, so the factorization is a genuine
+    (bounded-treewidth) tree/forest.  Sampling is PLS, as MN-FDA.
+    Learning: \texttt{LearnMNFDAForest}. Sampling: \texttt{SampleFDA}.
+
+  \item[MN-FDA-P / MNFDAP] \citep{Santana:2003c}.
+    MN-FDA-F augmented with the exact most-probable configuration (MPC).  Each
+    generation the MPC of the running-intersection forest is computed by
+    junction-tree max-product (an inward max-marginalisation pass plus an argmax
+    back-tracking pass; see ``docs/MPC'') and inserted into the new population;
+    the remaining individuals are sampled with PLS.  Because MN-FDA-F bounds the
+    treewidth, the exact MPC is always tractable.
+    Learning: \texttt{LearnMNFDAForest}. Sampling: \texttt{SampleFDAWithMPC}.
 
   \item[MN-FDA-S / MNFDAS] \citep{Santana:2003c}.
     Simplified MN-FDA that avoids maximal-clique enumeration. It learns the same

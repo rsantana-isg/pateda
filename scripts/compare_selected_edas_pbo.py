@@ -55,7 +55,7 @@ import ioh
 
 from pateda import (
     AffEDA, AffEDASparse, MKEDA,
-    MNFDAS, MNFDASparse, MNFDASSparse, MNFDAP,
+    MNFDAS, MNFDASparse, MNFDASSparse, MNFDAP, MNFDAF,
 )
 from pateda.replacement.elitist import ElitistReplacement
 from pateda.replacement.niching import RestrictedTournamentReplacement
@@ -154,8 +154,22 @@ ALGORITHM_BUILDERS = {
     "MNFDAP3":       _wrapped(MNFDAP,        max_clique_size=3),
     "MNFDAP4":       _wrapped(MNFDAP,        max_clique_size=4),
     "MNFDAP5":       _wrapped(MNFDAP,        max_clique_size=5),
+    "MNFDAF3":       _wrapped(MNFDAF,        max_clique_size=3),
+    "MNFDAF4":       _wrapped(MNFDAF,        max_clique_size=4),
+    "MNFDAF5":       _wrapped(MNFDAF,        max_clique_size=5),
 }
 ALGORITHM_NAMES = list(ALGORITHM_BUILDERS.keys())
+
+# The original 17-config main study (compare_selected_edas_pbo.py /
+# launch_selected_pbo_experiments.py).  MN-FDA-F is a later addition and is
+# launched separately by launch_selected_pbo_PF_experiments.py, so the main
+# study set is kept explicit here to stay reproducible.
+MAIN_STUDY_ALGORITHMS = [a for a in ALGORITHM_NAMES if not a.startswith("MNFDAF")]
+
+# MN-FDA-P and MN-FDA-F sweep (rerun of the OOM-fixed MN-FDA-P plus the new
+# MN-FDA-F), for launch_selected_pbo_PF_experiments.py.
+PF_ALGORITHMS = ["MNFDAP3", "MNFDAP4", "MNFDAP5",
+                 "MNFDAF3", "MNFDAF4", "MNFDAF5"]
 
 
 def folder_name(alg, sel):

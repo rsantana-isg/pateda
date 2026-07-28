@@ -31,7 +31,8 @@ import sys
 sys.path.insert(0, os.path.join(os.path.dirname(os.path.abspath(__file__)),
                                 os.pardir, "scripts"))
 from compare_selected_edas_pbo import (   # noqa: E402
-    ALGORITHM_NAMES, SELECTION_ORDER, POP_SIZE, N_GEN, SEL_RATIO, DIMENSIONS,
+    MAIN_STUDY_ALGORITHMS, SELECTION_ORDER, POP_SIZE, N_GEN, SEL_RATIO,
+    DIMENSIONS,
 )
 
 # Fixed parameters (must match compare_selected_edas_pbo.py for comparability).
@@ -43,7 +44,7 @@ sel_ratio = SEL_RATIO
 
 fids = list(range(1, 26))
 dims = list(DIMENSIONS)               # [16, 64, 100, 625]
-algorithms = list(ALGORITHM_NAMES)
+algorithms = list(MAIN_STUDY_ALGORITHMS)   # the 17 core configs (no MN-FDA-F)
 selections = list(SELECTION_ORDER)
 
 if __name__ == "__main__":
