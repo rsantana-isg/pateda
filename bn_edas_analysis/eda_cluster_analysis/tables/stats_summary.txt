@@ -1,0 +1,4 @@
+Friedman test on per-problem test rho over 29 problems, 19 algorithms: chi2=151.0, p=4.67e-23 (significant at 0.05).
+Nemenyi critical difference (alpha=0.05): CD=5.20 rank units.
+Best by average rank: BIC-HC (5.45). Within one CD of the best (statistically comparable): SARTRE, HC-Stb, AIC-HC, PC-Stb, BINO, PC, K2-Ens, BdTW, Univ, K2+, K2-Ref.
+Nemenyi pairwise p-values written to fig_nemenyi_heatmap.pdf (green = p>0.05, i.e. statistically comparable).

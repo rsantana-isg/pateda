@@ -49,18 +49,24 @@ from pateda.learning.bn_extra import (
     LearnHBINOTEARS,
 )
 from pateda.learning.affinity import LearnAffinityFactorization
+from pateda.learning.affinity_sparse import LearnAffinitySparse
 from pateda.learning.markov import LearnMarkovChain
 from pateda.learning.mixture_trees import LearnMixtureTrees
 from pateda.learning.mnfda import LearnMNFDA
 from pateda.learning.mnfda_r import LearnMNFDAR
+from pateda.learning.mnfda_sparse import LearnMNFDASparse
+from pateda.learning.mnfda_s import LearnMNFDAS
+from pateda.learning.mnfda_s_sparse import LearnMNFDASSparse
 from pateda.learning.mnfdag import LearnMNFDAG
 from pateda.learning.mnfdag_r import LearnMNFDAGR
+from pateda.learning.mnedag import LearnMNEDAG
 from pateda.learning.moa import LearnMOA
 from pateda.learning.cumda import LearnCUMDA
 from pateda.learning.cfda import LearnCFDA
 from pateda.learning.fda import LearnFDA
 
 from pateda.sampling.fda import SampleFDA
+from pateda.sampling.fda_mpc import SampleFDAWithMPC
 from pateda.sampling.bayesian_network import SampleBayesianNetwork, SampleLocalStructureBN
 from pateda.sampling.gibbs import SampleGibbs
 from pateda.sampling.markov import SampleMarkovChain
@@ -960,6 +966,57 @@ class AffEDA(_BaseEDA):
 
 
 # ---------------------------------------------------------------------------
+# AffEDASparse (AffEDA on a significance-gated MI matrix)
+# ---------------------------------------------------------------------------
+
+class AffEDASparse(_BaseEDA):
+    """
+    AffEDA-sparse: affinity-propagation factorization on a significance-gated
+    mutual-information matrix (approach C).
+
+    Before affinity propagation, non-significant mutual-information entries (per a
+    G-test with multiple-testing correction) are floored so those pairs are not
+    clustered together, yielding a cleaner factorization and a better-conditioned
+    similarity matrix.  Uses AffEDA's vectorized MI and clique-table kernels.
+
+    Parameters
+    ----------
+    n_vars, cardinality, fitness_func, pop_size, n_gen, selection_ratio,
+    elitism, max_clique_size, alpha, random_seed : see AffEDA.
+    threshold : float
+        Significance level for the G-test (default 0.05).
+    correction : str
+        Multiple-testing correction: ``"fdr_bh"`` (default), ``"holm"``,
+        ``"bonferroni"`` or ``"none"``.
+    """
+
+    def __init__(
+        self,
+        n_vars: int,
+        cardinality: Union[int, np.ndarray],
+        fitness_func: Callable,
+        pop_size: int = 100,
+        n_gen: int = 50,
+        selection_ratio: float = 0.5,
+        elitism: bool = True,
+        max_clique_size: int = 5,
+        alpha: float = 1.0,
+        threshold: float = 0.05,
+        correction: str = "fdr_bh",
+        random_seed: Optional[int] = None,
+    ):
+        card = _to_cardinality(cardinality, n_vars)
+        learner = LearnAffinitySparse(
+            max_clique_size=max_clique_size, alpha=alpha,
+            threshold=threshold, correction=correction,
+        )
+        sampler = SampleFDA(n_samples=pop_size)
+        components = _make_components(learner, sampler, pop_size, selection_ratio, n_gen, elitism)
+        eda = EDA(pop_size, n_vars, fitness_func, card, components, random_seed=random_seed)
+        super().__init__(eda)
+
+
+# ---------------------------------------------------------------------------
 # MKEDA (k-order Markov chain EDA)
 # ---------------------------------------------------------------------------
 
@@ -1151,15 +1208,19 @@ class MNFDAR(_BaseEDA):
 
 
 # ---------------------------------------------------------------------------
-# MNFDAG (MN-FDA with GBN structure)
+# MNEDAG (Markov-network EDA with G-test + Gibbs sampling)
 # ---------------------------------------------------------------------------
 
-class MNFDAG(_BaseEDA):
+class MNEDAG(_BaseEDA):
     """
-    MN-FDA with augmented graph (MN-FDAg).
+    Markov-network EDA with the G-test and Gibbs sampling (MN-EDAG).
 
-    Extends MN-FDA by augmenting the Markov network structure with additional
-    edges based on mutual information scores.
+    Learns an undirected Markov network from a G-test of pairwise independence
+    and samples new solutions with Gibbs sampling over per-variable conditional
+    tables.  (Previously named MN-FDAG; renamed because a Markov-network model
+    sampled with Gibbs sampling is an MN-EDA.  The old default ``alpha = 1.05``
+    that produced complete graphs is fixed to ``alpha = 0.05`` in
+    :class:`LearnMNEDAG`.)
 
     Parameters
     ----------
@@ -1181,8 +1242,232 @@ class MNFDAG(_BaseEDA):
     ):
         card = _to_cardinality(cardinality, n_vars)
         # return_factorized=False → returns MarkovNetworkModel required by SampleGibbs
-        learner = LearnMNFDAG(max_clique_size=max_clique_size, return_factorized=False)
+        learner = LearnMNEDAG(max_clique_size=max_clique_size, return_factorized=False)
         sampler = SampleGibbs(n_samples=pop_size, IT=2)
+        components = _make_components(learner, sampler, pop_size, selection_ratio, n_gen, elitism)
+        eda = EDA(pop_size, n_vars, fitness_func, card, components, random_seed=random_seed)
+        super().__init__(eda)
+
+
+# ---------------------------------------------------------------------------
+# MNFDAP (MN-FDA + most-probable configuration inserted)
+# ---------------------------------------------------------------------------
+
+class MNFDAP(_BaseEDA):
+    """
+    MN-FDA-P: MN-FDA that also inserts the most-probable configuration.
+
+    Identical to MN-FDA (same chi-square dependency graph, maximal cliques, PLS
+    factorization) except that each generation the most-probable configuration
+    (MPC) of the learned junction tree / factorized model is computed and added
+    to the new population; the remaining ``pop_size - 1`` individuals are sampled
+    with PLS exactly as MN-FDA.
+
+    Parameters
+    ----------
+    n_vars, cardinality, fitness_func, pop_size, n_gen, selection_ratio,
+    elitism, max_clique_size, random_seed : see MNFDA.
+    """
+
+    def __init__(
+        self,
+        n_vars: int,
+        cardinality: Union[int, np.ndarray],
+        fitness_func: Callable,
+        pop_size: int = 100,
+        n_gen: int = 50,
+        selection_ratio: float = 0.5,
+        elitism: bool = True,
+        max_clique_size: int = 3,
+        random_seed: Optional[int] = None,
+    ):
+        card = _to_cardinality(cardinality, n_vars)
+        learner = LearnMNFDA(max_clique_size=max_clique_size, return_factorized=True)
+        sampler = SampleFDAWithMPC(n_samples=pop_size)
+        components = _make_components(learner, sampler, pop_size, selection_ratio, n_gen, elitism)
+        eda = EDA(pop_size, n_vars, fitness_func, card, components, random_seed=random_seed)
+        super().__init__(eda)
+
+
+# ---------------------------------------------------------------------------
+# MNFDAS (MN-FDA-S: simplified per-variable cliques)
+# ---------------------------------------------------------------------------
+
+class MNFDAS(_BaseEDA):
+    """
+    MN-FDA-S: simplified MN-FDA that skips maximal-clique enumeration.
+
+    Builds one clique per variable (the variable plus its ``max_clique_size - 1``
+    strongest-mutual-information neighbours that passed the chi-square test),
+    removes subsumed cliques, then uses MN-FDA's greedy junction-tree ordering
+    and PLS sampling.  Avoids the maximal-clique blow-up that limits plain
+    MN-FDA, so it scales to large ``n``.
+
+    Parameters
+    ----------
+    n_vars, cardinality, fitness_func, pop_size, n_gen, selection_ratio,
+    elitism, max_clique_size, random_seed : see MNFDA.
+    """
+
+    def __init__(
+        self,
+        n_vars: int,
+        cardinality: Union[int, np.ndarray],
+        fitness_func: Callable,
+        pop_size: int = 100,
+        n_gen: int = 50,
+        selection_ratio: float = 0.5,
+        elitism: bool = True,
+        max_clique_size: int = 3,
+        random_seed: Optional[int] = None,
+    ):
+        card = _to_cardinality(cardinality, n_vars)
+        learner = LearnMNFDAS(max_clique_size=max_clique_size, return_factorized=True)
+        sampler = SampleFDA(n_samples=pop_size)
+        components = _make_components(learner, sampler, pop_size, selection_ratio, n_gen, elitism)
+        eda = EDA(pop_size, n_vars, fitness_func, card, components, random_seed=random_seed)
+        super().__init__(eda)
+
+
+# ---------------------------------------------------------------------------
+# MNFDASSparse (MN-FDA-S-Sparse: MN-FDA-S cliques on the MN-FDA-sparse graph)
+# ---------------------------------------------------------------------------
+
+class MNFDASSparse(_BaseEDA):
+    """
+    MN-FDA-S-Sparse: combines MN-FDA-S clique construction with MN-FDA-sparse
+    dependency filtering.
+
+    The dependencies are filtered as in MN-FDA-sparse (multiple-testing-corrected
+    chi-square + bounded neighbourhood); the cliques are then built as in
+    MN-FDA-S (one clique per variable from its strongest-MI significant
+    neighbours, subsumed cliques removed).  PLS sampling as in MN-FDA.
+
+    Parameters
+    ----------
+    n_vars, cardinality, fitness_func, pop_size, n_gen, selection_ratio,
+    elitism, max_clique_size, random_seed : see MNFDA.
+    correction : str
+        Multiple-testing correction: ``"fdr_bh"`` (default), ``"holm"``,
+        ``"bonferroni"`` or ``"none"``.
+    max_neighborhood : int
+        Per-variable cap on the strongest-MI significant neighbours (default 6).
+    """
+
+    def __init__(
+        self,
+        n_vars: int,
+        cardinality: Union[int, np.ndarray],
+        fitness_func: Callable,
+        pop_size: int = 100,
+        n_gen: int = 50,
+        selection_ratio: float = 0.5,
+        elitism: bool = True,
+        max_clique_size: int = 3,
+        correction: str = "fdr_bh",
+        max_neighborhood: int = 6,
+        random_seed: Optional[int] = None,
+    ):
+        card = _to_cardinality(cardinality, n_vars)
+        learner = LearnMNFDASSparse(
+            max_clique_size=max_clique_size,
+            correction=correction,
+            max_neighborhood=max_neighborhood,
+            return_factorized=True,
+        )
+        sampler = SampleFDA(n_samples=pop_size)
+        components = _make_components(learner, sampler, pop_size, selection_ratio, n_gen, elitism)
+        eda = EDA(pop_size, n_vars, fitness_func, card, components, random_seed=random_seed)
+        super().__init__(eda)
+
+
+# ---------------------------------------------------------------------------
+# MNFDAG (MN-FDA with the G-test, PLS sampling)
+# ---------------------------------------------------------------------------
+
+class MNFDAG(_BaseEDA):
+    """
+    MN-FDA with the G-test (MN-FDAG).
+
+    Identical to MN-FDA — same maximal-clique factorization, clique splitting at
+    ``max_clique_size``, clique ordering, probability tables and PLS sampling
+    (``SampleFDA``) — but the pairwise dependencies are detected with the G-test
+    (exact degrees of freedom) instead of the chi-square (df = 1) test.
+
+    Parameters
+    ----------
+    n_vars, cardinality, fitness_func, pop_size, n_gen, selection_ratio,
+    elitism, max_clique_size, random_seed : see MNFDA.
+    """
+
+    def __init__(
+        self,
+        n_vars: int,
+        cardinality: Union[int, np.ndarray],
+        fitness_func: Callable,
+        pop_size: int = 100,
+        n_gen: int = 50,
+        selection_ratio: float = 0.5,
+        elitism: bool = True,
+        max_clique_size: int = 3,
+        random_seed: Optional[int] = None,
+    ):
+        card = _to_cardinality(cardinality, n_vars)
+        # return_factorized=True → FactorizedModel sampled with PLS (SampleFDA),
+        # exactly as MN-FDA.
+        learner = LearnMNFDAG(max_clique_size=max_clique_size, return_factorized=True)
+        sampler = SampleFDA(n_samples=pop_size)
+        components = _make_components(learner, sampler, pop_size, selection_ratio, n_gen, elitism)
+        eda = EDA(pop_size, n_vars, fitness_func, card, components, random_seed=random_seed)
+        super().__init__(eda)
+
+
+# ---------------------------------------------------------------------------
+# MNFDASparse (MN-FDA with a sparsified dependency graph)
+# ---------------------------------------------------------------------------
+
+class MNFDASparse(_BaseEDA):
+    """
+    MN-FDA-sparse: MN-FDA with a multiple-testing-corrected, degree-bounded
+    dependency graph (proposal D of ``MN-FDA_analysis.md``).
+
+    Keeps MN-FDA's factorization and PLS sampling but sparsifies the graph so
+    the clique count grows ~linearly in ``n``, targeting scalability to
+    ``n >= 625``.
+
+    Parameters
+    ----------
+    n_vars, cardinality, fitness_func, pop_size, n_gen, selection_ratio,
+    elitism, max_clique_size, random_seed : see MNFDA.
+    correction : str
+        Multiple-testing correction over the n(n-1)/2 tests: ``"fdr_bh"``
+        (default), ``"holm"``, ``"bonferroni"`` or ``"none"``.
+    max_neighborhood : int
+        Per-variable cap on the number of highest-MI neighbours kept (default 6).
+    """
+
+    def __init__(
+        self,
+        n_vars: int,
+        cardinality: Union[int, np.ndarray],
+        fitness_func: Callable,
+        pop_size: int = 100,
+        n_gen: int = 50,
+        selection_ratio: float = 0.5,
+        elitism: bool = True,
+        max_clique_size: int = 3,
+        correction: str = "fdr_bh",
+        max_neighborhood: int = 6,
+        random_seed: Optional[int] = None,
+    ):
+        card = _to_cardinality(cardinality, n_vars)
+        learner = LearnMNFDASparse(
+            max_clique_size=max_clique_size,
+            correction=correction,
+            max_neighborhood=max_neighborhood,
+            return_factorized=True,
+        )
+        sampler = SampleFDA(n_samples=pop_size)
         components = _make_components(learner, sampler, pop_size, selection_ratio, n_gen, elitism)
         eda = EDA(pop_size, n_vars, fitness_func, card, components, random_seed=random_seed)
         super().__init__(eda)

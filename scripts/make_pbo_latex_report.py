@@ -110,6 +110,12 @@ def compute_summary(final_df, aocc_df, sels):
     return aocc_sel, rank_sel, wins_sel, coverage
 
 
+def _tex(s):
+    """Escape LaTeX-special characters in a label (algorithm names may contain
+    underscores, e.g. ``A1_dt``, ``BOA_mp6``, ``EBNA_BIC``)."""
+    return str(s).replace("\\", r"\textbackslash{}").replace("_", r"\_")
+
+
 def _fmt_table(df, cols, fmt, best="max", coverage=None, intcols=False):
     """LaTeX rows for a summary table (best per column in bold)."""
     best_val = {c: (df[c].max() if best == "max" else df[c].min()) for c in cols}
@@ -126,7 +132,7 @@ def _fmt_table(df, cols, fmt, best="max", coverage=None, intcols=False):
                 body = f"\\mathbf{{{body}}}"
             cells.append(f"${body}$")
         cov = f" & {int(coverage.get(alg, 0))}" if coverage is not None else ""
-        lines.append(f"{alg} & " + " & ".join(cells) + cov + " \\\\")
+        lines.append(f"{_tex(alg)} & " + " & ".join(cells) + cov + " \\\\")
     return "\n".join(lines)
 
 
@@ -138,9 +144,9 @@ def summary_section(aocc_sel, rank_sel, wins_sel, coverage, sels):
     colspec = "l" + "r" * len(cols)
     header = "Algorithm & " + " & ".join(cols)
 
-    top_aocc = ", ".join(order[:3])
+    top_aocc = ", ".join(_tex(a) for a in order[:3])
     top_rank = rank_sel["Overall"].sort_values().index.tolist()[:3]
-    top_rank = ", ".join(top_rank)
+    top_rank = ", ".join(_tex(a) for a in top_rank)
 
     out = []
     out.append(r"\section{Overall summary: best algorithms across all functions "

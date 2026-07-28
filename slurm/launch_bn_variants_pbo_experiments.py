@@ -5,8 +5,12 @@ suite under the three selection schemes (FP, BZ, RTS), one job per
 same job so they share one IOH data folder.
 
 Algorithms (11, all with common max_parents=6):
-    EBNA_BIC, EBNA_K2, EBNA_PC, LFDA, BOA, SARTRE,
+    EBNA_BIC, EBNA_K2, EBNA_PC, LFDA_mp6, BOA_mp6, SARTRE_mp6,
     A1_dt, A2_mi, A3_fast, A4_mdl, A5_ndg
+
+(LFDA/BOA/SARTRE carry the ``_mp6`` suffix so their IOH folders do not collide
+with the natural-parent-budget LFDA/BOA/SARTRE of launch_weighted_pbo_experiments.py
+when the two studies' folders are combined and analysed together.)
 
 Full default grid:
     11 algorithms x 3 selection-methods x 25 functions x 4 dimensions = 3300 jobs.

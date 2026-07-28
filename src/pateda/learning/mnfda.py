@@ -20,17 +20,21 @@ import numpy as np
 
 from pateda.core.components import LearningMethod
 from pateda.core.models import MarkovNetworkModel, FactorizedModel
-from pateda.learning.utils.mutual_information import (
-    compute_mutual_information_matrix,
-    chi_square_test,
-)
 from pateda.learning.utils.markov_network import (
     find_maximal_cliques_greedy,
-    order_cliques_for_sampling,
     convert_cliques_to_factorized_structure,
 )
-from pateda.learning.utils.probability_tables import compute_clique_tables
 from pateda.learning.utils.weights import count_weights_from_p
+# Vectorized, numerically-exact kernels (proposals A, B, C, E of
+# MN-FDA_analysis.md).  MN-FDA uses these; the G-test variants MN-FDAG / MN-EDAG
+# deliberately keep the reference kernels.
+from pateda.learning.utils.mnfda_fast import (
+    compute_mi_matrix_fast,               # proposal B
+    chi2_adjacency,                       # proposal A
+    compute_clique_tables_fast,           # proposal C
+    order_cliques_for_sampling_fast,      # proposal E
+    prune_empty_cliques,                  # keep PLS at <= n cliques
+)
 
 
 class LearnMNFDA(LearningMethod):
@@ -109,12 +113,13 @@ class LearnMNFDA(LearningMethod):
         if weights is None:
             weights = count_weights_from_p(params.get("p"), population.shape[0])
 
-        # Step 1: Compute mutual information matrix
-        mi_matrix = compute_mutual_information_matrix(population, cardinality, weights)
+        # Step 1: Compute mutual information matrix (proposal B: vectorized).
+        mi_matrix = compute_mi_matrix_fast(population, cardinality, weights)
 
-        # Step 2: Build dependency graph using chi-square test
-        adjacency = self._build_dependency_graph(
-            mi_matrix, population.shape[0], cardinality
+        # Step 2: Build dependency graph using chi-square test (proposal A:
+        # critical value evaluated once, comparison vectorized).
+        adjacency = chi2_adjacency(
+            mi_matrix, population.shape[0], self.threshold
         )
 
         # Step 3: Find maximal cliques
@@ -122,22 +127,32 @@ class LearnMNFDA(LearningMethod):
             adjacency, self.max_clique_size, self.max_n_cliques
         )
 
-        # Step 4: Order cliques for sampling
-        clique_order = order_cliques_for_sampling(cliques)
+        # Step 4: Order cliques for sampling (proposal E: identical order,
+        # built via an inverted variable->clique index).
+        clique_order = order_cliques_for_sampling_fast(cliques)
 
-        # Step 5: Convert to factorized structure
+        # Step 5: Convert to factorized structure, then drop redundant cliques
+        # that introduce no new variable.  PLS visits each variable exactly once,
+        # so at most n cliques are productive; on a dense graph the greedy clique
+        # finder can emit thousands of empty (n_new==0) rows that SampleFDA would
+        # otherwise loop over.  Pruning them is exact (they sample nothing).
         structure = convert_cliques_to_factorized_structure(cliques, clique_order)
+        structure = prune_empty_cliques(structure)
 
-        # Step 6: Compute probability tables
-        tables = compute_clique_tables(
-            population, cliques, structure, cardinality, weights, self.prior
+        # Step 6: Compute probability tables (proposal C: bincount over
+        # mixed-radix indices; general for heterogeneous cardinalities).
+        tables = compute_clique_tables_fast(
+            population, structure, cardinality, weights, self.prior
         )
 
-        # Create and return model
+        # Create and return model.  n_cliques counts the *productive* cliques
+        # actually used by PLS (<= n) after pruning; n_cliques_raw is the count
+        # before pruning (maximal cliques found on the dependency graph).
         metadata = {
             "generation": generation,
             "model_type": "MN-FDA",
-            "n_cliques": len(cliques),
+            "n_cliques": int(structure.shape[0]),
+            "n_cliques_raw": len(cliques),
             "max_clique_size": max(len(c) for c in cliques),
             "threshold": self.threshold,
         }
@@ -159,35 +174,21 @@ class LearnMNFDA(LearningMethod):
         self, mi_matrix: np.ndarray, n_samples: int, cardinality: np.ndarray
     ) -> np.ndarray:
         """
-        Build dependency graph using chi-square test
+        Build dependency graph using the chi-square test (df = 1).
 
-        For each pair (i,j), test if MI(i,j) is significant using chi-square test.
+        For each pair (i, j) an edge is added iff ``2 N MI(i,j) ln 2`` exceeds
+        the chi-square critical value at significance ``self.threshold``.  This
+        is proposal A: the critical value is evaluated once and the comparison
+        is vectorized (identical output to the per-pair reference).
 
         Reference: C++ FDA.cpp:1635-1672 (LearnMatrix)
 
         Args:
             mi_matrix: Mutual information matrix
             n_samples: Number of samples
-            cardinality: Variable cardinalities
+            cardinality: Variable cardinalities (unused; df = 1 approximation)
 
         Returns:
             Adjacency matrix (binary)
         """
-        n_vars = mi_matrix.shape[0]
-        adjacency = np.zeros((n_vars, n_vars), dtype=int)
-
-        for i in range(n_vars):
-            for j in range(i + 1, n_vars):
-                mi = mi_matrix[i, j]
-
-                # Chi-square test for independence
-                _, is_dependent = chi_square_test(mi, n_samples, self.threshold)
-
-                if is_dependent:
-                    adjacency[i, j] = 1
-                    adjacency[j, i] = 1
-
-        # Self-loops
-        np.fill_diagonal(adjacency, 1)
-
-        return adjacency
+        return chi2_adjacency(mi_matrix, n_samples, self.threshold)

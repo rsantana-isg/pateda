@@ -1,6 +1,7 @@
 """Sampling methods"""
 
 from pateda.sampling.fda import SampleFDA
+from pateda.sampling.fda_mpc import SampleFDAWithMPC
 from pateda.sampling.int_fda import SampleIntFDA
 from pateda.sampling.network_crossover import SampleNetworkCrossover
 from pateda.sampling.regularized_markov import SampleRegularizedMarkov
@@ -50,7 +51,7 @@ except ImportError:
     sample_vine_copula_conditional = None
 
 __all__ = [
-    "SampleFDA", "SampleIntFDA", "SampleNetworkCrossover",
+    "SampleFDA", "SampleFDAWithMPC", "SampleIntFDA", "SampleNetworkCrossover",
     "SampleRegularizedMarkov",
     "SamplePartialFDA", "SampleCUMDA", "SampleCUMDARange",
     "SampleCFDA", "SampleCFDARange", "SampleCFDAWeighted",

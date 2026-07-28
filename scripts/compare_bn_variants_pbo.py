@@ -9,10 +9,17 @@ This mirrors ``compare_weighted_edas_pbo.py`` but with a different algorithm set
     EBNA_BIC   penalized-ML BIC, warm-started add/delete/reverse search
     EBNA_K2    penalized-K2 (EBNA_K2+pen), fixed max_parents=6
     EBNA_PC    constraint-based (PC-Stable)
-    LFDA       add-only greedy BIC, from scratch each generation
-    BOA        K2/BDe greedy Bayesian network
-    SARTRE     order-based sparse-additive BN (SARTRE-EDA)
+    LFDA_mp6   add-only greedy BIC, from scratch each generation
+    BOA_mp6    K2/BDe greedy Bayesian network
+    SARTRE_mp6 order-based sparse-additive BN (SARTRE-EDA)
     A1_dt      HBOA-Light: decision-tree CPDs
+
+``LFDA_mp6`` / ``BOA_mp6`` / ``SARTRE_mp6`` carry the ``_mp6`` suffix (common
+``max_parents=6``) so their IOH folders stay distinct from the ``LFDA`` / ``BOA``
+/ ``SARTRE`` folders produced by ``launch_weighted_pbo_experiments.py`` (which
+use each method's natural parent budget), letting the two studies' folders be
+combined and analysed together without collision.  The remaining variants have
+names that do not occur in that study.
     A2_mi      HBOA-Light: decision graphs + top-k MI candidate pruning
     A3_fast    HBOA-Light: decision graphs + cached-statistics split scoring
     A4_mdl     HBOA-Light: bounded decision graphs, MDL split score
@@ -89,9 +96,14 @@ ALGORITHM_BUILDERS = {
     "EBNA_BIC": _wrapped(EBNA_BIC,      max_parents=MAX_PARENTS),
     "EBNA_K2":  _wrapped(EBNA_K2,       max_parents=MAX_PARENTS),
     "EBNA_PC":  _wrapped(EBNA_PC,       max_parents=MAX_PARENTS),
-    "LFDA":     _wrapped(LFDA,          max_parents=MAX_PARENTS),
-    "BOA":      _wrapped(BOA,           max_parents=MAX_PARENTS),
-    "SARTRE":   _wrapped(SARTRE_EDA,    max_parents=MAX_PARENTS),
+    # LFDA / BOA / SARTRE also appear (with their *natural* max_parents) in
+    # compare_weighted_edas_pbo.py / launch_weighted_pbo_experiments.py.  These
+    # here use the common max_parents=6, so they are renamed with an ``_mp6``
+    # suffix to keep their IOH folders (``LFDA_mp6__FP`` etc.) distinct from the
+    # existing ``LFDA__FP`` folders when the two studies are analysed together.
+    "LFDA_mp6":   _wrapped(LFDA,       max_parents=MAX_PARENTS),
+    "BOA_mp6":    _wrapped(BOA,        max_parents=MAX_PARENTS),
+    "SARTRE_mp6": _wrapped(SARTRE_EDA, max_parents=MAX_PARENTS),
     "A1_dt":    _wrapped(HBOA_Light_A1, max_parents=MAX_PARENTS),
     "A2_mi":    _wrapped(HBOA_Light_A2, max_parents=MAX_PARENTS),
     "A3_fast":  _wrapped(HBOA_Light_A3, max_parents=MAX_PARENTS),

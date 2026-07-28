@@ -20,16 +20,7 @@ from typing import List, Tuple, Optional, Dict, Union
 from dataclasses import dataclass
 from enum import Enum
 
-try:
-    try:
-        from pgmpy.models import DiscreteMarkovNetwork as MarkovNetwork
-    except ImportError:
-        from pgmpy.models import MarkovNetwork  # older pgmpy
-    from pgmpy.inference import BeliefPropagation
-    from pgmpy.factors.discrete import DiscreteFactor
-    PGMPY_AVAILABLE = True
-except ImportError:
-    PGMPY_AVAILABLE = False
+from pateda.inference.max_product_mpc import max_product_mpc_cliques
 
 
 class MAPMethod(Enum):
@@ -131,50 +122,6 @@ class MAPInference:
         self.tolerance = tolerance
         self.temperature = temperature
 
-        # Build pgmpy model if available
-        self._pgmpy_model = None
-        if PGMPY_AVAILABLE and method in [MAPMethod.EXACT, MAPMethod.BP]:
-            self._build_pgmpy_model()
-
-    def _build_pgmpy_model(self):
-        """Build pgmpy MarkovNetwork from cliques and tables."""
-        if not PGMPY_AVAILABLE:
-            return
-
-        # Collect all variables appearing in any clique
-        all_vars = set()
-        edges = []
-        for clique in self.cliques:
-            for v in clique:
-                all_vars.add(int(v))
-            if len(clique) > 1:
-                for i in range(len(clique)):
-                    for j in range(i + 1, len(clique)):
-                        edge = (int(clique[i]), int(clique[j]))
-                        if edge not in edges:
-                            edges.append(edge)
-
-        self._pgmpy_model = MarkovNetwork(edges)
-        # Add isolated variables (appear only in single-node cliques, e.g., tree root)
-        for v in all_vars:
-            if v not in self._pgmpy_model.nodes():
-                self._pgmpy_model.add_node(v)
-
-        # Create factors from clique tables
-        factors = []
-        for clique, table in zip(self.cliques, self.tables):
-            # pgmpy expects non-zero probabilities, so add small constant
-            table_safe = np.maximum(table, 1e-300)
-
-            factor = DiscreteFactor(
-                variables=[int(v) for v in clique],
-                cardinality=[int(self.cardinalities[v]) for v in clique],
-                values=table_safe.ravel()
-            )
-            factors.append(factor)
-
-        self._pgmpy_model.add_factors(*factors)
-
     def compute_map(self) -> MAPResult:
         """Compute the MAP (most probable) configuration.
 
@@ -191,101 +138,69 @@ class MAPInference:
             raise ValueError(f"Unknown MAP method: {self.method}")
 
     def _compute_map_exact(self) -> MAPResult:
-        """Compute MAP using exact junction tree inference (via pgmpy)."""
-        if not PGMPY_AVAILABLE or self._pgmpy_model is None:
-            # Fallback to simple greedy method
-            return self._compute_map_greedy()
+        """Compute the exact MAP by junction-tree max-product.
 
+        Uses :func:`max_product_mpc_cliques` (max-product variable elimination
+        with argmax back-tracking -- the two-pass junction-tree max-propagation).
+        This is exact and, because the models are acyclic, always tractable.
+        Replaces the former external belief-propagation implementation.
+        """
         try:
-            # Use belief propagation for MAP
-            bp = BeliefPropagation(self._pgmpy_model)
-
-            # Query MAP state for each variable
-            map_config = np.zeros(self.n_variables, dtype=int)
-
-            # Get marginals and pick argmax for each variable
-            for var in range(self.n_variables):
-                try:
-                    marginal = bp.query(variables=[var], show_progress=False)
-                    map_config[var] = np.argmax(marginal.values)
-                except:
-                    # If query fails, use greedy fallback
-                    map_config[var] = 0
-
-            # Compute probability of this configuration
-            log_prob = self._evaluate_configuration(map_config)
-            prob = np.exp(log_prob)
-
-            return MAPResult(
-                configuration=map_config,
-                log_probability=log_prob,
-                probability=prob,
-                method="exact",
-                metadata={"pgmpy": True}
-            )
-        except Exception as e:
-            # Fallback to greedy if pgmpy fails
+            config, _ = max_product_mpc_cliques(
+                self.cliques, self.tables, self.cardinalities)
+        except Exception:
+            # Robust fallback (e.g. degenerate/empty model).
             return self._compute_map_greedy()
+
+        log_prob = self._evaluate_configuration(config)
+        return MAPResult(
+            configuration=config,
+            log_probability=log_prob,
+            probability=float(np.exp(log_prob)),
+            method="exact",
+            metadata={"algorithm": "max_product_junction_tree"},
+        )
 
     def _compute_map_bp(self) -> MAPResult:
-        """Compute MAP using belief propagation (max-product).
+        """Compute an approximate MAP by per-variable max-marginals.
 
-        This implements loopy belief propagation with max-product messages
-        for approximate MAP inference.
+        A lightweight, pure-numpy belief-propagation-style approximation (max
+        over the other clique variables, accumulated in log-space, argmax per
+        variable).  Kept as the softer alternative to the exact junction-tree
+        MAP (:meth:`_compute_map_exact`) — useful for dependency-network /
+        pseudo-conditional models (e.g. MOA) where the exact joint MAP can
+        over-commit ("MAP lock-in").
         """
-        # Simple implementation: use max-marginals
-        # For each variable, compute max-marginal and pick argmax
-
-        # Initialize with uniform messages
         max_marginals = np.zeros((self.n_variables, max(self.cardinalities)))
 
-        # Compute max-marginal for each variable from clique tables
         for var in range(self.n_variables):
             marginal = np.zeros(self.cardinalities[var])
-
-            # Find cliques containing this variable
             for clique, table in zip(self.cliques, self.tables):
                 if var in clique:
-                    # Get variable position in clique
                     var_idx = np.where(clique == var)[0][0]
-
-                    # Ensure table has correct shape for the clique
                     expected_shape = tuple(self.cardinalities[v] for v in clique)
                     if table.shape != expected_shape:
                         table = table.reshape(expected_shape)
-
-                    # Max-marginalize over other variables
                     axes_to_max = [i for i in range(len(clique)) if i != var_idx]
                     if axes_to_max:
-                        # Reduce over all axes at once to avoid dimension shifting issues
                         max_vals = np.max(table, axis=tuple(axes_to_max))
                     else:
                         max_vals = table
-
-                    # Accumulate (multiply in log space)
-                    # Handle both scalar and array max_vals
                     if np.isscalar(max_vals) or max_vals.ndim == 0:
-                        # Scalar case - broadcast to marginal
                         marginal += np.log(np.maximum(max_vals, 1e-300))
                     elif len(marginal) == len(max_vals):
                         marginal += np.log(np.maximum(max_vals, 1e-300))
-
             max_marginals[var, :self.cardinalities[var]] = marginal
 
-        # Pick argmax for each variable
         map_config = np.array([np.argmax(max_marginals[v, :self.cardinalities[v]])
                                for v in range(self.n_variables)])
-
-        # Evaluate configuration
         log_prob = self._evaluate_configuration(map_config)
-        prob = np.exp(log_prob)
-
         return MAPResult(
             configuration=map_config,
             log_probability=log_prob,
-            probability=prob,
+            probability=float(np.exp(log_prob)),
             method="bp",
-            metadata={"type": "max-product"}
+            metadata={"type": "max-marginal"},
         )
 
     def _compute_map_decimation(self) -> MAPResult:

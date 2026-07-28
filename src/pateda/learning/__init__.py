@@ -29,9 +29,13 @@ from pateda.learning.tree import LearnTreeModel
 from pateda.learning.tree_m import LearnTreeModelM
 from pateda.learning.int_fda import LearnIntFDA
 from pateda.learning.mnfda import LearnMNFDA
+from pateda.learning.mnfda_sparse import LearnMNFDASparse
+from pateda.learning.mnfda_s import LearnMNFDAS
+from pateda.learning.mnfda_s_sparse import LearnMNFDASSparse
 from pateda.learning.mnfdag import LearnMNFDAG
 from pateda.learning.mnfda_r import LearnMNFDAR
 from pateda.learning.mnfdag_r import LearnMNFDAGR
+from pateda.learning.mnedag import LearnMNEDAG
 from pateda.learning.tree_r import LearnTreeModelR
 from pateda.learning.moa import LearnMOA
 from pateda.learning.interaction_learning import (
@@ -45,6 +49,7 @@ from pateda.learning.affinity import (
     LearnAffinityFactorization,
     LearnAffinityFactorizationElim,
 )
+from pateda.learning.affinity_sparse import LearnAffinitySparse
 from pateda.learning.pbil import LearnPBIL
 from pateda.learning.mimic import LearnMIMIC
 from pateda.learning.basic_gaussian import (
@@ -84,7 +89,9 @@ __all__ = [
     "LearnSARTRE", "LearnBINOTEARS", "LearnPCBN",
     "LearnHSARTRE", "LearnHBINOTEARS",
     "LearnMixtureTrees", "LearnTreeModel",
-    "LearnMNFDA", "LearnMNFDAG", "LearnMNFDAR", "LearnMNFDAGR",
+    "LearnMNFDA", "LearnMNFDASparse", "LearnMNFDAS", "LearnMNFDASSparse",
+    "LearnMNFDAG",
+    "LearnMNFDAR", "LearnMNFDAGR", "LearnMNEDAG",
     "LearnTreeModelR", "LearnTreeModelM", "LearnMOA", "LearnIntFDA",
     "LearnRegularizedMarkov",
     "find_matrix_interactions_SAT", "find_matrix_interactions_ising",
@@ -92,6 +99,7 @@ __all__ = [
     "find_matrix_interactions_additive_decomposable",
     "find_matrix_interactions_RNA_design",
     "LearnAffinityFactorization", "LearnAffinityFactorizationElim",
+    "LearnAffinitySparse",
     "LearnPBIL", "LearnMIMIC",
     "learn_gaussian_univariate", "learn_gaussian_full",
     "LearnGaussianUnivariate", "LearnGaussianFull",

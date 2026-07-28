@@ -23,6 +23,42 @@ from pateda.core.components import LearningMethod
 from pateda.core.models import FactorizedModel
 from pateda.learning.utils.marginal_prob import find_marginal_prob
 from pateda.learning.utils.weights import count_weights_from_p
+from pateda.learning.utils.conversions import find_acc_card
+# Approach A/B: vectorized, exact MN-FDA kernels reused for AffEDA.
+from pateda.learning.utils.mnfda_fast import compute_mi_matrix_fast
+
+
+def _fast_clique_tables(cliques, population, cardinality, weights, alpha):
+    """Vectorized joint-marginal tables for AffEDA cliques (approach B).
+
+    Numerically identical to the per-sample ``_learn_clique_parameters`` loop
+    (same mixed-radix index, same Laplace-``alpha`` normalisation), but the
+    per-sample counting is done with ``np.bincount``.  Fully general for
+    heterogeneous cardinalities (the index is mixed-radix over each clique's own
+    cardinalities).
+    """
+    cardinality = np.asarray(cardinality)
+    w = None if weights is None else np.asarray(weights, dtype=float)
+    tables = []
+    for i in range(cliques.shape[0]):
+        n_overlap = int(cliques[i, 0])
+        n_new = int(cliques[i, 1])
+        clique_vars = cliques[i, 2:2 + n_overlap + n_new].astype(int)
+        clique_vars = clique_vars[clique_vars >= 0]
+        clique_cards = cardinality[clique_vars].astype(int)
+        acc = find_acc_card(len(clique_vars), clique_cards)
+        n_configs = int(np.prod(clique_cards))
+        idx = (population[:, clique_vars].astype(int) @ acc).astype(int)
+        if w is None:
+            counts = np.bincount(idx, minlength=n_configs)[:n_configs].astype(float)
+        else:
+            counts = np.bincount(idx, weights=w, minlength=n_configs)[:n_configs]
+        if alpha > 0:
+            counts = counts + alpha
+        total = counts.sum()
+        tables.append(counts / total if total > 0
+                      else np.ones(n_configs) / n_configs)
+    return tables
 
 
 class LearnAffinityFactorization(LearningMethod):
@@ -358,15 +394,11 @@ class LearnAffinityFactorization(LearningMethod):
         # Customized selection: count-scale weights (N * p) or None for uniform.
         weights = count_weights_from_p(params.get("p"), population.shape[0])
 
-        # Learn univariate and bivariate marginal probabilities (weighted)
-        univ_prob, biv_prob = find_marginal_prob(
-            population, n_vars, cardinality, weights=weights
-        )
-
-        # Compute mutual information matrix
-        mi_matrix = self._compute_mutual_information_matrix(
-            population, n_vars, cardinality, univ_prob, biv_prob
-        )
+        # Approach A: mutual-information matrix computed with the vectorized,
+        # numerically-exact kernel (handles heterogeneous cardinalities).  This
+        # replaces find_marginal_prob + the per-pair Python MI loop, which were
+        # ~80% of AffEDA's runtime and were used only to build this matrix.
+        mi_matrix = compute_mi_matrix_fast(population, cardinality, weights)
 
         # Determine preference
         pref = self.preference
@@ -395,8 +427,9 @@ class LearnAffinityFactorization(LearningMethod):
         # Convert to standard clique format
         cliques = self._create_clique_structure(cliques_list, n_vars)
 
-        # Learn parameters for each clique (weighted)
-        tables = self._learn_clique_parameters(cliques, population, cardinality, weights)
+        # Approach B: vectorized clique probability tables (bincount).
+        tables = _fast_clique_tables(cliques, population, cardinality, weights,
+                                     self.alpha)
 
         # Create and return model
         model = FactorizedModel(
@@ -700,15 +733,8 @@ class LearnAffinityFactorizationElim(LearningMethod):
         # Customized selection: count-scale weights (N * p) or None for uniform.
         weights = count_weights_from_p(params.get("p"), population.shape[0])
 
-        # Learn marginal probabilities (weighted)
-        univ_prob, biv_prob = find_marginal_prob(
-            population, n_vars, cardinality, weights=weights
-        )
-
-        # Compute mutual information matrix
-        mi_matrix = self._compute_mutual_information_matrix(
-            population, n_vars, cardinality, univ_prob, biv_prob
-        )
+        # Approach A: vectorized, exact mutual-information matrix.
+        mi_matrix = compute_mi_matrix_fast(population, cardinality, weights)
 
         # Determine preference
         pref = self.preference if self.preference is not None else np.median(mi_matrix)
@@ -720,8 +746,9 @@ class LearnAffinityFactorizationElim(LearningMethod):
         # Convert to standard format
         cliques = self._create_clique_structure(cliques_list, n_vars)
 
-        # Learn parameters (weighted)
-        tables = self._learn_clique_parameters(cliques, population, cardinality, weights)
+        # Approach B: vectorized clique probability tables (bincount).
+        tables = _fast_clique_tables(cliques, population, cardinality, weights,
+                                     self.alpha)
 
         # Create model
         model = FactorizedModel(

@@ -208,6 +208,12 @@ def function_label(overview_pd, fid):
     return f"f{fid} {name}"
 
 
+def _tex(s):
+    """Escape LaTeX-special characters in a label (algorithm names may contain
+    underscores, e.g. ``A1_dt``, ``BOA_mp6``, ``EBNA_BIC``)."""
+    return str(s).replace("\\", r"\textbackslash{}").replace("_", r"\_")
+
+
 def _bold_table(index_labels, columns, value_of, is_best, caption, fmt="{:.2f}"):
     """Assemble a LaTeX tabular; value_of(row, col)->str cell body, is_best->bool."""
     lines = [
@@ -215,7 +221,7 @@ def _bold_table(index_labels, columns, value_of, is_best, caption, fmt="{:.2f}")
         "\\setlength{\\tabcolsep}{10pt}",
         "\\begin{tabular}{l" + "r" * len(columns) + "}",
         "\\hline",
-        "Function & " + " & ".join(columns) + " \\\\",
+        "Function & " + " & ".join(_tex(c) for c in columns) + " \\\\",
         "\\hline",
     ]
     for row_key, label in index_labels:
@@ -400,7 +406,7 @@ def write_aocc_tables(manager, overview_pd, out_root, dims, sel_methods,
                     cells.append(f"$\\mathbf{{{v:.3f}}}$")
                 else:
                     cells.append(f"${v:.3f}$")
-            lines.append(f"{a} & " + " & ".join(cells) + " \\\\")
+            lines.append(f"{_tex(a)} & " + " & ".join(cells) + " \\\\")
         lines += ["\\hline", "\\end{tabular}"]
         with open(os.path.join(summary_dir,
                                f"table_aocc_by_method_dim{dim}.tex"), "w") as fh:

@@ -25,11 +25,19 @@ from pateda.inference.kmpc import (
     compute_kmpc,
 )
 
+from pateda.inference.max_product_mpc import (
+    max_product_mpc,
+    MPCIntractable,
+)
+
 __all__ = [
     'compute_map',
     'compute_k_map',
     'compute_map_decimation',
     'MAPInference',
+    # exact MPC via junction-tree max-product
+    'max_product_mpc',
+    'MPCIntractable',
     # KMPC
     'KMPCResult',
     'KMPCUnivariate',

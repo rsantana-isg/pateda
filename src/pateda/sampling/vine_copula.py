@@ -106,11 +106,17 @@ def sample_vine_copula(
         u = rng.random((n_samples, n_vars))
         u_sim = vine_model.inverse_rosenblatt(u)
     else:
-        # Direct simulation from vine copula
-        if seeds is not None:
-            u_sim = vine_model.simulate(n=n_samples, seeds=seeds)
-        else:
-            u_sim = vine_model.simulate(n=n_samples)
+        # Direct simulation from vine copula.
+        #
+        # pyvinecopulib's Vinecop.simulate() draws from its own internal C++ RNG,
+        # which is independent of NumPy.  When the caller does not provide explicit
+        # `seeds`, derive them from the supplied NumPy Generator so that the
+        # simulation is reproducible whenever a seeded `rng` is passed (the
+        # reproducibility contract shared by all pateda samplers).  Passing
+        # `params['seeds']` explicitly still overrides this behaviour.
+        if seeds is None:
+            seeds = rng.integers(1, 2**31 - 1, size=5).tolist()
+        u_sim = vine_model.simulate(n=n_samples, seeds=seeds)
 
     # Transform from uniform [0,1] to original variable space
     population = np.copy(u_sim)

@@ -461,7 +461,9 @@ class KMPCBayesianNetwork:
     Parameters
     ----------
     bn_model : BayesianNetworkModel
-        Model containing structure (pgmpy BayesianNetwork or similar).
+        Model containing structure (a bayes_nets BayesianNetwork / networkx
+        DiGraph or any object exposing the same ``nodes()`` / ``predecessors()``
+        API).
     cardinality : (n_vars,) array
     """
 
@@ -491,7 +493,8 @@ class KMPCBayesianNetwork:
         parameters = bn_model.parameters
 
         try:
-            # Try pgmpy BayesianNetwork API
+            # Duck-typed BayesianNetwork API (bayes_nets / networkx-style:
+            # nodes(), predecessors()).
             nodes = list(structure.nodes())
             n_vars = len(nodes)
             node_to_idx = {node: i for i, node in enumerate(nodes)}
@@ -526,7 +529,7 @@ class KMPCBayesianNetwork:
 
                 # Extract CPD table
                 try:
-                    # pgmpy CPD
+                    # CPD exposing a get_values() method (bayes_nets-style CPD)
                     vals = np.asarray(cpd.get_values())
                     card_node = int(cardinality[node_idx])
                     if parent_indices:
