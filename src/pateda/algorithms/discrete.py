@@ -54,10 +54,6 @@ from pateda.learning.markov import LearnMarkovChain
 from pateda.learning.mixture_trees import LearnMixtureTrees
 from pateda.learning.mnfda import LearnMNFDA
 from pateda.learning.mnfda_r import LearnMNFDAR
-from pateda.learning.mnfda_sparse import LearnMNFDASparse
-from pateda.learning.mnfda_s import LearnMNFDAS
-from pateda.learning.mnfda_s_sparse import LearnMNFDASSparse
-from pateda.learning.mnfda_forest import LearnMNFDAForest
 from pateda.learning.mnfdag import LearnMNFDAG
 from pateda.learning.mnfdag_r import LearnMNFDAGR
 from pateda.learning.mnedag import LearnMNEDAG
@@ -1132,15 +1128,29 @@ class MNFDA(_BaseEDA):
     """
     Markov Network Factorized Distribution Algorithm (MN-FDA).
 
-    Learns a Markov network structure from pairwise chi-square independence
-    tests, then samples using FDA (factorized distribution) sampling.
+    Learns a running-intersection **forest** MN-FDA factorization that is
+    scalable to large ``n``: a multiple-testing-corrected, degree-bounded
+    **sparse** dependency graph (MN-FDA-sparse); **per-variable cliques** instead
+    of maximal-clique enumeration (MN-FDA-S); and a running-intersection
+    **forest** of bounded treewidth (MN-FDA-F).  New solutions are sampled with
+    PLS (``SampleFDA``).  See :class:`~pateda.learning.mnfda.LearnMNFDA`.
 
     Parameters
     ----------
     n_vars, cardinality, fitness_func, pop_size, n_gen, selection_ratio,
     elitism, random_seed : see UMDA.
     max_clique_size : int
-        Maximum clique size for the Markov network.
+        Target clique size ``k`` (default 5); bounds the forest treewidth to
+        ``k - 1``.
+    correction : str
+        Multiple-testing correction for the sparse graph: ``"fdr_bh"`` (default),
+        ``"holm"``, ``"bonferroni"`` or ``"none"``.
+    max_neighborhood : int or None
+        Per-variable cap on the strongest-MI significant neighbours (default 6).
+    use_ess : bool
+        If True, use the effective sample size of the (weighted) selection in the
+        chi-square statistic, which prevents concentrated weights (e.g. Boltzmann
+        selection) from densifying the graph.  Default False.
     """
 
     def __init__(
@@ -1152,11 +1162,19 @@ class MNFDA(_BaseEDA):
         n_gen: int = 50,
         selection_ratio: float = 0.5,
         elitism: bool = True,
-        max_clique_size: int = 3,
+        max_clique_size: int = 5,
+        correction: str = "fdr_bh",
+        max_neighborhood: Optional[int] = 6,
+        use_ess: bool = False,
+        limit_table_size: bool = True,
         random_seed: Optional[int] = None,
     ):
         card = _to_cardinality(cardinality, n_vars)
-        learner = LearnMNFDA(max_clique_size=max_clique_size, return_factorized=True)
+        learner = LearnMNFDA(
+            max_clique_size=max_clique_size, correction=correction,
+            max_neighborhood=max_neighborhood, use_ess=use_ess,
+            limit_table_size=limit_table_size,
+            return_factorized=True, random_state=random_seed)
         sampler = SampleFDA(n_samples=pop_size)
         components = _make_components(learner, sampler, pop_size, selection_ratio, n_gen, elitism)
         eda = EDA(pop_size, n_vars, fitness_func, card, components, random_seed=random_seed)
@@ -1254,61 +1272,20 @@ class MNEDAG(_BaseEDA):
 # MNFDAP (MN-FDA + most-probable configuration inserted)
 # ---------------------------------------------------------------------------
 
-class MNFDAF(_BaseEDA):
-    """
-    MN-FDA-F: MN-FDA restricted to a running-intersection forest.
-
-    Same clique discovery as MN-FDA (chi-square graph -> maximal cliques bounded
-    by ``max_clique_size``), but the cliques are assembled into a **junction
-    forest** satisfying the running-intersection property: each clique attaches
-    to the single already-in clique of maximum overlap (random tie-break), so the
-    induced treewidth never exceeds ``max_clique_size - 1``.  Every solution is
-    sampled with PLS (``SampleFDA``), exactly as MN-FDA.
-
-    Parameters
-    ----------
-    n_vars, cardinality, fitness_func, pop_size, n_gen, selection_ratio,
-    elitism, max_clique_size, random_seed : see MNFDA.
-    """
-
-    def __init__(
-        self,
-        n_vars: int,
-        cardinality: Union[int, np.ndarray],
-        fitness_func: Callable,
-        pop_size: int = 100,
-        n_gen: int = 50,
-        selection_ratio: float = 0.5,
-        elitism: bool = True,
-        max_clique_size: int = 3,
-        random_seed: Optional[int] = None,
-    ):
-        card = _to_cardinality(cardinality, n_vars)
-        learner = LearnMNFDAForest(max_clique_size=max_clique_size,
-                                   return_factorized=True,
-                                   random_state=random_seed)
-        sampler = SampleFDA(n_samples=pop_size)
-        components = _make_components(learner, sampler, pop_size, selection_ratio, n_gen, elitism)
-        eda = EDA(pop_size, n_vars, fitness_func, card, components, random_seed=random_seed)
-        super().__init__(eda)
-
-
 class MNFDAP(_BaseEDA):
     """
-    MN-FDA-P: MN-FDA-F that also inserts the most-probable configuration.
+    MN-FDA-P: the :class:`MNFDA` model plus its exact most-probable configuration.
 
-    Identical to MN-FDA-F — the learned model is a running-intersection forest
-    (treewidth <= max_clique_size - 1) — except that each generation the exact
-    most-probable configuration (MPC) of that forest is computed by junction-tree
-    max-product and added to the new population; the remaining ``pop_size - 1``
-    individuals are sampled with PLS.  Because the forest has bounded treewidth,
-    the exact MPC is always tractable (it cannot exhaust memory as it could on the
-    unconstrained high-treewidth clique model).
+    Identical learner to :class:`MNFDA` (sparse graph -> per-variable cliques ->
+    running-intersection forest), but each generation the exact most-probable
+    configuration (MPC) of that forest is computed by junction-tree max-product
+    and inserted into the new population; the remaining ``pop_size - 1``
+    individuals are sampled with PLS (``SampleFDAWithMPC``).  The forest's bounded
+    treewidth (``<= max_clique_size - 1``) keeps the MPC always tractable.
 
     Parameters
     ----------
-    n_vars, cardinality, fitness_func, pop_size, n_gen, selection_ratio,
-    elitism, max_clique_size, random_seed : see MNFDA.
+    See :class:`MNFDA` (identical arguments).
     """
 
     def __init__(
@@ -1320,106 +1297,20 @@ class MNFDAP(_BaseEDA):
         n_gen: int = 50,
         selection_ratio: float = 0.5,
         elitism: bool = True,
-        max_clique_size: int = 3,
-        random_seed: Optional[int] = None,
-    ):
-        card = _to_cardinality(cardinality, n_vars)
-        learner = LearnMNFDAForest(max_clique_size=max_clique_size,
-                                   return_factorized=True,
-                                   random_state=random_seed)
-        sampler = SampleFDAWithMPC(n_samples=pop_size)
-        components = _make_components(learner, sampler, pop_size, selection_ratio, n_gen, elitism)
-        eda = EDA(pop_size, n_vars, fitness_func, card, components, random_seed=random_seed)
-        super().__init__(eda)
-
-
-# ---------------------------------------------------------------------------
-# MNFDAS (MN-FDA-S: simplified per-variable cliques)
-# ---------------------------------------------------------------------------
-
-class MNFDAS(_BaseEDA):
-    """
-    MN-FDA-S: simplified MN-FDA that skips maximal-clique enumeration.
-
-    Builds one clique per variable (the variable plus its ``max_clique_size - 1``
-    strongest-mutual-information neighbours that passed the chi-square test),
-    removes subsumed cliques, then uses MN-FDA's greedy junction-tree ordering
-    and PLS sampling.  Avoids the maximal-clique blow-up that limits plain
-    MN-FDA, so it scales to large ``n``.
-
-    Parameters
-    ----------
-    n_vars, cardinality, fitness_func, pop_size, n_gen, selection_ratio,
-    elitism, max_clique_size, random_seed : see MNFDA.
-    """
-
-    def __init__(
-        self,
-        n_vars: int,
-        cardinality: Union[int, np.ndarray],
-        fitness_func: Callable,
-        pop_size: int = 100,
-        n_gen: int = 50,
-        selection_ratio: float = 0.5,
-        elitism: bool = True,
-        max_clique_size: int = 3,
-        random_seed: Optional[int] = None,
-    ):
-        card = _to_cardinality(cardinality, n_vars)
-        learner = LearnMNFDAS(max_clique_size=max_clique_size, return_factorized=True)
-        sampler = SampleFDA(n_samples=pop_size)
-        components = _make_components(learner, sampler, pop_size, selection_ratio, n_gen, elitism)
-        eda = EDA(pop_size, n_vars, fitness_func, card, components, random_seed=random_seed)
-        super().__init__(eda)
-
-
-# ---------------------------------------------------------------------------
-# MNFDASSparse (MN-FDA-S-Sparse: MN-FDA-S cliques on the MN-FDA-sparse graph)
-# ---------------------------------------------------------------------------
-
-class MNFDASSparse(_BaseEDA):
-    """
-    MN-FDA-S-Sparse: combines MN-FDA-S clique construction with MN-FDA-sparse
-    dependency filtering.
-
-    The dependencies are filtered as in MN-FDA-sparse (multiple-testing-corrected
-    chi-square + bounded neighbourhood); the cliques are then built as in
-    MN-FDA-S (one clique per variable from its strongest-MI significant
-    neighbours, subsumed cliques removed).  PLS sampling as in MN-FDA.
-
-    Parameters
-    ----------
-    n_vars, cardinality, fitness_func, pop_size, n_gen, selection_ratio,
-    elitism, max_clique_size, random_seed : see MNFDA.
-    correction : str
-        Multiple-testing correction: ``"fdr_bh"`` (default), ``"holm"``,
-        ``"bonferroni"`` or ``"none"``.
-    max_neighborhood : int
-        Per-variable cap on the strongest-MI significant neighbours (default 6).
-    """
-
-    def __init__(
-        self,
-        n_vars: int,
-        cardinality: Union[int, np.ndarray],
-        fitness_func: Callable,
-        pop_size: int = 100,
-        n_gen: int = 50,
-        selection_ratio: float = 0.5,
-        elitism: bool = True,
-        max_clique_size: int = 3,
+        max_clique_size: int = 5,
         correction: str = "fdr_bh",
-        max_neighborhood: int = 6,
+        max_neighborhood: Optional[int] = 6,
+        use_ess: bool = False,
+        limit_table_size: bool = True,
         random_seed: Optional[int] = None,
     ):
         card = _to_cardinality(cardinality, n_vars)
-        learner = LearnMNFDASSparse(
-            max_clique_size=max_clique_size,
-            correction=correction,
-            max_neighborhood=max_neighborhood,
-            return_factorized=True,
-        )
-        sampler = SampleFDA(n_samples=pop_size)
+        learner = LearnMNFDA(
+            max_clique_size=max_clique_size, correction=correction,
+            max_neighborhood=max_neighborhood, use_ess=use_ess,
+            limit_table_size=limit_table_size,
+            return_factorized=True, random_state=random_seed)
+        sampler = SampleFDAWithMPC(n_samples=pop_size)
         components = _make_components(learner, sampler, pop_size, selection_ratio, n_gen, elitism)
         eda = EDA(pop_size, n_vars, fitness_func, card, components, random_seed=random_seed)
         super().__init__(eda)
@@ -1460,57 +1351,6 @@ class MNFDAG(_BaseEDA):
         # return_factorized=True → FactorizedModel sampled with PLS (SampleFDA),
         # exactly as MN-FDA.
         learner = LearnMNFDAG(max_clique_size=max_clique_size, return_factorized=True)
-        sampler = SampleFDA(n_samples=pop_size)
-        components = _make_components(learner, sampler, pop_size, selection_ratio, n_gen, elitism)
-        eda = EDA(pop_size, n_vars, fitness_func, card, components, random_seed=random_seed)
-        super().__init__(eda)
-
-
-# ---------------------------------------------------------------------------
-# MNFDASparse (MN-FDA with a sparsified dependency graph)
-# ---------------------------------------------------------------------------
-
-class MNFDASparse(_BaseEDA):
-    """
-    MN-FDA-sparse: MN-FDA with a multiple-testing-corrected, degree-bounded
-    dependency graph (proposal D of ``MN-FDA_analysis.md``).
-
-    Keeps MN-FDA's factorization and PLS sampling but sparsifies the graph so
-    the clique count grows ~linearly in ``n``, targeting scalability to
-    ``n >= 625``.
-
-    Parameters
-    ----------
-    n_vars, cardinality, fitness_func, pop_size, n_gen, selection_ratio,
-    elitism, max_clique_size, random_seed : see MNFDA.
-    correction : str
-        Multiple-testing correction over the n(n-1)/2 tests: ``"fdr_bh"``
-        (default), ``"holm"``, ``"bonferroni"`` or ``"none"``.
-    max_neighborhood : int
-        Per-variable cap on the number of highest-MI neighbours kept (default 6).
-    """
-
-    def __init__(
-        self,
-        n_vars: int,
-        cardinality: Union[int, np.ndarray],
-        fitness_func: Callable,
-        pop_size: int = 100,
-        n_gen: int = 50,
-        selection_ratio: float = 0.5,
-        elitism: bool = True,
-        max_clique_size: int = 3,
-        correction: str = "fdr_bh",
-        max_neighborhood: int = 6,
-        random_seed: Optional[int] = None,
-    ):
-        card = _to_cardinality(cardinality, n_vars)
-        learner = LearnMNFDASparse(
-            max_clique_size=max_clique_size,
-            correction=correction,
-            max_neighborhood=max_neighborhood,
-            return_factorized=True,
-        )
         sampler = SampleFDA(n_samples=pop_size)
         components = _make_components(learner, sampler, pop_size, selection_ratio, n_gen, elitism)
         eda = EDA(pop_size, n_vars, fitness_func, card, components, random_seed=random_seed)

@@ -126,36 +126,213 @@ def compute_mi_matrix_fast(population, cardinality, weights=None):
 # ---------------------------------------------------------------------------
 # Proposal A: vectorized chi-square dependency graph
 # ---------------------------------------------------------------------------
-def chi2_adjacency(mi_matrix, n_samples, threshold=0.05):
-    """Dependency graph from the chi-square test, vectorized (proposal A).
+def _pair_dof(cardinality, i_idx, j_idx):
+    """Degrees of freedom ``(r_i - 1)(c_j - 1)`` for each variable pair
+    (i_idx, j_idx), clipped to >= 1 (guards constant variables / self-pairs)."""
+    card = np.asarray(cardinality, dtype=int)
+    return np.maximum((card[i_idx] - 1) * (card[j_idx] - 1), 1).astype(float)
 
-    Reproduces ``_build_dependency_graph`` / ``chi_square_test`` (df = 1) but
-    evaluates the critical value ``chi2.ppf(1 - threshold, 1)`` **once** instead
-    of once per variable pair.
+
+def chi2_adjacency(mi_matrix, n_samples, cardinality=None, threshold=0.05):
+    """Dependency graph from the chi-square / G-test, vectorized (proposal A).
+
+    The statistic is the likelihood-ratio (G) statistic ``2 * n_samples * MI *
+    ln2``, asymptotically chi-square with **df = (r_i - 1)(c_j - 1)** for a pair
+    of variables with cardinalities ``r_i``, ``c_j``.
+
+    Pass ``cardinality`` (1-D array) to use the correct per-pair degrees of
+    freedom -- required for **heterogeneous / non-binary** variables, where the
+    old fixed ``df = 1`` (only correct for binary 2x2 tables) over-detects edges
+    on the higher-cardinality variables.  ``cardinality=None`` keeps the legacy
+    ``df = 1`` behaviour (binary).
+
+    Pass the *effective* sample size (see :func:`effective_sample_size`) as
+    ``n_samples`` to correct for weighted (customized-selection) counts.
     """
-    critical_value = scipy_stats.chi2.ppf(1 - threshold, 1)
     chi2_stat = 2.0 * n_samples * mi_matrix * _LN2
-    adjacency = (chi2_stat > critical_value).astype(int)
+    if cardinality is None:
+        adjacency = (chi2_stat > scipy_stats.chi2.ppf(1 - threshold, 1)).astype(int)
+    else:
+        n = mi_matrix.shape[0]
+        rows, cols = np.meshgrid(np.arange(n), np.arange(n), indexing="ij")
+        df = _pair_dof(cardinality, rows, cols)
+        adjacency = (chi2_stat > scipy_stats.chi2.ppf(1 - threshold, df)).astype(int)
     np.fill_diagonal(adjacency, 1)
     return adjacency
+
+
+def effective_sample_size(weights, n_samples):
+    """Effective sample size (ESS) of a count-scale weight vector.
+
+    ``ESS = (sum w)^2 / sum(w^2)`` -- Kish's effective sample size.  For the
+    uniform case (``weights is None``, or all weights equal) this returns
+    ``n_samples`` exactly, so ``chi2 = 2 * ESS * MI * ln2`` reduces to the raw
+    ``2 * N * MI * ln2``.  Under concentrated (e.g. Boltzmann) weights the ESS is
+    smaller, which shrinks the chi-square statistic and therefore removes the
+    spurious dependencies that would otherwise densify the graph.
+
+    Args:
+        weights: Count-scale weights (``N * p``, summing to ``N``) or ``None``.
+        n_samples: Raw number of samples ``N`` (returned when ``weights`` is
+            ``None``).
+
+    Returns:
+        Effective sample size (float), in ``[1, n_samples]``.
+    """
+    if weights is None:
+        return float(n_samples)
+    w = np.asarray(weights, dtype=float)
+    s1 = w.sum()
+    s2 = np.square(w).sum()
+    if s2 <= 0.0:
+        return float(n_samples)
+    return float(s1 * s1 / s2)
+
+
+# ---------------------------------------------------------------------------
+# Sparse dependency graph (multiple-testing correction + bounded neighbourhood)
+# Relocated here from the (now-excluded) mnfda_sparse module so the current
+# MN-FDA learner can reuse it.
+# ---------------------------------------------------------------------------
+def corrected_adjacency(mi_matrix, n_samples, alpha, correction, cardinality=None):
+    """Symmetric binary adjacency from chi-square p-values with a
+    multiple-testing correction over the ``n(n-1)/2`` pairwise tests.
+
+    ``correction`` in ``{"none", "bonferroni", "holm", "fdr_bh"}``.  As in
+    :func:`chi2_adjacency`, pass the effective sample size as ``n_samples`` to
+    account for weighted counts, and ``cardinality`` (1-D array) to use the
+    correct per-pair degrees of freedom ``(r_i - 1)(c_j - 1)`` for
+    heterogeneous / non-binary variables (``None`` -> legacy ``df = 1``).
+    """
+    n = mi_matrix.shape[0]
+    iu, ju = np.triu_indices(n, k=1)
+    chi2_stat = 2.0 * n_samples * mi_matrix[iu, ju] * _LN2
+    df = 1 if cardinality is None else _pair_dof(cardinality, iu, ju)
+    pvals = scipy_stats.chi2.sf(chi2_stat, df)          # 1 - cdf
+    m = pvals.size
+
+    correction = (correction or "none").lower()
+    if correction in ("none", "None"):
+        reject = pvals < alpha
+    elif correction == "bonferroni":
+        reject = pvals < (alpha / m)
+    elif correction == "holm":
+        order = np.argsort(pvals)
+        thresh = alpha / (m - np.arange(m))
+        sorted_reject = pvals[order] < thresh
+        if not sorted_reject.all():
+            first_fail = np.argmin(sorted_reject)      # first False
+            sorted_reject[first_fail:] = False
+        reject = np.zeros(m, dtype=bool)
+        reject[order] = sorted_reject
+    elif correction in ("fdr_bh", "bh", "fdr"):
+        order = np.argsort(pvals)
+        ranked = pvals[order]
+        thresh = alpha * (np.arange(1, m + 1) / m)
+        below = ranked <= thresh
+        if below.any():
+            kmax = int(np.max(np.where(below)[0]))
+            reject_sorted = np.zeros(m, dtype=bool)
+            reject_sorted[: kmax + 1] = True
+        else:
+            reject_sorted = np.zeros(m, dtype=bool)
+        reject = np.zeros(m, dtype=bool)
+        reject[order] = reject_sorted
+    else:
+        raise ValueError(f"Unknown correction {correction!r}")
+
+    adjacency = np.zeros((n, n), dtype=int)
+    adjacency[iu[reject], ju[reject]] = 1
+    adjacency[ju[reject], iu[reject]] = 1
+    return adjacency
+
+
+def neff_for_target_degree(mi_matrix, alpha, correction, cardinality,
+                           target_degree, n_max):
+    """Effective sample size in ``[1, n_max]`` whose FDR-corrected dependency
+    graph has mean degree closest to ``target_degree`` (scale-aware tuning).
+
+    The mean degree is monotone increasing in the effective sample size, so a
+    bisection suffices.  This picks the *aggressiveness* of the significance test
+    to hit a target density directly, which interpolates automatically between
+    the raw ``N`` (small ``n``, where the raw test is already about right) and a
+    smaller effective size (large ``n``, where the raw test over-connects) --
+    with the weighting already folded into ``mi_matrix``.  If even ``n_eff =
+    n_max`` does not reach the target the raw ``n_max`` is returned; if ``n_eff =
+    1`` is already too dense, ``1`` is returned.
+    """
+    n = mi_matrix.shape[0]
+
+    def mean_deg(neff):
+        adj = corrected_adjacency(mi_matrix, neff, alpha, correction, cardinality)
+        np.fill_diagonal(adj, 0)
+        return adj.sum() / n
+
+    if mean_deg(float(n_max)) <= target_degree:
+        return float(n_max)
+    if mean_deg(1.0) >= target_degree:
+        return 1.0
+    lo, hi = 1.0, float(n_max)
+    for _ in range(24):
+        mid = 0.5 * (lo + hi)
+        if mean_deg(mid) > target_degree:
+            hi = mid
+        else:
+            lo = mid
+    return 0.5 * (lo + hi)
+
+
+def bound_neighborhood(adjacency, mi_matrix, max_neighborhood):
+    """Keep, per variable, only the ``max_neighborhood`` highest-MI neighbours;
+    symmetrize by union.  Returns a new adjacency with self-loops on the
+    diagonal."""
+    n = adjacency.shape[0]
+    if max_neighborhood is None or max_neighborhood <= 0:
+        out = adjacency.copy()
+        np.fill_diagonal(out, 1)
+        return out
+    kept = np.zeros((n, n), dtype=int)
+    for v in range(n):
+        nbrs = np.where(adjacency[v] > 0)[0]
+        nbrs = nbrs[nbrs != v]
+        if len(nbrs) > max_neighborhood:
+            top = nbrs[np.argsort(-mi_matrix[v, nbrs])[:max_neighborhood]]
+        else:
+            top = nbrs
+        kept[v, top] = 1
+    sym = ((kept + kept.T) > 0).astype(int)
+    np.fill_diagonal(sym, 1)
+    return sym
 
 
 # ---------------------------------------------------------------------------
 # MN-FDA-S: per-variable cliques instead of full maximal-clique enumeration
 # ---------------------------------------------------------------------------
-def build_per_variable_cliques(mi_matrix, adjacency, max_clique_size):
+def build_per_variable_cliques(mi_matrix, adjacency, max_clique_size,
+                               cardinality=None, max_table_size=None):
     """One clique per variable, avoiding maximal-clique enumeration.
 
-    For each variable ``x_i`` the clique is ``x_i`` together with the
-    ``max_clique_size - 1`` variables of strongest mutual information *among
-    those that passed the chi-square test with* ``x_i`` (i.e. ``adjacency[i]``).
-    If no variable passed the test the clique is the singleton ``[i]``.
+    For each variable ``x_i`` the clique is ``x_i`` together with the strongest
+    mutual-information neighbours that passed the dependency test
+    (``adjacency[i]``), up to ``max_clique_size`` variables.  If no variable
+    passed the test the clique is the singleton ``[i]``.
+
+    When ``cardinality`` and ``max_table_size`` are given, a neighbour is added
+    only while the clique's **joint table size** ``prod(card over clique)`` stays
+    ``<= max_table_size`` (strongest-MI neighbours are tried first, weaker ones
+    skipped if they would overflow).  This bounds the clique *table* size -- not
+    just the clique *size* -- which matters on high-cardinality problems where a
+    size-``k`` clique table is ``prod(card)``-large.  For binary variables with
+    the default ``max_table_size >= 2**max_clique_size`` the cap never binds, so
+    the behaviour is unchanged.
 
     Returns a list of ``n`` cliques, each a sorted 1-D int array of size at most
     ``max_clique_size``.
     """
     n = adjacency.shape[0]
     k = int(max_clique_size)
+    card = None if cardinality is None else np.asarray(cardinality, dtype=int)
+    cap = card is not None and max_table_size is not None
     cliques = []
     for i in range(n):
         nb = np.where(adjacency[i] > 0)[0]
@@ -163,10 +340,19 @@ def build_per_variable_cliques(mi_matrix, adjacency, max_clique_size):
         if len(nb) == 0 or k <= 1:
             cliques.append(np.array([i], dtype=int))
             continue
-        if len(nb) > k - 1:
-            nb = nb[np.argsort(-mi_matrix[i, nb])[:k - 1]]
-        clique = np.concatenate([[i], nb]).astype(int)
-        cliques.append(np.sort(clique))
+        # strongest-MI neighbours first
+        nb = nb[np.argsort(-mi_matrix[i, nb])]
+        clique = [i]
+        tbl = int(card[i]) if card is not None else 1
+        for j in nb:
+            if len(clique) >= k:
+                break
+            if cap and tbl * int(card[j]) > max_table_size:
+                continue                      # would overflow the table cap; try next
+            clique.append(int(j))
+            if card is not None:
+                tbl *= int(card[j])
+        cliques.append(np.sort(np.array(clique, dtype=int)))
     return cliques
 
 

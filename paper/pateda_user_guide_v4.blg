@@ -1,0 +1,52 @@
+This is BibTeX, Version 0.99d (TeX Live 2022/dev/Debian)
+Capacity: max_strings=200000, hash_size=200000, hash_prime=170003
+The top-level auxiliary file: pateda_user_guide_v4.aux
+The style file: abbrv.bst
+Database file #1: pateda.bib
+Warning--I didn't find a database entry for "Kanamori_et_al:2026"
+Warning--I didn't find a database entry for "Deng_and_Aragam:2025"
+Warning--I didn't find a database entry for "Colombo_and_Maathuis:2014"
+Warning--can't use both author and editor fields in Larranhaga:2002a
+Warning--can't use both volume and number fields in Marinescu_et_al:2021
+You've used 95 entries,
+            2118 wiz_defined-function locations,
+            1154 strings with 24301 characters,
+and the built_in function-call counts, 38511 in all, are:
+= -- 3924
+> -- 1711
+< -- 69
++ -- 666
+- -- 555
+* -- 2627
+:= -- 6036
+add.period$ -- 326
+call.type$ -- 95
+change.case$ -- 524
+chr.to.int$ -- 0
+cite$ -- 97
+duplicate$ -- 1616
+empty$ -- 3000
+format.name$ -- 555
+if$ -- 8444
+int.to.chr$ -- 0
+int.to.str$ -- 95
+missing$ -- 96
+newline$ -- 481
+num.names$ -- 227
+pop$ -- 594
+preamble$ -- 1
+purify$ -- 441
+quote$ -- 0
+skip$ -- 1209
+stack$ -- 0
+substring$ -- 2525
+swap$ -- 559
+text.length$ -- 69
+text.prefix$ -- 0
+top$ -- 0
+type$ -- 356
+warning$ -- 2
+while$ -- 384
+width$ -- 97
+write$ -- 1130
+(There were 5 warnings)

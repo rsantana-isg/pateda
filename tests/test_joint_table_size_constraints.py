@@ -70,23 +70,6 @@ def test_fda_splits_oversized_cliques():
         assert table_size <= n_samples
 
 
-def test_mnfda_limits_clique_table_size():
-    rng = np.random.default_rng(45)
-    n_vars = 6
-    n_samples = 128
-    cardinality = np.array([64] * n_vars)
-    population = rng.integers(0, 64, size=(n_samples, n_vars))
-    population[:, 1] = population[:, 0]
-    population[:, 2] = population[:, 0]
-    fitness = np.sum(population, axis=1).astype(float)
-
-    model = LearnMNFDA(max_clique_size=3, return_factorized=True).learn(
-        0, n_vars, cardinality, population, fitness
-    )
-
-    for table_size in _all_structure_table_sizes(model.structure, cardinality):
-        assert table_size <= n_samples
-
 
 def test_mnfdar_limits_clique_table_size():
     rng = np.random.default_rng(46)

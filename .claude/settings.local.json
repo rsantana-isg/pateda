@@ -230,7 +230,24 @@
       "Bash(grep -vE \"^$\")",
       "Bash(cd *)",
       "Bash(chmod --reference=slurm/slurm_weighted_pbo.sh slurm/slurm_selected_pbo.sh)",
-      "Bash(chmod --reference=slurm/launch_weighted_pbo_experiments.py slurm/launch_selected_pbo_experiments.py)"
+      "Bash(chmod --reference=slurm/launch_weighted_pbo_experiments.py slurm/launch_selected_pbo_experiments.py)",
+      "Bash(echo \"EXIT: $?  \\(124 = timed out => hung\\)\")",
+      "Bash(echo \"EXIT: $?\")",
+      "Bash(rm -f /tmp/mnfda_out.txt)",
+      "Bash(timeout 160 python3 /tmp/repro_mnfda.py MNFDAF3 BZ 1 625 50)",
+      "Bash(echo \"done exit=$?\")",
+      "Bash(nohup python3 scripts/test_mnfda_ess.py 3 625,100 all)",
+      "Bash(echo \"PID $! launched; grid = 2x2x2x25x3 = 600 runs on 14 CPUs\")",
+      "Bash(echo \"PID $! relaunched \\(600 runs, 14 CPUs\\)\")",
+      "Bash(nohup python3 scripts/test_mnfda_td.py 2 64,100,625 1,4,16,18,23,25)",
+      "Bash(echo \"PID $! launched \\(288 runs, 14 CPUs\\)\")",
+      "Bash(nohup python3 scripts/profile_bn_variants.py 64,100 18 5)",
+      "Bash(echo \"PID $! launched \\(11 algs x 2 dims, f18, 5 gens, 14 workers\\)\")",
+      "Bash(nohup python3 scripts/bench_bn_to_junction.py 64,100)",
+      "Bash(echo \"launched bench PID $!\")",
+      "Bash(grep -nA6 \"def sample\" src/pateda/core/components.py)",
+      "Bash(echo \"relaunched bench PID $!\")",
+      "Bash(echo \"exit=$?\")"
     ]
   }
 }
