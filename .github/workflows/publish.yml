@@ -12,6 +12,11 @@ on:
   push:
     tags:
       - "v*"
+  workflow_dispatch:
+    inputs:
+      version:
+        description: "Version to publish (e.g. 0.2.3) — must match src/pateda/__init__.__version__"
+        required: false
 
 jobs:
   build-and-publish:
@@ -34,7 +39,7 @@ jobs:
 
       - name: Build sdist and wheel
         run: |
-          python -m pip install --upgrade pip build twine
+          python -m pip install --upgrade pip build twine packaging
           python -m build
           python -m twine check dist/*
 
